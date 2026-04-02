@@ -615,10 +615,17 @@ struct ClipDetailView: View {
     }
 
     private var ocrCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(L10n.tr("detail.ocr"))
-                    .font(.headline)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Text("OCR")
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.orange.opacity(0.12), in: Capsule())
+                Text(ocrStatusText)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
                 Spacer()
                 if let text = item.ocrText, !text.isEmpty {
                     Button(L10n.tr("detail.ocr.copy")) {
@@ -635,18 +642,9 @@ struct ClipDetailView: View {
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                 }
-                if shouldShowOCRExpandToggle {
-                    Button(isOCRExpanded ? L10n.tr("action.showLess") : L10n.tr("action.showMore")) {
-                        isOCRExpanded.toggle()
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
             }
-
-            Text(ocrStatusText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            .padding(.horizontal, 10)
+            .padding(.top, 10)
 
             Group {
                 if let text = item.ocrText, !text.isEmpty {
@@ -655,22 +653,25 @@ struct ClipDetailView: View {
                             .font(.system(size: 12))
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 10)
+                            .padding(.bottom, 10)
                     }
-                    .frame(minHeight: 70, maxHeight: isOCRExpanded ? 220 : 120)
+                    .frame(minHeight: 56, maxHeight: isOCRExpanded ? 220 : 120)
                 } else {
                     Text(ocrEmptyText)
                         .font(.system(size: 12))
                         .foregroundStyle(.tertiary)
-                        .frame(maxWidth: .infinity, minHeight: 70, alignment: .topLeading)
+                        .frame(maxWidth: .infinity, minHeight: 56, alignment: .topLeading)
+                        .padding(.horizontal, 10)
+                        .padding(.bottom, 10)
                 }
             }
-            .padding(10)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.primary.opacity(0.04))
-            )
         }
-        .padding(.horizontal, 16)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.primary.opacity(0.04))
+        )
+        .padding(.horizontal, 8)
         .padding(.vertical, 10)
     }
 

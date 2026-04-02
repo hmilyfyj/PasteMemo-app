@@ -207,7 +207,15 @@ struct QuickPreviewPane: View {
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
                 Spacer()
+                Button(L10n.tr("detail.ocr.copy")) {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(text, forType: .string)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             }
+            .padding(.horizontal, 10)
+            .padding(.top, 10)
 
             ScrollView {
                 Text(ocrSnippetText(from: text))
@@ -215,10 +223,11 @@ struct QuickPreviewPane: View {
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, 10)
             }
             .frame(minHeight: 56, maxHeight: 120)
         }
-        .padding(10)
         .background(
             RoundedRectangle(cornerRadius: 8)
                 .fill(Color.primary.opacity(0.05))
