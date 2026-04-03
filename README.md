@@ -69,6 +69,7 @@
 ### Quick Paste Panel
 
 - **Global Hotkey** -- Press Cmd+Shift+V (customizable, supports F1-F12) from anywhere to open the Quick Paste panel.
+- **Switchable Panel Styles** -- Choose between the classic split panel and a new bottom-floating style in Settings.
 - **Keyboard Navigation** -- Cmd+1 to Cmd+9 to paste directly. Arrow keys to navigate. Enter to paste. Full keyboard workflow.
 - **Quick Actions (Cmd+K)** -- Command palette for paste, copy, pin, delete, and more -- all without leaving the keyboard.
 - **Paste + Enter** -- Shift+Enter pastes and presses Enter. Perfect for terminal commands and chat apps.

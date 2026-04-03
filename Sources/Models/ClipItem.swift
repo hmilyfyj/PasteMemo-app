@@ -177,17 +177,12 @@ final class ClipItem {
     }
 
     func matchesOCROnly(searchText: String) -> Bool {
-        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
         guard contentType == .image else { return false }
         guard let ocrText, !ocrText.isEmpty else { return false }
-
-        let query = trimmed.lowercased()
-        // Check non-OCR fields first; short-circuit if any matches
-        if content.localizedCaseInsensitiveContains(query) { return false }
-        if let t = displayTitle, t.localizedCaseInsensitiveContains(query) { return false }
-        if let t = linkTitle, t.localizedCaseInsensitiveContains(query) { return false }
-        return ocrText.localizedCaseInsensitiveContains(query)
+        guard SearchMatcher.matches(query: searchText, in: [content, displayTitle, linkTitle, ocrText]) else {
+            return false
+        }
+        return !SearchMatcher.matches(query: searchText, in: [content, displayTitle, linkTitle])
     }
 
     /// Resolved code language — uses stored override if available, otherwise auto-detects.

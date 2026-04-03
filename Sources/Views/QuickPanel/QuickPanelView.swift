@@ -15,6 +15,7 @@ private let LIST_WIDTH: CGFloat = 340
 struct QuickPanelView: View {
     @EnvironmentObject var clipboardManager: ClipboardManager
     @Environment(\.modelContext) private var modelContext
+    @AppStorage(QuickPanelStyle.storageKey) private var quickPanelStyle = QuickPanelStyle.classic.rawValue
     @State private var store = ClipItemStore()
     @State private var searchText = ""
     @State private var groupSuggestionIndex = -1
@@ -41,6 +42,7 @@ struct QuickPanelView: View {
     @State private var cachedDisplayOrder: [ClipItem] = []
     @State private var cachedItemMap: [PersistentIdentifier: ClipItem] = [:]
     @State private var cachedIDSet: Set<PersistentIdentifier> = []
+    @State private var bottomMode: QuickPanelBottomMode = .compact
 
     private var filteredItems: [ClipItem] { store.items }
 
@@ -51,6 +53,14 @@ struct QuickPanelView: View {
 
     private var defaultItem: ClipItem? {
         cachedDisplayOrder.first
+    }
+
+    private var panelStyle: QuickPanelStyle {
+        QuickPanelStyle(rawValue: quickPanelStyle) ?? .classic
+    }
+
+    private var isBottomFloatingStyle: Bool {
+        panelStyle == .bottomFloating
     }
 
     private func rebuildGroupedItems() {
@@ -129,23 +139,13 @@ struct QuickPanelView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-        VStack(spacing: 0) {
-            searchBar
-            tabBar
-            Divider().opacity(0.3)
-            if filteredItems.isEmpty {
-                emptyStateView
+        Group {
+            if isBottomFloatingStyle {
+                bottomFloatingLayout
             } else {
-                HStack(spacing: 0) {
-                    clipList
-                    Divider().opacity(0.3)
-                    previewPane
-                }
+                classicLayout
             }
-            Divider().opacity(0.3)
-            footerBar
         }
-        .frame(minWidth: 500, minHeight: 350)
         .overlay {
             if showCopiedToast {
                 VStack {
@@ -205,6 +205,10 @@ struct QuickPanelView: View {
             isAppFilter = false
             selectedFilter = .all
             isPanelPinned = false
+            bottomMode = isBottomFloatingStyle ? .compact : .expanded
+            if isBottomFloatingStyle {
+                QuickPanelWindowController.shared.setBottomFloatingMode(.compact, animated: false)
+            }
             store.isActive = true
             store.configure(modelContext: modelContext)
             // Check if new content arrived before resetting
@@ -265,6 +269,61 @@ struct QuickPanelView: View {
             relaySplitText = nil
         }
         .localized()
+    }
+
+    private var classicLayout: some View {
+        VStack(spacing: 0) {
+            searchBar
+            tabBar
+            Divider().opacity(0.3)
+            if filteredItems.isEmpty {
+                emptyStateView
+            } else {
+                HStack(spacing: 0) {
+                    clipList
+                    Divider().opacity(0.3)
+                    previewPane
+                }
+            }
+            Divider().opacity(0.3)
+            footerBar
+        }
+        .frame(minWidth: 500, minHeight: 350)
+    }
+
+    private var bottomFloatingLayout: some View {
+        VStack(spacing: 0) {
+            bottomHeader
+            tabBar
+            if filteredItems.isEmpty {
+                bottomEmptyState
+            } else {
+                bottomClipRail
+                if bottomMode == .expanded {
+                    Divider().opacity(0.18)
+                    previewPane
+                    Divider().opacity(0.18)
+                    compactFooterBar
+                }
+            }
+        }
+        .frame(
+            minWidth: QuickPanelBottomGeometry.minimumWidth,
+            idealWidth: QuickPanelBottomGeometry.minimumWidth,
+            maxWidth: .infinity,
+            minHeight: bottomMode == .compact ? QuickPanelBottomGeometry.compactHeight : QuickPanelBottomGeometry.expandedHeight,
+            maxHeight: .infinity
+        )
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(nsColor: .windowBackgroundColor).opacity(0.94),
+                    Color.black.opacity(0.86),
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
     }
 
     // MARK: - Search
@@ -497,6 +556,106 @@ struct QuickPanelView: View {
         .padding(.bottom, 14)
     }
 
+    private var bottomHeader: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.secondary)
+
+            if let filterName = selectedGroupFilter {
+                HStack(spacing: 4) {
+                    Text(filterName)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white)
+                    Button {
+                        clearGroupFilter()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.9))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(Color.accentColor, in: Capsule())
+            }
+
+            TextField(L10n.tr("quick.search"), text: $searchText)
+                .textFieldStyle(.plain)
+                .font(.system(size: 14))
+                .focused($isSearchFocused)
+
+            if !searchText.isEmpty || selectedGroupFilter != nil {
+                Button {
+                    searchText = ""
+                    clearGroupFilter()
+                    if let id = defaultItem?.persistentModelID { selectedItemIDs = [id] }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+            }
+
+            if let app = targetApp, let name = app.localizedName {
+                HStack(spacing: 5) {
+                    if let icon = app.icon {
+                        Image(nsImage: icon)
+                            .resizable()
+                            .frame(width: 14, height: 14)
+                    }
+                    Text(L10n.tr("quick.pasteToApp", name))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(Color.white.opacity(0.05), in: Capsule())
+            }
+
+            Button {
+                toggleBottomMode()
+            } label: {
+                Label(
+                    bottomMode == .compact ? L10n.tr("quick.expandDetails") : L10n.tr("quick.collapseDetails"),
+                    systemImage: bottomMode == .compact ? "rectangle.expand.vertical" : "rectangle.compress.vertical"
+                )
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.white.opacity(0.88))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.white.opacity(0.08), in: Capsule())
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                isPanelPinned.toggle()
+                QuickPanelWindowController.shared.isPinned = isPanelPinned
+            } label: {
+                Image(systemName: isPanelPinned ? "pin.fill" : "pin")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.72))
+                    .frame(width: 24, height: 24)
+                    .background(Color.white.opacity(isPanelPinned ? 0.12 : 0.04), in: RoundedRectangle(cornerRadius: 7))
+            }
+            .buttonStyle(.plain)
+            .help(isPanelPinned ? L10n.tr("quickPanel.unpin") : L10n.tr("quickPanel.pin"))
+
+            Text("\(store.totalCount)")
+                .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                .foregroundStyle(.white.opacity(0.68))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 7))
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 14)
+        .padding(.bottom, 10)
+    }
+
     // MARK: - Tabs
 
     private var tabBar: some View {
@@ -681,6 +840,60 @@ struct QuickPanelView: View {
         .frame(width: LIST_WIDTH)
     }
 
+    private var bottomClipRail: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 12) {
+                    ForEach(displayOrderItems) { item in
+                        let itemID = item.persistentModelID
+                        QuickClipCard(
+                            item: item,
+                            isSelected: selectedItemIDs.contains(itemID),
+                            shortcutIndex: shortcutIndex(for: item)
+                        )
+                        .id(itemID)
+                        .popover(
+                            isPresented: Binding(
+                                get: { showCommandPalette && selectedItemIDs.contains(itemID) && (lastNavigatedID ?? selectedItemIDs.first) == itemID },
+                                set: { if !$0 { showCommandPalette = false; isSearchFocused = true } }
+                            ),
+                            attachmentAnchor: .point(.top),
+                            arrowEdge: .top
+                        ) {
+                            CommandPaletteContent(
+                                item: item,
+                                isMultiSelected: isMultiSelected,
+                                onAction: { handleCommandAction($0) },
+                                onDismiss: { showCommandPalette = false; isSearchFocused = true }
+                            )
+                        }
+                        .onTapGesture {
+                            handleItemClick(itemID)
+                        }
+                        .onAppear {
+                            if item.id == filteredItems.last?.id { store.loadMore() }
+                        }
+                    }
+                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, bottomMode == .compact ? 12 : 14)
+            }
+            .frame(maxWidth: .infinity, minHeight: 142, maxHeight: 164)
+            .onChange(of: lastNavigatedID) {
+                guard let id = lastNavigatedID else { return }
+                withAnimation(.easeOut(duration: 0.16)) {
+                    proxy.scrollTo(id, anchor: .center)
+                }
+            }
+            .onChange(of: selectedFilter) {
+                guard let firstID = cachedDisplayOrder.first?.persistentModelID else { return }
+                withAnimation(.easeOut(duration: 0.16)) {
+                    proxy.scrollTo(firstID, anchor: .leading)
+                }
+            }
+        }
+    }
+
     // MARK: - Empty State
 
     private var isFilterActive: Bool {
@@ -696,6 +909,25 @@ struct QuickPanelView: View {
             Text(L10n.tr("empty.noResults"))
                 .font(.system(size: 13))
                 .foregroundStyle(.tertiary)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var bottomEmptyState: some View {
+        VStack(spacing: 10) {
+            Spacer()
+            Image(systemName: "tray")
+                .font(.system(size: 24, weight: .light))
+                .foregroundStyle(.white.opacity(0.32))
+            Text(L10n.tr("empty.noResults"))
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white.opacity(0.54))
+            if bottomMode == .compact {
+                Text(L10n.tr("quick.expandHint"))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.38))
+            }
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -827,6 +1059,21 @@ struct QuickPanelView: View {
         }
     }
 
+    private var compactFooterBar: some View {
+        HStack(spacing: 12) {
+            footerKey("←→", L10n.tr("quick.navigate"))
+            footerKey("↑↓", L10n.tr("quick.switchType"))
+            footerKey("⌘O", bottomMode == .compact ? L10n.tr("quick.expandDetails") : L10n.tr("quick.collapseDetails"))
+            footerKey("↵", L10n.tr("quick.pasteAction"))
+            footerKey("⌘K", L10n.tr("cmd.title"))
+            footerKey("esc", L10n.tr("quick.collapseDetails"))
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(Color.white.opacity(0.04))
+    }
+
     private func footerKey(_ key: String, _ label: String) -> some View {
         HStack(spacing: 4) {
             Text(key)
@@ -869,6 +1116,16 @@ struct QuickPanelView: View {
         }
     }
 
+    private func setBottomMode(_ newMode: QuickPanelBottomMode, animated: Bool = true) {
+        guard isBottomFloatingStyle else { return }
+        bottomMode = newMode
+        QuickPanelWindowController.shared.setBottomFloatingMode(newMode, animated: animated)
+    }
+
+    private func toggleBottomMode() {
+        setBottomMode(bottomMode == .compact ? .expanded : .compact)
+    }
+
     private func installKeyMonitor() {
         flagsMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
             guard HotkeyManager.shared.isQuickPanelVisible else { return event }
@@ -909,8 +1166,37 @@ struct QuickPanelView: View {
                 }
             }
 
+            if Int(event.keyCode) == 53,
+               let qlPanel = QLPreviewPanel.shared(),
+               qlPanel.isVisible {
+                qlPanel.orderOut(nil)
+                return nil
+            }
+
+            if let intent = QuickPanelKeyboardRouter.intent(
+                style: panelStyle,
+                bottomMode: bottomMode,
+                keyCode: Int(event.keyCode),
+                hasCommand: hasCmd,
+                suggestionVisible: isShowingSuggestions
+            ) {
+                switch intent {
+                case .moveSelection(let delta):
+                    moveSelection(delta, extendSelection: hasShift)
+                case .switchType(let delta):
+                    switchType(delta)
+                case .toggleBottomMode:
+                    toggleBottomMode()
+                case .collapseOrDismiss:
+                    setBottomMode(.compact)
+                case .focusSearch:
+                    isSearchFocused = true
+                }
+                return nil
+            }
+
             switch Int(event.keyCode) {
-            case 126: moveSelection(-1, extendSelection: hasShift); return nil
+                case 126: moveSelection(-1, extendSelection: hasShift); return nil
             case 125: moveSelection(1, extendSelection: hasShift); return nil
             case 123: switchType(-1); return nil
             case 124: switchType(1); return nil
@@ -940,6 +1226,12 @@ struct QuickPanelView: View {
                 if hasCmd {
                     handleDismiss()
                     AppAction.shared.openSettings?()
+                    return nil
+                }
+                return event
+            case 3: // Cmd+F
+                if hasCmd {
+                    isSearchFocused = true
                     return nil
                 }
                 return event

@@ -103,6 +103,9 @@
 "settings.features" = "功能";
 "settings.shortcuts" = "快捷键";
 "settings.quickPanelShortcut" = "打开快捷粘贴窗口";
+"settings.quickPanelStyle" = "快捷粘贴样式";
+"settings.quickPanelStyle.classic" = "经典面板";
+"settings.quickPanelStyle.bottomFloating" = "底部悬浮";
 "settings.managerShortcut" = "打开管理器";
 "settings.shortcut.none" = "未设置";
 "settings.shortcut.clickToRecord" = "点击录入";
@@ -242,6 +245,10 @@
 "quick.preview" = "预览";
 "quick.commandPalette" = "快捷操作";
 "quick.pasteImage" = "粘贴图片";
+"quick.expandDetails" = "展开详情";
+"quick.collapseDetails" = "收起详情";
+"quick.expandHint" = "按 ⌘O 可展开详情";
+"quick.fileCount" = "%d 个文件";
 "settings.showGuide" = "显示新手引导";
 
 /* Onboarding */

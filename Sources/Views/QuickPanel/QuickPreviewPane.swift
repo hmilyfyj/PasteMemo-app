@@ -237,12 +237,12 @@ struct QuickPreviewPane: View {
 
     static func buildOCRSnippet(text: String, query: String) -> AttributedString {
         let compact = text.replacingOccurrences(of: #"[^\S\n]+"#, with: " ", options: .regularExpression)
-        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let highlightToken = SearchMatcher.firstMatchingToken(in: compact, query: query) ?? ""
 
         let snippet: String = {
             guard !compact.isEmpty else { return compact }
-            guard !trimmedQuery.isEmpty,
-                  let range = compact.range(of: trimmedQuery, options: [.caseInsensitive, .diacriticInsensitive])
+            guard !highlightToken.isEmpty,
+                  let range = compact.range(of: highlightToken, options: [.caseInsensitive, .diacriticInsensitive])
             else {
                 let prefix = compact.prefix(220)
                 return compact.count > 220 ? String(prefix) + "…" : String(prefix)
@@ -261,8 +261,8 @@ struct QuickPreviewPane: View {
 
         var attributed = AttributedString(snippet)
 
-        if !trimmedQuery.isEmpty,
-           let highlightRange = attributed.range(of: trimmedQuery, options: [.caseInsensitive, .diacriticInsensitive]) {
+        if !highlightToken.isEmpty,
+           let highlightRange = attributed.range(of: highlightToken, options: [.caseInsensitive, .diacriticInsensitive]) {
             attributed[highlightRange].backgroundColor = .yellow.opacity(0.35)
             attributed[highlightRange].foregroundColor = .primary
         }

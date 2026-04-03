@@ -116,7 +116,7 @@ struct PasteMemoTests {
         #expect(exported.ocrVersion == 2)
     }
 
-    @Test("OCR-only match ignores title/content hits")
+    @Test("OCR-assisted match only appears when OCR is required")
     @MainActor func ocrOnlyMatchDetection() {
         let item = ClipItem(content: "[Image]", contentType: .image, imageData: Data([1]))
         item.displayTitle = "Image (100x100)"
@@ -124,6 +124,8 @@ struct PasteMemoTests {
 
         #expect(item.matchesOCROnly(searchText: "line 42"))
         #expect(!item.matchesOCROnly(searchText: "Image"))
+        #expect(item.matchesOCROnly(searchText: "build 42"))
+        #expect(item.matchesOCROnly(searchText: "Image 42"))
         #expect(!item.matchesOCROnly(searchText: ""))
     }
 
@@ -136,6 +138,28 @@ struct PasteMemoTests {
         let snippet = String(attributed.characters)
         #expect(snippet.contains("line 42"))
         #expect(snippet.contains("error happened"))
+    }
+
+    @Test("Search matcher supports fuzzy token search")
+    func fuzzyTokenSearch() {
+        let fields = ["abc def"]
+
+        #expect(SearchMatcher.matches(query: "abc def", in: fields))
+        #expect(SearchMatcher.matches(query: "bc de", in: fields))
+        #expect(SearchMatcher.matches(query: "a d", in: fields))
+        #expect(SearchMatcher.matches(query: "bc f", in: fields))
+        #expect(!SearchMatcher.matches(query: "ac df", in: fields))
+    }
+
+    @Test("Quick preview OCR snippet supports tokenized query")
+    @MainActor func quickPreviewOCRSnippetForFuzzyQuery() {
+        let attributed = QuickPreviewPane.buildOCRSnippet(
+            text: "first line of text\nerror happened on line 42 near the prompt\nlast line",
+            query: "line prompt"
+        )
+        let snippet = String(attributed.characters)
+        #expect(snippet.contains("line"))
+        #expect(snippet.contains("prompt"))
     }
 
     @Test("OCR language list prioritizes Chinese when app language is Chinese")

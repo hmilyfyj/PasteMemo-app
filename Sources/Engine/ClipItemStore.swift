@@ -229,16 +229,20 @@ final class ClipItemStore {
 
     private func addSearchCondition(_ conditions: inout [String], _ params: inout [Any]) {
         guard !searchText.isEmpty else { return }
-        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        let pattern = "%\(trimmed)%"
-        conditions.append(
-            "ZITEMID IN (SELECT itemID FROM clip_fts WHERE content LIKE ? OR displayTitle LIKE ? OR linkTitle LIKE ? OR ocrText LIKE ?)"
-        )
-        params.append(pattern)
-        params.append(pattern)
-        params.append(pattern)
-        params.append(pattern)
+        let tokens = SearchMatcher.tokens(from: searchText)
+        guard !tokens.isEmpty else { return }
+
+        let perTokenCondition = "(content LIKE ? OR displayTitle LIKE ? OR linkTitle LIKE ? OR ocrText LIKE ?)"
+        let searchClause = Array(repeating: perTokenCondition, count: tokens.count).joined(separator: " AND ")
+        conditions.append("ZITEMID IN (SELECT itemID FROM clip_fts WHERE \(searchClause))")
+
+        for token in tokens {
+            let pattern = "%\(token)%"
+            params.append(pattern)
+            params.append(pattern)
+            params.append(pattern)
+            params.append(pattern)
+        }
     }
 
     // MARK: - Metadata Queries

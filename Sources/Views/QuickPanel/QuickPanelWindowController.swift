@@ -41,6 +41,12 @@ final class QuickPanelWindowController {
     var isPinned = false
     var suppressDismiss = false
     private var snapGuide: SnapGuideWindow?
+    private weak var dragCoverView: NSView?
+    private(set) var bottomMode: QuickPanelBottomMode = .compact
+
+    private var panelStyle: QuickPanelStyle {
+        QuickPanelStyle.stored
+    }
 
     private var panelWidth: CGFloat {
         let saved = UserDefaults.standard.double(forKey: "\(SIZE_KEY).width")
@@ -81,6 +87,11 @@ final class QuickPanelWindowController {
 
         guard let panel else { return }
 
+        if panelStyle == .bottomFloating {
+            bottomMode = .compact
+        }
+
+        applyPanelBehavior(panel)
         positionPanel(panel)
         panel.alphaValue = 1
         panel.orderFrontRegardless()
@@ -142,6 +153,14 @@ final class QuickPanelWindowController {
         panel?.isVisible ?? false
     }
 
+    func setBottomFloatingMode(_ mode: QuickPanelBottomMode, animated: Bool = true) {
+        bottomMode = mode
+        guard panelStyle == .bottomFloating, let panel, panel.isVisible else { return }
+        guard let screen = NSScreen.screenWithMouse ?? NSScreen.main ?? NSScreen.screens.first else { return }
+        let frame = QuickPanelBottomGeometry.frame(in: screen.visibleFrame, mode: mode)
+        panel.setFrame(frame, display: true, animate: animated)
+    }
+
     // MARK: - Panel Construction
 
     private func buildPanel(clipboardManager: ClipboardManager, modelContainer: ModelContainer) -> NSPanel {
@@ -178,6 +197,7 @@ final class QuickPanelWindowController {
         coverView.autoresizingMask = [.width]
         titlebarCover.view = coverView
         panel.addTitlebarAccessoryViewController(titlebarCover)
+        dragCoverView = coverView
 
         let container = NSView(frame: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight))
         container.wantsLayer = true
@@ -221,11 +241,32 @@ final class QuickPanelWindowController {
         return panel
     }
 
+    private func applyPanelBehavior(_ panel: NSPanel) {
+        let isBottomFloating = panelStyle == .bottomFloating
+        panel.isMovableByWindowBackground = !isBottomFloating
+        panel.styleMask = isBottomFloating ? panel.styleMask.subtracting(.resizable) : panel.styleMask.union(.resizable)
+        dragCoverView?.isHidden = isBottomFloating
+        panel.minSize = isBottomFloating
+            ? NSSize(width: QuickPanelBottomGeometry.minimumWidth, height: QuickPanelBottomGeometry.compactHeight)
+            : NSSize(width: MIN_WIDTH, height: MIN_HEIGHT)
+        if isBottomFloating {
+            panel.maxSize = NSSize(width: QuickPanelBottomGeometry.maxWidth, height: QuickPanelBottomGeometry.expandedHeight)
+        } else {
+            panel.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        }
+    }
+
     /// Position panel on the screen where the mouse is, using saved relative offset if available.
     private func positionPanel(_ panel: NSPanel) {
         let screen = NSScreen.screenWithMouse ?? NSScreen.main ?? NSScreen.screens.first
         guard let screen else { return }
         let visibleFrame = screen.visibleFrame
+
+        if panelStyle == .bottomFloating {
+            let frame = QuickPanelBottomGeometry.frame(in: visibleFrame, mode: bottomMode)
+            panel.setFrame(frame, display: true)
+            return
+        }
 
         let hasSaved = UserDefaults.standard.object(forKey: "\(POSITION_KEY).rx") != nil
         if hasSaved {
@@ -248,6 +289,7 @@ final class QuickPanelWindowController {
     }
 
     func resetPosition() {
+        guard panelStyle == .classic else { return }
         UserDefaults.standard.removeObject(forKey: "\(POSITION_KEY).rx")
         UserDefaults.standard.removeObject(forKey: "\(POSITION_KEY).ry")
         guard let panel, panel.isVisible else { return }
@@ -257,6 +299,7 @@ final class QuickPanelWindowController {
     }
 
     private func savePosition(_ panel: NSPanel) {
+        guard panelStyle == .classic else { return }
         // Save position as relative offset within the screen's visible frame
         guard let screen = NSScreen.screens.first(where: { $0.visibleFrame.intersects(panel.frame) })
                 ?? NSScreen.screenWithMouse else { return }
@@ -291,11 +334,13 @@ final class QuickPanelWindowController {
             object: nil,
             queue: nil
         ) { [weak self] _ in
-            guard let self, !self.isPinned, !self.suppressDismiss else { return }
-            let isMouseDown = NSEvent.pressedMouseButtons != 0
-            let mouseInPanel = self.panel?.frame.contains(NSEvent.mouseLocation) ?? false
-            if isMouseDown, mouseInPanel { return }
-            Task { @MainActor in self.dismiss() }
+            Task { @MainActor [weak self] in
+                guard let self, !self.isPinned, !self.suppressDismiss else { return }
+                let isMouseDown = NSEvent.pressedMouseButtons != 0
+                let mouseInPanel = self.panel?.frame.contains(NSEvent.mouseLocation) ?? false
+                if isMouseDown, mouseInPanel { return }
+                self.dismiss()
+            }
         }
         // Panel lost key (e.g. another window took focus, or Cmd+Tab)
         resignKeyObserver = NotificationCenter.default.addObserver(
@@ -303,11 +348,13 @@ final class QuickPanelWindowController {
             object: panel,
             queue: nil
         ) { [weak self] _ in
-            guard let self, !self.isPinned, !self.suppressDismiss else { return }
-            let isMouseDown = NSEvent.pressedMouseButtons != 0
-            let mouseInPanel = self.panel?.frame.contains(NSEvent.mouseLocation) ?? false
-            if isMouseDown, mouseInPanel { return }
-            Task { @MainActor in self.dismiss() }
+            Task { @MainActor [weak self] in
+                guard let self, !self.isPinned, !self.suppressDismiss else { return }
+                let isMouseDown = NSEvent.pressedMouseButtons != 0
+                let mouseInPanel = self.panel?.frame.contains(NSEvent.mouseLocation) ?? false
+                if isMouseDown, mouseInPanel { return }
+                self.dismiss()
+            }
         }
     }
 
@@ -332,12 +379,15 @@ final class QuickPanelWindowController {
     private var globalMouseUpMonitor: Any?
 
     private func installMoveObserver() {
+        guard panelStyle == .classic else { return }
         moveObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didMoveNotification,
             object: panel,
             queue: .main
         ) { [weak self] _ in
-            self?.handleWindowMove()
+            Task { @MainActor [weak self] in
+                self?.handleWindowMove()
+            }
         }
         let onMouseUp: () -> Void = { [weak self] in
             self?.snapGuide?.orderOut(nil)
