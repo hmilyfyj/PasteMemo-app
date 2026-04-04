@@ -256,6 +256,7 @@ final class QuickPanelWindowController {
     private var resizePersistenceWorkItem: DispatchWorkItem?
     private var isPanelLiveResizing = false
     private var clickOutsideMonitor: Any?
+    private var localClickOutsideMonitor: Any?
     private var deactivationObserver: Any?
     private var resignKeyObserver: Any?
     private(set) var previousApp: NSRunningApplication?
@@ -677,7 +678,7 @@ final class QuickPanelWindowController {
     }
 
     private func installClickOutsideMonitor() {
-        clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+        let handleOutsideClick: (NSEvent) -> Void = { [weak self] event in
             guard let self else { return }
             if self.isPinned || self.suppressDismiss { return }
             if let panel = self.panel, panel.frame.contains(NSEvent.mouseLocation) { return }
@@ -685,12 +686,26 @@ final class QuickPanelWindowController {
                 self.dismiss()
             }
         }
+
+        // Global monitor: captures events when app is NOT active
+        clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { handleOutsideClick($0) }
+
+        // Local monitor: captures events when app IS active
+        localClickOutsideMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { event in
+            handleOutsideClick(event)
+            return event
+        }
     }
 
     private func removeClickOutsideMonitor() {
-        guard let monitor = clickOutsideMonitor else { return }
-        NSEvent.removeMonitor(monitor)
-        clickOutsideMonitor = nil
+        if let monitor = clickOutsideMonitor {
+            NSEvent.removeMonitor(monitor)
+            clickOutsideMonitor = nil
+        }
+        if let monitor = localClickOutsideMonitor {
+            NSEvent.removeMonitor(monitor)
+            localClickOutsideMonitor = nil
+        }
     }
 
     private func installDeactivationObserver() {
