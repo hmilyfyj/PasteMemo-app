@@ -430,7 +430,6 @@ struct QuickPanelView: View {
         && !isBottomSearchExpanded
         && !isSearchFocused
         && searchText.isEmpty
-        && selectedGroupFilter == nil
     }
 
     private var bottomSearchFieldWidth: CGFloat {
@@ -548,7 +547,7 @@ struct QuickPanelView: View {
             return
         }
 
-        isBottomSearchExpanded = isSearchFocused || !searchText.isEmpty || selectedGroupFilter != nil
+        isBottomSearchExpanded = isSearchFocused || !searchText.isEmpty
     }
 
     private func moveFocusToSelectionIfNeeded() {
