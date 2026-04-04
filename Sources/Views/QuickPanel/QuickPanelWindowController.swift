@@ -21,6 +21,24 @@ private let POSITION_KEY = "quickPanelPosition"
 private class KeyablePanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
+    
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        var frame = frameRect
+        guard let screen = screen ?? NSScreen.main else { return frame }
+        
+        let screenFrame = screen.frame
+        let visibleFrame = screen.visibleFrame
+        
+        let minVisibleX = visibleFrame.minX
+        let maxVisibleX = visibleFrame.maxX - frame.width
+        let minVisibleY = visibleFrame.minY
+        let maxVisibleY = visibleFrame.maxY - frame.height
+        
+        frame.origin.x = max(minVisibleX, min(maxVisibleX, frame.origin.x))
+        frame.origin.y = max(minVisibleY, min(maxVisibleY, frame.origin.y))
+        
+        return frame
+    }
 }
 
 /// Transparent view that absorbs titlebar clicks so they become background drags
@@ -507,7 +525,7 @@ final class QuickPanelWindowController {
         )
         panel.isFloatingPanel = true
         panel.level = .floating
-        panel.isMovableByWindowBackground = true
+        panel.isMovableByWindowBackground = false
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = true
@@ -609,7 +627,7 @@ final class QuickPanelWindowController {
         let bottomFloatingMask: NSWindow.StyleMask = [.nonactivatingPanel, .borderless, .resizable]
 
         panel.styleMask = isBottomFloating ? bottomFloatingMask : classicMask
-        panel.isMovableByWindowBackground = true
+        panel.isMovableByWindowBackground = false
         panel.titlebarAppearsTransparent = !isBottomFloating
         panel.hasShadow = isBottomFloating
         dragCoverView?.isHidden = isBottomFloating

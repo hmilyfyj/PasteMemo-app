@@ -2281,8 +2281,8 @@ struct QuickPanelView: View {
             if !hasCmd && !isSearchFocused {
                 if let characters = event.characters, !characters.isEmpty {
                     let character = characters.first!
-                    // Check if it's a printable character (letter, digit, or common punctuation)
-                    if character.isLetter || character.isNumber || character == " " || character == "/" {
+                    // Only trigger for letters and digits, exclude space and other special keys
+                    if character.isLetter || character.isNumber {
                         // Add the character to search text and activate search field
                         searchText += String(character)
                         activateSearchField()
