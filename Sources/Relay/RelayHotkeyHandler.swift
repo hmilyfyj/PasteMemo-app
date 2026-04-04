@@ -5,9 +5,6 @@ private let RELAY_HOTKEY_SIGNATURE: OSType = 0x524C4159 // "RLAY"
 private let DEFAULT_RELAY_KEY_CODE = 0x09 // V
 private let RIGHT_ARROW_KEY_CODE = 0x7C
 private let LEFT_ARROW_KEY_CODE = 0x7B
-private let A_KEY_CODE = 0x00
-private let DELETE_KEY_CODE = 0x33
-private let ESCAPE_KEY_CODE = 0x35
 
 @MainActor
 final class RelayHotkeyHandler {
@@ -20,9 +17,6 @@ final class RelayHotkeyHandler {
     var onPaste: (() -> Void)?
     var onSkip: (() -> Void)?
     var onPrevious: (() -> Void)?
-    var onSelectAll: (() -> Void)?
-    var onDeleteSelected: (() -> Void)?
-    var onClearSelection: (() -> Void)?
 
     var pasteKeyCode: Int {
         guard UserDefaults.standard.object(forKey: "relayPasteKeyCode") != nil else { return DEFAULT_RELAY_KEY_CODE }
@@ -42,12 +36,6 @@ final class RelayHotkeyHandler {
         registerHotKey(id: 2, keyCode: RIGHT_ARROW_KEY_CODE, modifiers: controlKey)
         // ID 3: Previous (Ctrl+Left)
         registerHotKey(id: 3, keyCode: LEFT_ARROW_KEY_CODE, modifiers: controlKey)
-        // ID 4: Select All (Cmd+A)
-        registerHotKey(id: 4, keyCode: A_KEY_CODE, modifiers: cmdKey)
-        // ID 5: Delete Selected (Delete/Backspace)
-        registerHotKey(id: 5, keyCode: DELETE_KEY_CODE, modifiers: 0)
-        // ID 6: Clear Selection (Escape)
-        registerHotKey(id: 6, keyCode: ESCAPE_KEY_CODE, modifiers: 0)
     }
 
     func stop() {
@@ -87,9 +75,6 @@ final class RelayHotkeyHandler {
                     case 1: RelayHotkeyHandler.current?.onPaste?()
                     case 2: RelayHotkeyHandler.current?.onSkip?()
                     case 3: RelayHotkeyHandler.current?.onPrevious?()
-                    case 4: RelayHotkeyHandler.current?.onSelectAll?()
-                    case 5: RelayHotkeyHandler.current?.onDeleteSelected?()
-                    case 6: RelayHotkeyHandler.current?.onClearSelection?()
                     default: break
                     }
                 }
@@ -103,7 +88,7 @@ final class RelayHotkeyHandler {
     }
 
     private func registerHotKey(id: UInt32, keyCode: Int, modifiers: Int) {
-        var hotKeyID = EventHotKeyID(signature: RELAY_HOTKEY_SIGNATURE, id: id)
+        let hotKeyID = EventHotKeyID(signature: RELAY_HOTKEY_SIGNATURE, id: id)
         var ref: EventHotKeyRef?
         RegisterEventHotKey(
             UInt32(keyCode),

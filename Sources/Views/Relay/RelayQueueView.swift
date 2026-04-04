@@ -22,62 +22,6 @@ struct RelayQueueView: View {
         }
     }
 
-    private func handleSelection(index: Int, isShiftKey: Bool, isCmdKey: Bool) {
-        if isShiftKey, let lastSelected = manager.lastSelectedIndex {
-            manager.selectRange(from: lastSelected, to: index)
-        } else if isCmdKey {
-            manager.toggleSelection(at: index)
-        } else {
-            manager.clearSelection()
-            manager.toggleSelection(at: index)
-        }
-    }
-
-    @ViewBuilder
-    private func contextMenuContent(for item: RelayItem, at index: Int) -> some View {
-        if item.content.count > 1 {
-            Button(L10n.tr("relay.split")) {
-                splitTargetIndex = index
-            }
-        }
-        if manager.selectedIndices.contains(index) {
-            Button(L10n.tr("relay.deleteSelected"), role: .destructive) {
-                manager.deleteSelectedItems()
-            }
-        } else {
-            Button(L10n.tr("relay.delete"), role: .destructive) {
-                manager.deleteItem(at: index)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func queueRow(for item: RelayItem, at index: Int) -> some View {
-        RelayQueueRow(
-            item: item,
-            index: index,
-            isSelected: manager.selectedIndices.contains(index),
-            onDelete: { manager.deleteItem(at: index) },
-            onSplit: { splitTargetIndex = index },
-            onEdit: { newContent in manager.updateItem(at: index, content: newContent) },
-            onSelect: { isShiftKey, isCmdKey in
-                handleSelection(index: index, isShiftKey: isShiftKey, isCmdKey: isCmdKey)
-            }
-        )
-        .id(item.id)
-        .contentShape(Rectangle())
-        .onDrag {
-            draggingItem = item
-            return NSItemProvider(object: item.id.uuidString as NSString)
-        }
-        .onDrop(of: [.text], delegate: RelayDropDelegate(
-            targetIndex: index,
-            manager: manager,
-            draggingItem: $draggingItem
-        ))
-        .contextMenu(menuItems: { contextMenuContent(for: item, at: index) })
-    }
-
     // MARK: - Header
 
     private var headerBar: some View {
@@ -132,7 +76,34 @@ struct RelayQueueView: View {
                 ScrollView {
                     LazyVStack(spacing: 2) {
                         ForEach(Array(manager.items.enumerated()), id: \.element.id) { index, item in
-                            queueRow(for: item, at: index)
+                            RelayQueueRow(item: item, onDelete: {
+                                manager.deleteItem(at: index)
+                            }, onSplit: {
+                                splitTargetIndex = index
+                            }, onEdit: { newContent in
+                                manager.updateItem(at: index, content: newContent)
+                            })
+                                .id(item.id)
+                                .contentShape(Rectangle())
+                                .onDrag {
+                                    draggingItem = item
+                                    return NSItemProvider(object: item.id.uuidString as NSString)
+                                }
+                                .onDrop(of: [.text], delegate: RelayDropDelegate(
+                                    targetIndex: index,
+                                    manager: manager,
+                                    draggingItem: $draggingItem
+                                ))
+                                .contextMenu {
+                                    if item.content.count > 1 {
+                                        Button(L10n.tr("relay.split")) {
+                                            splitTargetIndex = index
+                                        }
+                                    }
+                                    Button(L10n.tr("relay.delete"), role: .destructive) {
+                                        manager.deleteItem(at: index)
+                                    }
+                                }
                         }
                     }
                     .padding(.horizontal, 6)
@@ -250,12 +221,9 @@ struct RelayQueueView: View {
 
 private struct RelayQueueRow: View {
     let item: RelayItem
-    let index: Int
-    let isSelected: Bool
     var onDelete: (() -> Void)?
     var onSplit: (() -> Void)?
     var onEdit: ((String) -> Void)?
-    var onSelect: ((Bool, Bool) -> Void)?
     @State private var isHovering = false
 
     var body: some View {
@@ -297,14 +265,8 @@ private struct RelayQueueRow: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
         .background(RoundedRectangle(cornerRadius: 6).fill(rowBackground))
-        .overlay(RoundedRectangle(cornerRadius: 6).stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 2))
         .onHover { isHovering = $0 }
-        .onTapGesture {
-            let event = NSApp.currentEvent
-            onSelect?(event?.modifierFlags.contains(.shift) ?? false, event?.modifierFlags.contains(.command) ?? false)
-        }
         .animation(.easeOut(duration: 0.1), value: isHovering)
-        .animation(.easeOut(duration: 0.1), value: isSelected)
     }
 
     private func showEditAlert() {

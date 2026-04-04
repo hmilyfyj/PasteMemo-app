@@ -200,21 +200,28 @@ final class QuickLookHelper: NSObject, QLPreviewPanelDataSource, QLPreviewPanelD
 
                 let mouseLocation = NSEvent.mouseLocation
                 
-                // 点击面板外部：关闭预览，并根据固定状态决定是否关闭面板
-                if !quickPanelFrame.contains(mouseLocation) {
-                    self.closePreview()
-                    // 只有在面板未固定时才关闭面板
-                    if !QuickPanelWindowController.shared.isPinned {
-                        Task { @MainActor in
-                            QuickPanelWindowController.shared.dismiss()
-                        }
-                    }
-                    return nil
+                // 获取 Quick Look 面板的 frame
+                let qlPanelFrame = QLPreviewPanel.shared()?.frame
+                
+                // 点击 Quick Look 面板内部：不关闭任何东西，允许用户与预览面板交互
+                if let qlFrame = qlPanelFrame, qlFrame.contains(mouseLocation) {
+                    return event
                 }
                 
-                // 点击面板内部：保持面板交互性
-                QuickPanelWindowController.shared.keepPanelInteractiveDuringQuickLook()
-                return event
+                // 点击剪贴板面板内部：保持面板交互性
+                if quickPanelFrame.contains(mouseLocation) {
+                    QuickPanelWindowController.shared.keepPanelInteractiveDuringQuickLook()
+                    return event
+                }
+                
+                // 点击两个面板外部：关闭预览，并根据固定状态决定是否关闭剪贴板面板
+                self.closePreview()
+                if !QuickPanelWindowController.shared.isPinned {
+                    Task { @MainActor in
+                        QuickPanelWindowController.shared.dismiss()
+                    }
+                }
+                return nil
             }
         }
 
@@ -225,14 +232,24 @@ final class QuickLookHelper: NSObject, QLPreviewPanelDataSource, QLPreviewPanelD
                 
                 let mouseLocation = NSEvent.mouseLocation
                 
-                // 点击面板外部：关闭预览，并根据固定状态决定是否关闭面板
-                if !quickPanelFrame.contains(mouseLocation) {
-                    Task { @MainActor [weak self] in
-                        self?.closePreview()
-                        // 只有在面板未固定时才关闭面板
-                        if !QuickPanelWindowController.shared.isPinned {
-                            QuickPanelWindowController.shared.dismiss()
-                        }
+                // 获取 Quick Look 面板的 frame
+                let qlPanelFrame = QLPreviewPanel.shared()?.frame
+                
+                // 点击 Quick Look 面板内部：不关闭任何东西，允许用户与预览面板交互
+                if let qlFrame = qlPanelFrame, qlFrame.contains(mouseLocation) {
+                    return
+                }
+                
+                // 点击剪贴板面板内部：不关闭任何东西
+                if quickPanelFrame.contains(mouseLocation) {
+                    return
+                }
+                
+                // 点击两个面板外部：关闭预览，并根据固定状态决定是否关闭剪贴板面板
+                Task { @MainActor [weak self] in
+                    self?.closePreview()
+                    if !QuickPanelWindowController.shared.isPinned {
+                        QuickPanelWindowController.shared.dismiss()
                     }
                 }
             }
