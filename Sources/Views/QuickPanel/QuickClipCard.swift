@@ -179,7 +179,7 @@ struct QuickClipCard: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         } else if item.contentType == .image,
                   let data = item.imageData,
-                  let image = ImageCache.shared.thumbnail(for: data, key: item.itemID) {
+                  let image = ImageCache.shared.preview(for: data, key: item.itemID, maxDimension: imagePreviewMaxDimension) {
             Image(nsImage: image)
                 .resizable()
                 .interpolation(.high)
@@ -280,6 +280,17 @@ struct QuickClipCard: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
+    }
+
+    private var imagePreviewMaxDimension: CGFloat {
+        let headerHeight: CGFloat = 34
+        let footerHeight: CGFloat = 38
+        let previewPadding: CGFloat = 24
+
+        let availableWidth = max(cardWidth - previewPadding, 72)
+        let availableHeight = max(cardHeight - headerHeight - footerHeight - previewPadding, 72)
+
+        return max(min(availableWidth, availableHeight), 72)
     }
 
     private var primaryText: String {
