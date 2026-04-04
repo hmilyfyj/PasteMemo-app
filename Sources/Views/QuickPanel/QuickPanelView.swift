@@ -77,6 +77,11 @@ struct QuickPanelView: View {
         isBottomFloatingStyle && bottomMode == .expanded
     }
 
+    private var currentCustomGroupFilterName: String? {
+        guard !isAppFilter, let name = selectedGroupFilter else { return nil }
+        return store.sidebarCounts.byGroup.contains(where: { $0.name == name }) ? name : nil
+    }
+
     private var shouldRenderBottomDetails: Bool {
         isBottomExpanded || keepBottomDetailsMounted
     }
@@ -444,9 +449,13 @@ struct QuickPanelView: View {
         guard searchText.hasPrefix(Self.GROUP_SEARCH_PREFIX) else { return [] }
         let query = String(searchText.dropFirst()).trimmingCharacters(in: .whitespaces).lowercased()
         // Hide if exact match on group
-        return store.sidebarCounts.byGroup.filter { group in
-            query.isEmpty || group.name.lowercased().contains(query)
-        }
+        return store.sidebarCounts.byGroup
+            .filter { group in
+                query.isEmpty || group.name.lowercased().contains(query)
+            }
+            .map { group in
+                (name: group.name, icon: group.icon, count: group.count)
+            }
     }
 
     private var currentSuggestionApps: [(name: String, count: Int)] {
@@ -574,6 +583,22 @@ struct QuickPanelView: View {
         store.applyFilters()
     }
 
+    private func applyCustomGroupFilter(_ name: String?) {
+        if searchText.hasPrefix(Self.GROUP_SEARCH_PREFIX) {
+            searchText = ""
+            store.searchText = ""
+        }
+        guard let name else {
+            clearGroupFilter()
+            return
+        }
+        selectedGroupFilter = name
+        isAppFilter = false
+        store.groupName = name
+        store.sourceApp = nil
+        store.applyFilters()
+    }
+
     private var searchBar: some View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
@@ -670,6 +695,10 @@ struct QuickPanelView: View {
                 )
                 .layoutPriority(1)
 
+            bottomCustomGroupToolbar
+                .frame(minWidth: 220, idealWidth: 340, maxWidth: 520, alignment: .leading)
+                .layoutPriority(1)
+
             bottomHeaderTrailingControls
         }
     }
@@ -687,6 +716,10 @@ struct QuickPanelView: View {
                     maxWidth: QuickPanelBottomTheme.searchWidth,
                     alignment: .leading
                 )
+                .layoutPriority(1)
+
+            bottomCustomGroupToolbar
+                .frame(minWidth: 140, idealWidth: 220, maxWidth: 320, alignment: .leading)
                 .layoutPriority(1)
 
             bottomModeToggleIconButton
@@ -728,7 +761,7 @@ struct QuickPanelView: View {
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(QuickPanelBottomTheme.tertiaryText)
 
-            if let filterName = selectedGroupFilter {
+            if let filterName = selectedGroupFilter, currentCustomGroupFilterName == nil {
                 HStack(spacing: 4) {
                     Text(filterName)
                         .font(.system(size: 11, weight: .medium))
@@ -823,6 +856,91 @@ struct QuickPanelView: View {
             .padding(.vertical, 1)
         }
         .frame(minWidth: 200, idealWidth: 340, maxWidth: 460, minHeight: 28, maxHeight: 28)
+    }
+
+    private var bottomCustomGroupToolbar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                bottomGroupToolbarChip(
+                    title: L10n.tr("filter.all"),
+                    systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90",
+                    tint: .white.opacity(0.72),
+                    isSelected: currentCustomGroupFilterName == nil && !isAppFilter
+                ) {
+                    clearGroupFilter()
+                    restoreSearchFocusIfNeeded()
+                }
+
+                ForEach(store.sidebarCounts.byGroup, id: \.name) { group in
+                    bottomGroupToolbarChip(
+                        title: group.name,
+                        systemImage: group.icon,
+                        tint: QuickPanelBottomTheme.groupTintColor(name: group.name, preferredHex: group.color),
+                        isSelected: currentCustomGroupFilterName == group.name
+                    ) {
+                        applyCustomGroupFilter(group.name)
+                        restoreSearchFocusIfNeeded()
+                    }
+                }
+
+                Button {
+                    if let name = showNewGroupAlert(for: []) {
+                        applyCustomGroupFilter(name)
+                    }
+                    restoreSearchFocusIfNeeded()
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .frame(width: 28, height: 28)
+                        .background(QuickPanelBottomTheme.toolbarChipFill, in: Circle())
+                        .overlay(
+                            Circle()
+                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+                .help(L10n.tr("action.newGroup"))
+            }
+            .padding(.horizontal, 4)
+        }
+        .frame(maxWidth: .infinity, minHeight: 28, maxHeight: 28, alignment: .leading)
+    }
+
+    private func bottomGroupToolbarChip(
+        title: String,
+        systemImage: String,
+        tint: Color,
+        isSelected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 7) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(isSelected ? .white : tint)
+                    .frame(width: 14)
+
+                Text(title)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(isSelected ? .white : .white.opacity(0.84))
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 12)
+            .frame(height: 28)
+            .background(
+                isSelected ? QuickPanelBottomTheme.accentBlue : QuickPanelBottomTheme.toolbarChipFill,
+                in: Capsule()
+            )
+            .overlay(
+                Capsule()
+                    .stroke(
+                        isSelected ? Color.white.opacity(0.12) : Color.white.opacity(0.07),
+                        lineWidth: 1
+                    )
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder
@@ -1926,8 +2044,9 @@ struct QuickPanelView: View {
         store.refreshSidebarCounts()
     }
 
-    private func showNewGroupAlert(for items: [ClipItem]) {
-        guard let result = GroupEditorPanel.show() else { return }
+    @discardableResult
+    private func showNewGroupAlert(for items: [ClipItem]) -> String? {
+        guard let result = GroupEditorPanel.show() else { return nil }
         let name = result.name
         let descriptor = FetchDescriptor<SmartGroup>(predicate: #Predicate { $0.name == name })
         if let existing = try? modelContext.fetch(descriptor).first {
@@ -1939,6 +2058,7 @@ struct QuickPanelView: View {
         }
         try? modelContext.save()
         assignToGroup(items: items, name: result.name)
+        return result.name
     }
 
     private func applyTransform(_ action: RuleAction, to item: ClipItem) {

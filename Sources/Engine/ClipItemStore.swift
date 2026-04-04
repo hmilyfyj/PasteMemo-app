@@ -267,7 +267,7 @@ final class ClipItemStore {
         var sensitive = 0
         var byType: [ClipContentType: Int] = [:]
         var byApp: [String?: Int] = [:]  // nil key = unknown app
-        var byGroup: [(name: String, icon: String, count: Int)] = []
+        var byGroup: [(name: String, icon: String, color: String?, count: Int)] = []
     }
 
     func refreshSidebarCounts() {
@@ -287,11 +287,18 @@ final class ClipItemStore {
         let nullCount = db.queryInt("SELECT COUNT(*) FROM ZCLIPITEM WHERE ZSOURCEAPP IS NULL")
         if nullCount > 0 { counts.byApp[nil] = nullCount }
         // Groups: read from SmartGroup table (count maintained by upsert/decrement)
-        let groupNames = db.queryStrings("SELECT ZNAME FROM ZSMARTGROUP ORDER BY ZSORTORDER")
-        for name in groupNames {
-            let icon = db.queryStrings("SELECT ZICON FROM ZSMARTGROUP WHERE ZNAME = ?", params: [name]).first ?? "folder"
-            let c = db.queryInt("SELECT ZCOUNT FROM ZSMARTGROUP WHERE ZNAME = ?", params: [name])
-            counts.byGroup.append((name: name, icon: icon, count: c))
+        if let context = modelContext {
+            let descriptor = FetchDescriptor<SmartGroup>(sortBy: [SortDescriptor(\.sortOrder)])
+            if let groups = try? context.fetch(descriptor) {
+                for group in groups {
+                    counts.byGroup.append((
+                        name: group.name,
+                        icon: group.icon,
+                        color: group.color,
+                        count: group.count
+                    ))
+                }
+            }
         }
         sidebarCounts = counts
     }
