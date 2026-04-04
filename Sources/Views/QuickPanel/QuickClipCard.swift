@@ -56,13 +56,14 @@ struct QuickClipCard: View {
                         .foregroundStyle(.white.opacity(0.9))
                         .lineLimit(1)
                 }
+                .frame(maxHeight: .infinity, alignment: .center)
 
                 Spacer(minLength: 0)
             }
             .padding(.leading, 14)
-            .padding(.trailing, headerBadgeWidth + 10)
-            .padding(.top, 10)
-            .padding(.bottom, 8)
+            .padding(.trailing, headerBadgeWidth + 6)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
 
             headerIconPanel
         }
@@ -234,14 +235,14 @@ struct QuickClipCard: View {
     }
 
     private var headerBadgeWidth: CGFloat {
-        min(max(cardWidth * 0.19, 58), 76)
+        min(max(cardWidth * 0.24, 74), 94)
     }
 
     private var headerIconPanel: some View {
         ZStack {
             UnevenRoundedRectangle(
-                topLeadingRadius: 22,
-                bottomLeadingRadius: 22,
+                topLeadingRadius: 24,
+                bottomLeadingRadius: 24,
                 bottomTrailingRadius: 0,
                 topTrailingRadius: QuickPanelBottomTheme.cardCornerRadius
             )
@@ -254,8 +255,8 @@ struct QuickClipCard: View {
             )
             .overlay(
                 UnevenRoundedRectangle(
-                    topLeadingRadius: 22,
-                    bottomLeadingRadius: 22,
+                    topLeadingRadius: 24,
+                    bottomLeadingRadius: 24,
                     bottomTrailingRadius: 0,
                     topTrailingRadius: QuickPanelBottomTheme.cardCornerRadius
                 )
@@ -263,7 +264,9 @@ struct QuickClipCard: View {
             )
 
             headerIconBadge
-                .padding(8)
+                .padding(.leading, 2)
+                .padding(.trailing, -6)
+                .padding(.vertical, -3)
         }
         .frame(width: headerBadgeWidth, height: 62)
     }
@@ -274,12 +277,13 @@ struct QuickClipCard: View {
             Image(nsImage: sourceAppIcon)
                 .resizable()
                 .interpolation(.high)
-                .scaledToFit()
-                .padding(4)
+                .scaledToFill()
+                .frame(width: headerBadgeWidth + 18, height: 70)
+                .clipped()
                 .shadow(color: .black.opacity(0.10), radius: 2, y: 1)
         } else {
             Image(systemName: item.contentType.icon)
-                .font(.system(size: 24, weight: .bold))
+                .font(.system(size: 32, weight: .bold))
                 .foregroundStyle(headerGradientColors.first ?? Color(red: 0.24, green: 0.47, blue: 0.96))
         }
     }
