@@ -188,7 +188,7 @@ private final class ResizeHandleOverlayView: NSView {
 
     override func mouseUp(with event: NSEvent) {
         activeEdges = []
-        flushPendingFrameIfNeeded()
+        flushPendingFrameIfNeeded(forceDisplay: true)
         stopFramePump()
         endLiveResizeIfNeeded()
         super.mouseUp(with: event)
@@ -228,12 +228,12 @@ private final class ResizeHandleOverlayView: NSView {
         pendingFrame = frame
     }
 
-    private func flushPendingFrameIfNeeded() {
+    private func flushPendingFrameIfNeeded(forceDisplay: Bool = false) {
         guard let panel, let frame = pendingFrame else { return }
         guard frame != lastAppliedFrame else { return }
         pendingFrame = nil
         lastAppliedFrame = frame
-        panel.setFrame(frame, display: true)
+        panel.setFrame(frame, display: forceDisplay)
     }
 
     private func resizeEdges(at point: NSPoint) -> ResizeEdges {

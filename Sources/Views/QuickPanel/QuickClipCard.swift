@@ -57,56 +57,65 @@ struct QuickClipCard: View {
 
     private var liveResizeBody: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 10) {
+            HStack {
                 Image(systemName: item.contentType.icon)
                     .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.82))
-                    .frame(width: 28, height: 28)
-                    .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(item.contentType.label)
-                        .font(.system(size: 11.5, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.88))
-                        .lineLimit(1)
-
-                    Text(lightweightMetaText)
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.58))
-                        .lineLimit(1)
-                }
+                    .foregroundStyle(.white.opacity(isSelected ? 0.92 : 0.76))
+                    .frame(width: 30, height: 30)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color.white.opacity(isSelected ? 0.16 : 0.08))
+                    )
 
                 Spacer(minLength: 0)
+
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(Color.white.opacity(0.08))
+                    .frame(width: 34, height: 10)
             }
             .padding(.horizontal, 12)
             .padding(.top, 12)
 
-            Spacer(minLength: 10)
+            Spacer(minLength: 12)
 
             VStack(alignment: .leading, spacing: 8) {
-                Text(primaryText)
-                    .font(.system(size: 12.5, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.9))
-                    .lineLimit(3)
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(Color.white.opacity(0.12))
+                    .frame(width: min(cardWidth * 0.58, 104), height: 10)
 
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .fill(Color.white.opacity(0.07))
+                    .frame(maxWidth: .infinity)
                     .frame(height: 8)
 
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .fill(Color.white.opacity(0.05))
-                    .frame(width: max(cardWidth * 0.42, 54), height: 8)
+                    .frame(width: max(cardWidth * 0.46, 58), height: 8)
             }
             .padding(.horizontal, 12)
             .padding(.bottom, 14)
         }
         .background(
             RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous)
-                .fill(Color(red: 0.10, green: 0.10, blue: 0.11))
+                .fill(
+                    LinearGradient(
+                        colors: isSelected
+                            ? [
+                                QuickPanelBottomTheme.accentBlue.opacity(0.44),
+                                Color(red: 0.11, green: 0.13, blue: 0.18),
+                            ]
+                            : [
+                                Color(red: 0.10, green: 0.10, blue: 0.11),
+                                Color(red: 0.09, green: 0.09, blue: 0.10),
+                            ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
         )
         .overlay(
             RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous)
-                .stroke(isSelected ? QuickPanelBottomTheme.selectionBlue.opacity(0.35) : Color.white.opacity(0.05), lineWidth: 1)
+                .stroke(isSelected ? QuickPanelBottomTheme.selectionBlue.opacity(0.44) : Color.white.opacity(0.05), lineWidth: 1)
         )
     }
 

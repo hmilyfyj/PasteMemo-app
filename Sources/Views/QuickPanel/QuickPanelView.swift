@@ -1419,27 +1419,24 @@ struct QuickPanelView: View {
     }
 
     private func bottomLiveResizeClipRail(metrics: BottomCardLayoutMetrics) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(alignment: .top, spacing: metrics.spacing) {
-                ForEach(liveResizeDisplayOrderItems) { item in
-                    let itemID = item.persistentModelID
-                    QuickClipCard(
-                        item: item,
-                        isSelected: selectedItemIDs.contains(itemID),
-                        isLiveResizing: true,
-                        shortcutIndex: shortcutIndex(for: item),
-                        cardWidth: metrics.cardWidth,
-                        cardHeight: metrics.cardHeight
-                    )
-                    .id(itemID)
-                }
+        HStack(alignment: .top, spacing: metrics.spacing) {
+            ForEach(liveResizeDisplayOrderItems) { item in
+                let itemID = item.persistentModelID
+                QuickClipCard(
+                    item: item,
+                    isSelected: selectedItemIDs.contains(itemID),
+                    isLiveResizing: true,
+                    shortcutIndex: nil,
+                    cardWidth: metrics.cardWidth,
+                    cardHeight: metrics.cardHeight
+                )
+                .id(itemID)
             }
-            .frame(maxHeight: .infinity, alignment: .top)
-            .padding(.horizontal, metrics.horizontalPadding)
-            .padding(.vertical, metrics.verticalPadding)
         }
-        .scrollDisabled(true)
-        .scrollClipDisabled()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .padding(.horizontal, metrics.horizontalPadding)
+        .padding(.vertical, metrics.verticalPadding)
+        .clipped()
         .frame(
             maxWidth: .infinity,
             maxHeight: .infinity,
@@ -1448,7 +1445,7 @@ struct QuickPanelView: View {
     }
 
     private var liveResizeDisplayOrderItems: [ClipItem] {
-        let maxVisibleItems = 16
+        let maxVisibleItems = 10
         guard displayOrderItems.count > maxVisibleItems else {
             return displayOrderItems
         }
