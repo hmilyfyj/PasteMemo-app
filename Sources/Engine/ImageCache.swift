@@ -5,10 +5,12 @@ final class ImageCache: @unchecked Sendable {
     static let shared = ImageCache()
 
     private let cache = NSCache<NSString, NSImage>()
+    private let preloadQueue = DispatchQueue(label: "com.lifedever.pastememo.imagepreload", qos: .utility)
+    private var preloadedKeys = Set<String>()
 
     private init() {
         cache.countLimit = 200
-        cache.totalCostLimit = 50 * 1024 * 1024 // 50MB
+        cache.totalCostLimit = 50 * 1024 * 1024
     }
 
     static func normalizedThumbnailDimension(_ dimension: CGFloat) -> CGFloat {
@@ -79,6 +81,21 @@ final class ImageCache: @unchecked Sendable {
     func setVideoThumbnail(_ image: NSImage, forPath path: String) {
         let cacheKey = "video_\(path)" as NSString
         cache.setObject(image, forKey: cacheKey, cost: 4096)
+    }
+    
+    func preloadImages(for items: [(key: String, data: Data)], maxDimension: CGFloat = 36) {
+        preloadQueue.async { [weak self] in
+            guard let self = self else { return }
+            for (key, data) in items {
+                guard !self.preloadedKeys.contains(key) else { continue }
+                _ = self.thumbnail(for: data, key: key, size: maxDimension)
+                self.preloadedKeys.insert(key)
+            }
+        }
+    }
+    
+    func clearPreloadTracking() {
+        preloadedKeys.removeAll()
     }
 
     private func previewCacheKey(for key: String, maxDimension: CGFloat) -> NSString {

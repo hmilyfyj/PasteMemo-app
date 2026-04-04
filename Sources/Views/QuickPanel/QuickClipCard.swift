@@ -1,8 +1,6 @@
 import SwiftUI
 import AppKit
 
-@MainActor private var quickClipCardHeaderColorCache: [String: NSColor] = [:]
-
 struct QuickClipCard: View {
     let item: ClipItem
     let isSelected: Bool
@@ -276,61 +274,16 @@ struct QuickClipCard: View {
     }
 
     private var headerGradientColors: [Color] {
-        let base = sampledHeaderBaseColor ?? NSColor(calibratedRed: 0.30, green: 0.49, blue: 0.95, alpha: 1)
-        let rgb = base.usingColorSpace(.deviceRGB) ?? base
-
-        var hue: CGFloat = 0
-        var saturation: CGFloat = 0
-        var brightness: CGFloat = 0
-        var alpha: CGFloat = 0
-        rgb.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
-
-        if saturation < 0.12 {
-            let start = NSColor(
-                calibratedWhite: min(max(brightness + 0.08, 0.48), 0.92),
-                alpha: 1
-            )
-            let end = NSColor(
-                calibratedWhite: min(max(brightness - 0.04, 0.40), 0.82),
-                alpha: 1
-            )
-            return [Color(nsColor: start), Color(nsColor: end)]
-        }
-
-        let tunedSaturation = min(max(saturation * 0.72, 0.22), 0.68)
-        let start = NSColor(
-            calibratedHue: hue,
-            saturation: max(tunedSaturation - 0.03, 0),
-            brightness: min(max(brightness + 0.02, 0.34), 0.60),
-            alpha: 1
-        )
-        let end = NSColor(
-            calibratedHue: hue,
-            saturation: min(tunedSaturation + 0.03, 1),
-            brightness: min(max(brightness - 0.10, 0.22), 0.48),
-            alpha: 1
-        )
-        return [Color(nsColor: start), Color(nsColor: end)]
+        CardColorCache.shared.getGradientColors(for: item, icon: sourceAppIcon)
     }
 
     private var sourceAppIcon: NSImage? {
         appIcon(forBundleID: item.sourceAppBundleID, name: item.sourceApp)
     }
-
-    private var headerColorCacheKey: String {
-        "\(item.sourceAppBundleID ?? "")|\(item.sourceApp ?? "")"
-    }
-
+    
     @MainActor
     private var sampledHeaderBaseColor: NSColor? {
-        if let cached = quickClipCardHeaderColorCache[headerColorCacheKey] {
-            return cached
-        }
-        guard let sourceAppIcon, let color = sampleCenterColor(from: sourceAppIcon) else {
-            return nil
-        }
-        quickClipCardHeaderColorCache[headerColorCacheKey] = color
-        return color
+        CardColorCache.shared.getHeaderBaseColor(for: item, icon: sourceAppIcon)
     }
 
     private var previewContentPadding: EdgeInsets {
@@ -645,56 +598,3 @@ struct QuickClipCard: View {
     }
 }
 
-@MainActor
-private func sampleCenterColor(from image: NSImage) -> NSColor? {
-    let targetSize = NSSize(width: 36, height: 36)
-    let bitmap = NSBitmapImageRep(
-        bitmapDataPlanes: nil,
-        pixelsWide: Int(targetSize.width),
-        pixelsHigh: Int(targetSize.height),
-        bitsPerSample: 8,
-        samplesPerPixel: 4,
-        hasAlpha: true,
-        isPlanar: false,
-        colorSpaceName: .deviceRGB,
-        bytesPerRow: 0,
-        bitsPerPixel: 0
-    )
-
-    guard let bitmap else { return nil }
-
-    NSGraphicsContext.saveGraphicsState()
-    if let context = NSGraphicsContext(bitmapImageRep: bitmap) {
-        NSGraphicsContext.current = context
-        context.imageInterpolation = .high
-        image.draw(in: NSRect(origin: .zero, size: targetSize))
-        context.flushGraphics()
-    }
-    NSGraphicsContext.restoreGraphicsState()
-
-    let center = Int(targetSize.width / 2)
-    var red: CGFloat = 0
-    var green: CGFloat = 0
-    var blue: CGFloat = 0
-    var count: CGFloat = 0
-
-    for x in max(0, center - 2)...min(Int(targetSize.width) - 1, center + 2) {
-        for y in max(0, center - 2)...min(Int(targetSize.height) - 1, center + 2) {
-            guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB),
-                  color.alphaComponent > 0.35 else { continue }
-            red += color.redComponent
-            green += color.greenComponent
-            blue += color.blueComponent
-            count += 1
-        }
-    }
-
-    guard count > 0 else { return nil }
-
-    return NSColor(
-        calibratedRed: red / count,
-        green: green / count,
-        blue: blue / count,
-        alpha: 1
-    )
-}

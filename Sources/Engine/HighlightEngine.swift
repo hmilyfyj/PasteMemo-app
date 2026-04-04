@@ -99,6 +99,14 @@ final class HighlightEngine {
         putCache(cacheKey, tokens)
         return tokens
     }
+    
+    func highlightAsync(_ code: String, language: String) async -> [HighlightToken] {
+        return await Task.detached(priority: .userInitiated) {
+            await MainActor.run {
+                return self.highlight(code, language: language)
+            }
+        }.value
+    }
 
     // MARK: - Cache
 

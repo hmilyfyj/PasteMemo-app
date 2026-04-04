@@ -29,29 +29,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        LaunchPerformanceMonitor.shared.startMonitoring()
+        
+        LaunchPerformanceMonitor.shared.beginStage("Appearance Setup")
         let mode = UserDefaults.standard.string(forKey: "appearanceMode") ?? "system"
         AppDelegate.applyAppearance(mode)
-
+        LaunchPerformanceMonitor.shared.endStage("Appearance Setup")
+        
+        LaunchPerformanceMonitor.shared.beginStage("Core Initialization")
         ClipboardManager.shared.modelContainer = PasteMemoApp.sharedModelContainer
         OCRTaskCoordinator.shared.configure(modelContainer: PasteMemoApp.sharedModelContainer)
+        LaunchPerformanceMonitor.shared.endStage("Core Initialization")
+        
+        LaunchPerformanceMonitor.shared.beginStage("Automation Rules")
         if ProManager.AUTOMATION_ENABLED {
             BuiltInRules.seedIfNeeded(context: PasteMemoApp.sharedModelContainer.mainContext)
         }
+        LaunchPerformanceMonitor.shared.endStage("Automation Rules")
+        
+        LaunchPerformanceMonitor.shared.beginStage("Clipboard Monitoring")
         ClipboardManager.shared.startMonitoring()
-
-        // Hide SwiftUI auto-created windows
+        LaunchPerformanceMonitor.shared.endStage("Clipboard Monitoring")
+        
         hideAllMainWindows(NSApp)
         isLaunchComplete = true
-
-        let hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
-        let needsAccessibility = !AXIsProcessTrusted()
-
+        
+        LaunchPerformanceMonitor.shared.beginStage("Hotkey Registration")
         HotkeyManager.shared.register()
-
-        // Wire Relay Mode protocols
+        LaunchPerformanceMonitor.shared.endStage("Hotkey Registration")
+        
         RelayManager.shared.clipboardController = ClipboardManager.shared
         RelayManager.shared.hotkeyController = HotkeyManager.shared
-
+        
+        let hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
+        let needsAccessibility = !AXIsProcessTrusted()
+        
         if !hasCompletedOnboarding || needsAccessibility {
             let hideDock = UserDefaults.standard.bool(forKey: "hideDockIcon")
             if !hideDock {
@@ -59,21 +71,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             showOnboardingWindow()
         }
-
-        Task {
-            await UpdateChecker.shared.checkForUpdates()
-            UpdateChecker.shared.startPeriodicChecks()
+        
+        LaunchPerformanceMonitor.shared.beginStage("Deferred Initialization")
+        Task { @MainActor in
+            await self.performDeferredInitialization()
         }
-
+        
+        LaunchPerformanceMonitor.shared.endMonitoring()
+    }
+    
+    private func performDeferredInitialization() async {
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        
+        LaunchPerformanceMonitor.shared.beginStage("Update Check")
+        await UpdateChecker.shared.checkForUpdates()
+        UpdateChecker.shared.startPeriodicChecks()
+        LaunchPerformanceMonitor.shared.endStage("Update Check")
+        
+        LaunchPerformanceMonitor.shared.beginStage("Backup Scheduler")
         BackupScheduler.shared.start(container: PasteMemoApp.sharedModelContainer)
-
-        // Pre-warm quick panel
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            QuickPanelWindowController.shared.warmUp(
-                clipboardManager: ClipboardManager.shared,
-                modelContainer: PasteMemoApp.sharedModelContainer
-            )
-        }
+        LaunchPerformanceMonitor.shared.endStage("Backup Scheduler")
+        
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        
+        LaunchPerformanceMonitor.shared.beginStage("Quick Panel Warmup")
+        QuickPanelWindowController.shared.warmUp(
+            clipboardManager: ClipboardManager.shared,
+            modelContainer: PasteMemoApp.sharedModelContainer
+        )
+        LaunchPerformanceMonitor.shared.endStage("Quick Panel Warmup")
+        
+        LaunchPerformanceMonitor.shared.beginStage("Highlight Engine Warmup")
+        _ = HighlightEngine.shared
+        LaunchPerformanceMonitor.shared.endStage("Highlight Engine Warmup")
     }
 
     func applicationWillTerminate(_ notification: Notification) {
