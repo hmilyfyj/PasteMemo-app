@@ -1,4 +1,7 @@
 import SwiftUI
+import AppKit
+
+@MainActor private var quickClipCardHeaderColorCache: [String: NSColor] = [:]
 
 struct QuickClipCard: View {
     let item: ClipItem
@@ -40,27 +43,29 @@ struct QuickClipCard: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(item.contentType.label)
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
+        ZStack(alignment: .topTrailing) {
+            HStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(item.contentType.label)
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
 
-                Text(formatTimeAgo(item.lastUsedAt))
-                    .font(.system(size: 10.5, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.9))
-                    .lineLimit(1)
+                    Text(formatTimeAgo(item.lastUsedAt))
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 0)
             }
+            .padding(.leading, 14)
+            .padding(.trailing, headerBadgeWidth + 10)
+            .padding(.top, 10)
+            .padding(.bottom, 8)
 
-            Spacer(minLength: 0)
-
-            headerIconBadge
+            headerIconPanel
         }
-        .padding(.leading, 14)
-        .padding(.trailing, 8)
-        .padding(.top, 8)
-        .padding(.bottom, 6)
         .frame(height: 62)
         .frame(maxWidth: .infinity)
         .background(headerBackground)
@@ -155,13 +160,68 @@ struct QuickClipCard: View {
 
     private var headerBackground: some View {
         LinearGradient(
-            colors: [
-                Color(red: 0.24, green: 0.47, blue: 0.96),
-                Color(red: 0.22, green: 0.42, blue: 0.92),
-            ],
+            colors: headerGradientColors,
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
+    }
+
+    private var headerGradientColors: [Color] {
+        let base = sampledHeaderBaseColor ?? NSColor(calibratedRed: 0.30, green: 0.49, blue: 0.95, alpha: 1)
+        let rgb = base.usingColorSpace(.deviceRGB) ?? base
+
+        var hue: CGFloat = 0
+        var saturation: CGFloat = 0
+        var brightness: CGFloat = 0
+        var alpha: CGFloat = 0
+        rgb.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
+
+        if saturation < 0.12 {
+            let start = NSColor(
+                calibratedWhite: min(max(brightness + 0.08, 0.48), 0.92),
+                alpha: 1
+            )
+            let end = NSColor(
+                calibratedWhite: min(max(brightness - 0.04, 0.40), 0.82),
+                alpha: 1
+            )
+            return [Color(nsColor: start), Color(nsColor: end)]
+        }
+
+        let tunedSaturation = min(max(saturation * 1.08, 0.42), 0.95)
+        let start = NSColor(
+            calibratedHue: hue,
+            saturation: max(tunedSaturation - 0.04, 0),
+            brightness: min(max(brightness + 0.10, 0.62), 0.98),
+            alpha: 1
+        )
+        let end = NSColor(
+            calibratedHue: hue,
+            saturation: min(tunedSaturation + 0.02, 1),
+            brightness: min(max(brightness - 0.04, 0.48), 0.92),
+            alpha: 1
+        )
+        return [Color(nsColor: start), Color(nsColor: end)]
+    }
+
+    private var sourceAppIcon: NSImage? {
+        appIcon(forBundleID: item.sourceAppBundleID, name: item.sourceApp)
+    }
+
+    private var headerColorCacheKey: String {
+        "\(item.sourceAppBundleID ?? "")|\(item.sourceApp ?? "")"
+    }
+
+    @MainActor
+    private var sampledHeaderBaseColor: NSColor? {
+        if let cached = quickClipCardHeaderColorCache[headerColorCacheKey] {
+            return cached
+        }
+        guard let sourceAppIcon, let color = sampleCenterColor(from: sourceAppIcon) else {
+            return nil
+        }
+        quickClipCardHeaderColorCache[headerColorCacheKey] = color
+        return color
     }
 
     private var previewContentPadding: EdgeInsets {
@@ -173,36 +233,55 @@ struct QuickClipCard: View {
         }
     }
 
+    private var headerBadgeWidth: CGFloat {
+        min(max(cardWidth * 0.19, 58), 76)
+    }
+
+    private var headerIconPanel: some View {
+        ZStack {
+            UnevenRoundedRectangle(
+                topLeadingRadius: 22,
+                bottomLeadingRadius: 22,
+                bottomTrailingRadius: 0,
+                topTrailingRadius: QuickPanelBottomTheme.cardCornerRadius
+            )
+            .fill(
+                LinearGradient(
+                    colors: [Color.white, Color.white.opacity(0.94)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .overlay(
+                UnevenRoundedRectangle(
+                    topLeadingRadius: 22,
+                    bottomLeadingRadius: 22,
+                    bottomTrailingRadius: 0,
+                    topTrailingRadius: QuickPanelBottomTheme.cardCornerRadius
+                )
+                .stroke(Color.black.opacity(0.08), lineWidth: 1)
+            )
+
+            headerIconBadge
+                .padding(8)
+        }
+        .frame(width: headerBadgeWidth, height: 62)
+    }
+
     @ViewBuilder
     private var headerIconBadge: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [Color.white, Color.white.opacity(0.92)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color(red: 0.90, green: 0.93, blue: 1.0), lineWidth: 1)
-
-            if let icon = appIcon(forBundleID: item.sourceAppBundleID, name: item.sourceApp) {
-                Image(nsImage: icon)
-                    .resizable()
-                    .interpolation(.high)
-                    .frame(width: 28, height: 28)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .shadow(color: .black.opacity(0.10), radius: 2, y: 1)
-            } else {
-                Image(systemName: item.contentType.icon)
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(Color(red: 0.24, green: 0.47, blue: 0.96))
-            }
+        if let sourceAppIcon {
+            Image(nsImage: sourceAppIcon)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .padding(4)
+                .shadow(color: .black.opacity(0.10), radius: 2, y: 1)
+        } else {
+            Image(systemName: item.contentType.icon)
+                .font(.system(size: 24, weight: .bold))
+                .foregroundStyle(headerGradientColors.first ?? Color(red: 0.24, green: 0.47, blue: 0.96))
         }
-        .frame(width: 50, height: 50)
-        .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
     }
 
     @ViewBuilder
@@ -404,4 +483,58 @@ struct QuickClipCard: View {
             .first
             .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
     }
+}
+
+@MainActor
+private func sampleCenterColor(from image: NSImage) -> NSColor? {
+    let targetSize = NSSize(width: 36, height: 36)
+    let bitmap = NSBitmapImageRep(
+        bitmapDataPlanes: nil,
+        pixelsWide: Int(targetSize.width),
+        pixelsHigh: Int(targetSize.height),
+        bitsPerSample: 8,
+        samplesPerPixel: 4,
+        hasAlpha: true,
+        isPlanar: false,
+        colorSpaceName: .deviceRGB,
+        bytesPerRow: 0,
+        bitsPerPixel: 0
+    )
+
+    guard let bitmap else { return nil }
+
+    NSGraphicsContext.saveGraphicsState()
+    if let context = NSGraphicsContext(bitmapImageRep: bitmap) {
+        NSGraphicsContext.current = context
+        context.imageInterpolation = .high
+        image.draw(in: NSRect(origin: .zero, size: targetSize))
+        context.flushGraphics()
+    }
+    NSGraphicsContext.restoreGraphicsState()
+
+    let center = Int(targetSize.width / 2)
+    var red: CGFloat = 0
+    var green: CGFloat = 0
+    var blue: CGFloat = 0
+    var count: CGFloat = 0
+
+    for x in max(0, center - 2)...min(Int(targetSize.width) - 1, center + 2) {
+        for y in max(0, center - 2)...min(Int(targetSize.height) - 1, center + 2) {
+            guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB),
+                  color.alphaComponent > 0.35 else { continue }
+            red += color.redComponent
+            green += color.greenComponent
+            blue += color.blueComponent
+            count += 1
+        }
+    }
+
+    guard count > 0 else { return nil }
+
+    return NSColor(
+        calibratedRed: red / count,
+        green: green / count,
+        blue: blue / count,
+        alpha: 1
+    )
 }
