@@ -11,7 +11,8 @@ private let DEFAULT_HEIGHT: CGFloat = 510
 private let MIN_WIDTH: CGFloat = 500
 private let MIN_HEIGHT: CGFloat = 350
 private let VERTICAL_OFFSET: CGFloat = 100
-private let SIZE_KEY = "quickPanelSize"
+private let CLASSIC_SIZE_KEY = "quickPanelSize"
+private let BOTTOM_SIZE_KEY = "quickPanelBottomSize"
 private let POSITION_KEY = "quickPanelPosition"
 
 private class KeyablePanel: NSPanel {
@@ -25,6 +26,164 @@ private class DragOnlyView: NSView {
     override func mouseDown(with event: NSEvent) {
         // Don't call super — prevent system titlebar drag handling
         window?.performDrag(with: event)
+    }
+}
+
+private struct ResizeEdges: OptionSet {
+    let rawValue: Int
+
+    static let left = ResizeEdges(rawValue: 1 << 0)
+    static let right = ResizeEdges(rawValue: 1 << 1)
+    static let top = ResizeEdges(rawValue: 1 << 2)
+    static let bottom = ResizeEdges(rawValue: 1 << 3)
+}
+
+private final class ResizeHandleOverlayView: NSView {
+    weak var panel: NSPanel?
+    var isEnabled = false {
+        didSet {
+            needsDisplay = true
+            window?.invalidateCursorRects(for: self)
+        }
+    }
+
+    private let edgeInset: CGFloat = 14
+    private let cornerInset: CGFloat = 22
+    private var activeEdges: ResizeEdges = []
+    private var initialMouseLocation = NSPoint.zero
+    private var initialFrame = NSRect.zero
+
+    override var acceptsFirstResponder: Bool { false }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard isEnabled, resizeEdges(at: point) != [] else { return nil }
+        return self
+    }
+
+    override func resetCursorRects() {
+        guard isEnabled else { return }
+        let width = bounds.width
+        let height = bounds.height
+        let horizontalSpan = max(width - cornerInset * 2, 1)
+        let verticalSpan = max(height - cornerInset * 2, 1)
+
+        addCursorRect(
+            NSRect(x: 0, y: cornerInset, width: edgeInset, height: verticalSpan),
+            cursor: .resizeLeftRight
+        )
+        addCursorRect(
+            NSRect(x: width - edgeInset, y: cornerInset, width: edgeInset, height: verticalSpan),
+            cursor: .resizeLeftRight
+        )
+        addCursorRect(
+            NSRect(x: cornerInset, y: height - edgeInset, width: horizontalSpan, height: edgeInset),
+            cursor: .resizeUpDown
+        )
+        addCursorRect(
+            NSRect(x: cornerInset, y: 0, width: horizontalSpan, height: edgeInset),
+            cursor: .resizeUpDown
+        )
+    }
+
+    override func layout() {
+        super.layout()
+        window?.invalidateCursorRects(for: self)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard let panel else { return }
+        let point = convert(event.locationInWindow, from: nil)
+        activeEdges = resizeEdges(at: point)
+        guard activeEdges != [] else { return }
+        initialMouseLocation = NSEvent.mouseLocation
+        initialFrame = panel.frame
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let panel, activeEdges != [] else { return }
+        let mouseLocation = NSEvent.mouseLocation
+        let deltaX = mouseLocation.x - initialMouseLocation.x
+        let deltaY = mouseLocation.y - initialMouseLocation.y
+        var frame = initialFrame
+
+        if activeEdges.contains(.left) {
+            frame.origin.x += deltaX
+            frame.size.width -= deltaX
+        }
+        if activeEdges.contains(.right) {
+            frame.size.width += deltaX
+        }
+        if activeEdges.contains(.bottom) {
+            frame.origin.y += deltaY
+            frame.size.height -= deltaY
+        }
+        if activeEdges.contains(.top) {
+            frame.size.height += deltaY
+        }
+
+        guard let screen = NSScreen.screens.first(where: { $0.visibleFrame.intersects(initialFrame) })
+                ?? panel.screen
+                ?? NSScreen.screenWithMouse
+                ?? NSScreen.main else {
+            panel.setFrame(frame.integral, display: true)
+            return
+        }
+
+        let allowedMinX = screen.frame.minX + QuickPanelBottomGeometry.horizontalInset
+        let allowedMaxX = screen.frame.maxX - QuickPanelBottomGeometry.horizontalInset
+        let allowedMinY = screen.visibleFrame.minY + QuickPanelBottomGeometry.bottomInset
+        let allowedMaxY = screen.visibleFrame.maxY
+
+        let minWidth = min(panel.minSize.width, allowedMaxX - allowedMinX)
+        let maxWidth = min(panel.maxSize.width, allowedMaxX - allowedMinX)
+        let minHeight = min(panel.minSize.height, allowedMaxY - allowedMinY)
+        let maxHeight = min(panel.maxSize.height, allowedMaxY - allowedMinY)
+
+        if activeEdges.contains(.left) {
+            let right = initialFrame.maxX
+            frame.size.width = min(max(frame.width, minWidth), maxWidth)
+            frame.origin.x = right - frame.width
+            frame.origin.x = max(frame.origin.x, allowedMinX)
+            frame.size.width = right - frame.origin.x
+        } else if activeEdges.contains(.right) {
+            frame.size.width = min(max(frame.width, minWidth), maxWidth)
+            frame.size.width = min(frame.width, allowedMaxX - frame.origin.x)
+        } else {
+            frame.size.width = min(max(frame.width, minWidth), maxWidth)
+        }
+
+        if activeEdges.contains(.bottom) {
+            let top = initialFrame.maxY
+            frame.size.height = min(max(frame.height, minHeight), maxHeight)
+            frame.origin.y = top - frame.height
+            frame.origin.y = max(frame.origin.y, allowedMinY)
+            frame.size.height = top - frame.origin.y
+        } else if activeEdges.contains(.top) {
+            frame.size.height = min(max(frame.height, minHeight), maxHeight)
+            frame.size.height = min(frame.height, allowedMaxY - frame.origin.y)
+        } else {
+            frame.size.height = min(max(frame.height, minHeight), maxHeight)
+        }
+
+        frame.origin.x = min(max(frame.origin.x, allowedMinX), allowedMaxX - frame.width)
+        frame.origin.y = min(max(frame.origin.y, allowedMinY), allowedMaxY - frame.height)
+        panel.setFrame(frame.integral, display: true)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        activeEdges = []
+        super.mouseUp(with: event)
+    }
+
+    private func resizeEdges(at point: NSPoint) -> ResizeEdges {
+        guard bounds.contains(point) else { return [] }
+
+        var edges: ResizeEdges = []
+        if point.x <= edgeInset { edges.insert(.left) }
+        if point.x >= bounds.width - edgeInset { edges.insert(.right) }
+        if point.y <= edgeInset { edges.insert(.bottom) }
+        if point.y >= bounds.height - edgeInset { edges.insert(.top) }
+        return edges
     }
 }
 
@@ -42,23 +201,46 @@ final class QuickPanelWindowController {
     var suppressDismiss = false
     private var snapGuide: SnapGuideWindow?
     private weak var dragCoverView: NSView?
+    private weak var resizeHandleOverlayView: ResizeHandleOverlayView?
     private(set) var bottomMode: QuickPanelBottomMode = .compact
 
     private var panelStyle: QuickPanelStyle {
         QuickPanelStyle.stored
     }
 
-    private var panelWidth: CGFloat {
-        let saved = UserDefaults.standard.double(forKey: "\(SIZE_KEY).width")
+    private var classicPanelWidth: CGFloat {
+        let saved = UserDefaults.standard.double(forKey: "\(CLASSIC_SIZE_KEY).width")
         return saved > 0 ? max(saved, MIN_WIDTH) : DEFAULT_WIDTH
     }
 
-    private var panelHeight: CGFloat {
-        let saved = UserDefaults.standard.double(forKey: "\(SIZE_KEY).height")
+    private var classicPanelHeight: CGFloat {
+        let saved = UserDefaults.standard.double(forKey: "\(CLASSIC_SIZE_KEY).height")
         return saved > 0 ? max(saved, MIN_HEIGHT) : DEFAULT_HEIGHT
     }
 
     private init() {}
+
+    private func bottomPanelWidth(for screenFrame: CGRect) -> CGFloat {
+        let saved = UserDefaults.standard.double(forKey: "\(BOTTOM_SIZE_KEY).width")
+        let preferred = saved > 0 ? saved : QuickPanelBottomGeometry.panelWidth(for: screenFrame)
+        return QuickPanelBottomGeometry.clampedWidth(preferred, screenFrame: screenFrame)
+    }
+
+    private func bottomPanelHeight(for mode: QuickPanelBottomMode, visibleFrame: CGRect) -> CGFloat {
+        let saved = UserDefaults.standard.double(forKey: "\(BOTTOM_SIZE_KEY).\(mode.rawValue).height")
+        let preferred = saved > 0 ? saved : QuickPanelBottomGeometry.defaultHeight(for: mode)
+        return QuickPanelBottomGeometry.clampedHeight(preferred, visibleFrame: visibleFrame, mode: mode)
+    }
+
+    private func persistCurrentPanelSize(_ size: CGSize) {
+        if panelStyle == .bottomFloating {
+            UserDefaults.standard.set(Double(size.width), forKey: "\(BOTTOM_SIZE_KEY).width")
+            UserDefaults.standard.set(Double(size.height), forKey: "\(BOTTOM_SIZE_KEY).\(bottomMode.rawValue).height")
+        } else {
+            UserDefaults.standard.set(Double(size.width), forKey: "\(CLASSIC_SIZE_KEY).width")
+            UserDefaults.standard.set(Double(size.height), forKey: "\(CLASSIC_SIZE_KEY).height")
+        }
+    }
 
     /// Call once at app launch to pre-build the panel off-screen
     func warmUp(clipboardManager: ClipboardManager, modelContainer: ModelContainer) {
@@ -156,11 +338,18 @@ final class QuickPanelWindowController {
     func setBottomFloatingMode(_ mode: QuickPanelBottomMode, animated: Bool = true) {
         bottomMode = mode
         guard panelStyle == .bottomFloating, let panel, panel.isVisible else { return }
-        guard let screen = NSScreen.screenWithMouse ?? NSScreen.main ?? NSScreen.screens.first else { return }
+        guard let screen = NSScreen.screens.first(where: { $0.visibleFrame.intersects(panel.frame) })
+                ?? NSScreen.screenWithMouse
+                ?? panel.screen
+                ?? NSScreen.main
+                ?? NSScreen.screens.first else { return }
+        updateBottomSizeConstraints(for: panel, on: screen)
         let frame = QuickPanelBottomGeometry.frame(
             screenFrame: screen.frame,
             visibleFrame: screen.visibleFrame,
-            mode: mode
+            mode: mode,
+            preferredWidth: panel.frame.width,
+            preferredHeight: bottomPanelHeight(for: mode, visibleFrame: screen.visibleFrame)
         )
         panel.setFrame(frame, display: true, animate: animated)
     }
@@ -175,7 +364,7 @@ final class QuickPanelWindowController {
         let hosting = NSHostingController(rootView: content.ignoresSafeArea())
 
         let panel = KeyablePanel(
-            contentRect: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight),
+            contentRect: NSRect(x: 0, y: 0, width: classicPanelWidth, height: classicPanelHeight),
             styleMask: [.nonactivatingPanel, .titled, .borderless, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -203,7 +392,7 @@ final class QuickPanelWindowController {
         panel.addTitlebarAccessoryViewController(titlebarCover)
         dragCoverView = coverView
 
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight))
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: classicPanelWidth, height: classicPanelHeight))
         container.wantsLayer = true
         container.layer?.cornerRadius = 16
         container.layer?.masksToBounds = true
@@ -224,6 +413,18 @@ final class QuickPanelWindowController {
             hostingView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             hostingView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
         ])
+
+        let resizeOverlay = ResizeHandleOverlayView(frame: container.bounds)
+        resizeOverlay.translatesAutoresizingMaskIntoConstraints = false
+        resizeOverlay.panel = panel
+        container.addSubview(resizeOverlay)
+        NSLayoutConstraint.activate([
+            resizeOverlay.topAnchor.constraint(equalTo: container.topAnchor),
+            resizeOverlay.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            resizeOverlay.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            resizeOverlay.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+        ])
+        resizeHandleOverlayView = resizeOverlay
         container.layoutSubtreeIfNeeded()
 
         panel.contentView = container
@@ -234,11 +435,10 @@ final class QuickPanelWindowController {
             forName: NSWindow.didResizeNotification,
             object: panel,
             queue: .main
-        ) { [weak panel] _ in
+        ) { [weak self, weak panel] _ in
             Task { @MainActor in
                 guard let size = panel?.frame.size else { return }
-                UserDefaults.standard.set(Double(size.width), forKey: "\(SIZE_KEY).width")
-                UserDefaults.standard.set(Double(size.height), forKey: "\(SIZE_KEY).height")
+                self?.persistCurrentPanelSize(size)
             }
         }
 
@@ -248,20 +448,33 @@ final class QuickPanelWindowController {
     private func applyPanelBehavior(_ panel: NSPanel) {
         let isBottomFloating = panelStyle == .bottomFloating
         let classicMask: NSWindow.StyleMask = [.nonactivatingPanel, .titled, .borderless, .resizable, .fullSizeContentView]
-        let bottomFloatingMask: NSWindow.StyleMask = [.nonactivatingPanel, .borderless]
+        let bottomFloatingMask: NSWindow.StyleMask = [.nonactivatingPanel, .borderless, .resizable]
 
         panel.styleMask = isBottomFloating ? bottomFloatingMask : classicMask
         panel.isMovableByWindowBackground = !isBottomFloating
         panel.titlebarAppearsTransparent = !isBottomFloating
         dragCoverView?.isHidden = isBottomFloating
+        resizeHandleOverlayView?.isHidden = !isBottomFloating
+        resizeHandleOverlayView?.isEnabled = isBottomFloating
         panel.minSize = isBottomFloating
-            ? NSSize(width: QuickPanelBottomGeometry.minimumWidth, height: QuickPanelBottomGeometry.compactHeight)
+            ? NSSize(width: QuickPanelBottomGeometry.minimumWidth, height: QuickPanelBottomGeometry.minimumHeight(for: bottomMode))
             : NSSize(width: MIN_WIDTH, height: MIN_HEIGHT)
-        if isBottomFloating {
-            panel.maxSize = NSSize(width: QuickPanelBottomGeometry.maxWidth, height: QuickPanelBottomGeometry.expandedHeight)
-        } else {
-            panel.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
-        }
+        panel.maxSize = isBottomFloating
+            ? NSSize(width: QuickPanelBottomGeometry.maxWidth, height: CGFloat.greatestFiniteMagnitude)
+            : NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+    }
+
+    private func updateBottomSizeConstraints(for panel: NSPanel, on screen: NSScreen) {
+        let availableWidth = max(screen.frame.width - QuickPanelBottomGeometry.horizontalInset * 2, 0)
+        let availableHeight = max(screen.visibleFrame.height - QuickPanelBottomGeometry.bottomInset, 0)
+        panel.minSize = NSSize(
+            width: min(QuickPanelBottomGeometry.minimumWidth, availableWidth),
+            height: min(QuickPanelBottomGeometry.minimumHeight(for: bottomMode), availableHeight)
+        )
+        panel.maxSize = NSSize(
+            width: min(QuickPanelBottomGeometry.maxWidth, availableWidth),
+            height: availableHeight
+        )
     }
 
     /// Position panel on the screen where the mouse is, using saved relative offset if available.
@@ -271,15 +484,19 @@ final class QuickPanelWindowController {
         let visibleFrame = screen.visibleFrame
 
         if panelStyle == .bottomFloating {
+            updateBottomSizeConstraints(for: panel, on: screen)
             let frame = QuickPanelBottomGeometry.frame(
                 screenFrame: screen.frame,
                 visibleFrame: visibleFrame,
-                mode: bottomMode
+                mode: bottomMode,
+                preferredWidth: bottomPanelWidth(for: screen.frame),
+                preferredHeight: bottomPanelHeight(for: bottomMode, visibleFrame: visibleFrame)
             )
             panel.setFrame(frame, display: true)
             return
         }
 
+        panel.setContentSize(NSSize(width: classicPanelWidth, height: classicPanelHeight))
         let hasSaved = UserDefaults.standard.object(forKey: "\(POSITION_KEY).rx") != nil
         if hasSaved {
             // Saved offset is relative to the screen's visible frame (0.0~1.0 ratio)
@@ -295,8 +512,8 @@ final class QuickPanelWindowController {
 
     private func centerOnScreen(_ panel: NSPanel, screen: NSScreen) {
         let frame = screen.visibleFrame
-        let x = frame.midX - panelWidth / 2
-        let y = frame.midY - panelHeight / 2 + VERTICAL_OFFSET
+        let x = frame.midX - classicPanelWidth / 2
+        let y = frame.midY - classicPanelHeight / 2 + VERTICAL_OFFSET
         panel.setFrameOrigin(NSPoint(x: x, y: y))
     }
 

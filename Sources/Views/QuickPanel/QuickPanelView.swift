@@ -12,6 +12,15 @@ private let PANEL_WIDTH: CGFloat = 750
 private let PANEL_HEIGHT: CGFloat = 510
 private let LIST_WIDTH: CGFloat = 340
 
+private struct BottomCardLayoutMetrics {
+    let railHeight: CGFloat
+    let cardWidth: CGFloat
+    let cardHeight: CGFloat
+    let horizontalPadding: CGFloat
+    let verticalPadding: CGFloat
+    let spacing: CGFloat
+}
+
 struct QuickPanelView: View {
     @EnvironmentObject var clipboardManager: ClipboardManager
     @Environment(\.modelContext) private var modelContext
@@ -292,19 +301,28 @@ struct QuickPanelView: View {
     }
 
     private var bottomFloatingLayout: some View {
-        VStack(spacing: 0) {
-            bottomHeader
-            if filteredItems.isEmpty {
-                bottomEmptyState
-            } else {
-                bottomClipRail
-                if bottomMode == .expanded {
-                    Divider().opacity(0.18)
-                    previewPane
-                    Divider().opacity(0.18)
-                    compactFooterBar
+        GeometryReader { proxy in
+            let metrics = bottomCardLayoutMetrics(for: proxy.size)
+
+            VStack(spacing: 0) {
+                bottomHeader
+                if filteredItems.isEmpty {
+                    bottomEmptyState
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    bottomClipRail(metrics: metrics)
+                        .frame(height: metrics.railHeight)
+
+                    if bottomMode == .expanded {
+                        Divider().opacity(0.18)
+                        previewPane
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        Divider().opacity(0.18)
+                        compactFooterBar
+                    }
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .frame(
             minWidth: QuickPanelBottomGeometry.minimumWidth,
@@ -322,6 +340,30 @@ struct QuickPanelView: View {
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
+        )
+    }
+
+    private func bottomCardLayoutMetrics(for size: CGSize) -> BottomCardLayoutMetrics {
+        let horizontalPadding: CGFloat = 8
+        let verticalPadding: CGFloat = bottomMode == .compact ? 4 : 8
+        let spacing: CGFloat = 12
+
+        let railHeight: CGFloat
+        if bottomMode == .compact {
+            railHeight = max(size.height - 44, 150)
+        } else {
+            railHeight = min(max(size.height * 0.34, 220), 360)
+        }
+
+        let cardSide = max(railHeight - verticalPadding * 2, 138)
+
+        return BottomCardLayoutMetrics(
+            railHeight: railHeight,
+            cardWidth: cardSide,
+            cardHeight: cardSide,
+            horizontalPadding: horizontalPadding,
+            verticalPadding: verticalPadding,
+            spacing: spacing
         )
     }
 
@@ -556,75 +598,40 @@ struct QuickPanelView: View {
     }
 
     private var bottomHeader: some View {
-        HStack {
-            Spacer(minLength: 0)
-            bottomHeaderContent
-            Spacer(minLength: 0)
-        }
+        bottomHeaderContent
         .padding(.horizontal, 12)
-        .padding(.top, 2)
-        .padding(.bottom, 2)
+        .padding(.top, 8)
+        .padding(.bottom, 0)
     }
 
     private var bottomHeaderContent: some View {
+        ViewThatFits(in: .horizontal) {
+            bottomHeaderExpandedContent
+            bottomHeaderCompactContent
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var bottomHeaderExpandedContent: some View {
         HStack(spacing: 6) {
             bottomSearchField
             bottomInlineFilterBar
-
-            if let app = targetApp, let name = app.localizedName {
-                HStack(spacing: 5) {
-                    if let icon = app.icon {
-                        Image(nsImage: icon)
-                            .resizable()
-                            .frame(width: 14, height: 14)
-                    }
-                    Text(L10n.tr("quick.pasteToApp", name))
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.white.opacity(0.05), in: Capsule())
-                .fixedSize(horizontal: true, vertical: false)
-            }
-
-            Button {
-                toggleBottomMode()
-            } label: {
-                Label(
-                    bottomMode == .compact ? L10n.tr("quick.expandDetails") : L10n.tr("quick.collapseDetails"),
-                    systemImage: bottomMode == .compact ? "rectangle.expand.vertical" : "rectangle.compress.vertical"
-                )
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.white.opacity(0.88))
-                .padding(.horizontal, 9)
-                .padding(.vertical, 5)
-                .background(Color.white.opacity(0.08), in: Capsule())
-            }
-            .buttonStyle(.plain)
-
-            Button {
-                isPanelPinned.toggle()
-                QuickPanelWindowController.shared.isPinned = isPanelPinned
-            } label: {
-                Image(systemName: isPanelPinned ? "pin.fill" : "pin")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.72))
-                    .frame(width: 24, height: 24)
-                    .background(Color.white.opacity(isPanelPinned ? 0.12 : 0.04), in: RoundedRectangle(cornerRadius: 7))
-            }
-            .buttonStyle(.plain)
-            .help(isPanelPinned ? L10n.tr("quickPanel.unpin") : L10n.tr("quickPanel.pin"))
-
-            Text("\(store.totalCount)")
-                .font(.system(size: 11, weight: .semibold).monospacedDigit())
-                .foregroundStyle(.white.opacity(0.68))
-                .padding(.horizontal, 7)
-                .padding(.vertical, 5)
-                .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 7))
+            bottomTargetAppBadge
+            Spacer(minLength: 0)
+            bottomModeToggleButton
+            bottomPinButton
+            bottomCountBadge
         }
-        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private var bottomHeaderCompactContent: some View {
+        HStack(spacing: 6) {
+            bottomSearchField
+            Spacer(minLength: 0)
+            bottomModeToggleIconButton
+            bottomPinButton
+            bottomCountBadge
+        }
     }
 
     private var bottomSearchField: some View {
@@ -677,7 +684,7 @@ struct QuickPanelView: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Color.white.opacity(0.06))
         )
-        .frame(width: 260)
+        .frame(minWidth: 180, idealWidth: 240, maxWidth: 320)
     }
 
     // MARK: - Tabs
@@ -724,8 +731,84 @@ struct QuickPanelView: View {
             }
             .padding(.horizontal, 2)
         }
-        .frame(maxWidth: 360, minHeight: 26, maxHeight: 26)
-        .fixedSize(horizontal: false, vertical: true)
+        .frame(minWidth: 140, idealWidth: 240, maxWidth: 320, minHeight: 26, maxHeight: 26)
+    }
+
+    @ViewBuilder
+    private var bottomTargetAppBadge: some View {
+        if let app = targetApp, let name = app.localizedName {
+            HStack(spacing: 5) {
+                if let icon = app.icon {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .frame(width: 14, height: 14)
+                }
+                Text(L10n.tr("quick.pasteToApp", name))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color.white.opacity(0.05), in: Capsule())
+            .frame(maxWidth: 200, alignment: .leading)
+            .layoutPriority(0.4)
+        }
+    }
+
+    private var bottomModeToggleButton: some View {
+        Button {
+            toggleBottomMode()
+        } label: {
+            Label(
+                bottomMode == .compact ? L10n.tr("quick.expandDetails") : L10n.tr("quick.collapseDetails"),
+                systemImage: bottomMode == .compact ? "rectangle.expand.vertical" : "rectangle.compress.vertical"
+            )
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(.white.opacity(0.88))
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background(Color.white.opacity(0.08), in: Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var bottomModeToggleIconButton: some View {
+        Button {
+            toggleBottomMode()
+        } label: {
+            Image(systemName: bottomMode == .compact ? "rectangle.expand.vertical" : "rectangle.compress.vertical")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.white.opacity(0.88))
+                .frame(width: 28, height: 24)
+                .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 7))
+        }
+        .buttonStyle(.plain)
+        .help(bottomMode == .compact ? L10n.tr("quick.expandDetails") : L10n.tr("quick.collapseDetails"))
+    }
+
+    private var bottomPinButton: some View {
+        Button {
+            isPanelPinned.toggle()
+            QuickPanelWindowController.shared.isPinned = isPanelPinned
+        } label: {
+            Image(systemName: isPanelPinned ? "pin.fill" : "pin")
+                .font(.system(size: 11))
+                .foregroundStyle(.white.opacity(0.72))
+                .frame(width: 24, height: 24)
+                .background(Color.white.opacity(isPanelPinned ? 0.12 : 0.04), in: RoundedRectangle(cornerRadius: 7))
+        }
+        .buttonStyle(.plain)
+        .help(isPanelPinned ? L10n.tr("quickPanel.unpin") : L10n.tr("quickPanel.pin"))
+    }
+
+    private var bottomCountBadge: some View {
+        Text("\(store.totalCount)")
+            .font(.system(size: 11, weight: .semibold).monospacedDigit())
+            .foregroundStyle(.white.opacity(0.68))
+            .padding(.horizontal, 7)
+            .padding(.vertical, 5)
+            .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 7))
     }
 
     private func badge(_ label: String, isActive: Bool, action: @escaping () -> Void) -> some View {
@@ -907,16 +990,18 @@ struct QuickPanelView: View {
         .frame(width: LIST_WIDTH)
     }
 
-    private var bottomClipRail: some View {
+    private func bottomClipRail(metrics: BottomCardLayoutMetrics) -> some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 12) {
+                LazyHStack(alignment: .top, spacing: metrics.spacing) {
                     ForEach(displayOrderItems) { item in
                         let itemID = item.persistentModelID
                         QuickClipCard(
                             item: item,
                             isSelected: selectedItemIDs.contains(itemID),
-                            shortcutIndex: shortcutIndex(for: item)
+                            shortcutIndex: shortcutIndex(for: item),
+                            cardWidth: metrics.cardWidth,
+                            cardHeight: metrics.cardHeight
                         )
                         .id(itemID)
                         .popover(
@@ -942,13 +1027,14 @@ struct QuickPanelView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, bottomMode == .compact ? 6 : 10)
+                .frame(maxHeight: .infinity, alignment: .top)
+                .padding(.horizontal, metrics.horizontalPadding)
+                .padding(.vertical, metrics.verticalPadding)
             }
             .frame(
                 maxWidth: .infinity,
-                minHeight: bottomMode == .compact ? 232 : 258,
-                maxHeight: bottomMode == .compact ? 244 : 274
+                maxHeight: .infinity,
+                alignment: .top
             )
             .onChange(of: lastNavigatedID) {
                 guard let id = lastNavigatedID else { return }

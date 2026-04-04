@@ -42,6 +42,40 @@ struct QuickPanelConfigurationTests {
         #expect(expanded.maxY <= visibleFrame.maxY)
     }
 
+    @Test("Bottom floating frame respects preferred custom size")
+    func customFrameUsesPreferredSize() {
+        let screenFrame = CGRect(x: 0, y: 0, width: 1512, height: 982)
+        let visibleFrame = CGRect(x: 0, y: 38, width: 1440, height: 862)
+        let frame = QuickPanelBottomGeometry.frame(
+            screenFrame: screenFrame,
+            visibleFrame: visibleFrame,
+            mode: .compact,
+            preferredWidth: 980,
+            preferredHeight: 260
+        )
+
+        #expect(frame.width == 980)
+        #expect(frame.height == 260)
+        #expect(frame.minY == visibleFrame.minY + QuickPanelBottomGeometry.bottomInset)
+    }
+
+    @Test("Bottom floating custom size is clamped to allowed range")
+    func customFrameClampsToBounds() {
+        let screenFrame = CGRect(x: 0, y: 0, width: 820, height: 640)
+        let visibleFrame = CGRect(x: 0, y: 24, width: 820, height: 560)
+        let frame = QuickPanelBottomGeometry.frame(
+            screenFrame: screenFrame,
+            visibleFrame: visibleFrame,
+            mode: .expanded,
+            preferredWidth: 300,
+            preferredHeight: 1200
+        )
+
+        #expect(frame.width == QuickPanelBottomGeometry.minimumWidth)
+        #expect(frame.height == visibleFrame.height - QuickPanelBottomGeometry.bottomInset)
+        #expect(frame.maxY <= visibleFrame.maxY)
+    }
+
     @Test("Bottom floating keyboard routing matches design")
     func keyboardRouting() {
         #expect(

@@ -4,10 +4,24 @@ struct QuickClipCard: View {
     let item: ClipItem
     let isSelected: Bool
     let shortcutIndex: Int?
+    let cardWidth: CGFloat
+    let cardHeight: CGFloat
 
     private let cardCornerRadius: CGFloat = 14
-    private let cardWidth: CGFloat = 198
-    private let cardHeight: CGFloat = 178
+
+    init(
+        item: ClipItem,
+        isSelected: Bool,
+        shortcutIndex: Int?,
+        cardWidth: CGFloat = 198,
+        cardHeight: CGFloat = 178
+    ) {
+        self.item = item
+        self.isSelected = isSelected
+        self.shortcutIndex = shortcutIndex
+        self.cardWidth = cardWidth
+        self.cardHeight = cardHeight
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
