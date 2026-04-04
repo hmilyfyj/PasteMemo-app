@@ -594,29 +594,26 @@ struct QuickPanelView: View {
     }
 
     private var bottomHeader: some View {
-        VStack(spacing: 10) {
-            ZStack {
-                bottomSearchField
-                    .frame(maxWidth: QuickPanelBottomTheme.searchWidth)
-                    .frame(maxWidth: .infinity)
-
-                HStack {
-                    Spacer()
-                    bottomWindowOrnaments
-                }
-            }
-
-            ViewThatFits(in: .horizontal) {
-                bottomSecondaryBar
-                bottomSecondaryCompactBar
-            }
+        ViewThatFits(in: .horizontal) {
+            bottomHeaderSingleRow
+            bottomHeaderCompactSingleRow
         }
     }
 
-    private var bottomSecondaryBar: some View {
+    private var bottomHeaderSingleRow: some View {
         HStack(spacing: 8) {
             bottomInlineFilterBar
-            Spacer(minLength: 0)
+                .frame(maxWidth: 320)
+
+            Spacer(minLength: 8)
+
+            bottomSearchField
+                .frame(width: QuickPanelBottomTheme.searchWidth)
+                .layoutPriority(1)
+
+            Spacer(minLength: 8)
+
+            bottomWindowOrnaments
             bottomTargetAppBadge
             bottomModeToggleButton
             bottomPinButton
@@ -624,12 +621,15 @@ struct QuickPanelView: View {
         }
     }
 
-    private var bottomSecondaryCompactBar: some View {
+    private var bottomHeaderCompactSingleRow: some View {
         HStack(spacing: 8) {
             bottomInlineFilterBar
-                .frame(maxWidth: 240)
-            Spacer(minLength: 0)
-            bottomTargetAppBadge
+                .frame(minWidth: 120, idealWidth: 180, maxWidth: 220)
+
+            bottomSearchField
+                .frame(minWidth: 200, maxWidth: .infinity)
+                .layoutPriority(1)
+
             bottomModeToggleIconButton
             bottomPinButton
             bottomCountBadge
@@ -705,7 +705,7 @@ struct QuickPanelView: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(QuickPanelBottomTheme.thinStroke, lineWidth: 1)
         )
-        .frame(minWidth: QuickPanelBottomTheme.searchMinWidth)
+        .frame(minWidth: 180, maxWidth: .infinity)
     }
 
     // MARK: - Tabs
