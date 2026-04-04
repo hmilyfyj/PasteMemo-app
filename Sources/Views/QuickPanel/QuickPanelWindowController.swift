@@ -316,6 +316,7 @@ final class QuickPanelWindowController {
 
     func dismiss() {
         isPinned = false
+        suppressDismiss = false
         removeClickOutsideMonitor()
         removeDeactivationObserver()
         guard let panel else {
@@ -346,6 +347,10 @@ final class QuickPanelWindowController {
 
     var isVisible: Bool {
         panel?.isVisible ?? false
+    }
+
+    func setQuickLookPreviewVisible(_ isVisible: Bool) {
+        suppressDismiss = isVisible
     }
 
     func setBottomFloatingMode(_ mode: QuickPanelBottomMode, animated: Bool = true) {

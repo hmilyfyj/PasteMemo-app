@@ -24,6 +24,7 @@ enum QuickPanelKeyIntent: Equatable {
     case toggleBottomMode
     case collapseOrDismiss
     case focusSearch
+    case togglePreview
 }
 
 enum QuickPanelKeyboardRouter {
@@ -32,7 +33,8 @@ enum QuickPanelKeyboardRouter {
         bottomMode: QuickPanelBottomMode,
         keyCode: Int,
         hasCommand: Bool,
-        suggestionVisible: Bool
+        suggestionVisible: Bool,
+        searchFocused: Bool
     ) -> QuickPanelKeyIntent? {
         guard !suggestionVisible else { return nil }
 
@@ -50,6 +52,8 @@ enum QuickPanelKeyboardRouter {
         guard style == .bottomFloating else { return nil }
 
         switch keyCode {
+        case 49 where !hasCommand && !searchFocused:
+            return .togglePreview
         case 123:
             return .moveSelection(-1)
         case 124:

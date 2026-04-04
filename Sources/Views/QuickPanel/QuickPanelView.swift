@@ -101,6 +101,16 @@ struct QuickPanelView: View {
         lastNavigatedID = id
     }
 
+    private func restoreSearchFocusIfNeeded() {
+        if !isBottomFloatingStyle {
+            isSearchFocused = true
+        }
+    }
+
+    private func resetSearchFocusForPresentation() {
+        isSearchFocused = !isBottomFloatingStyle
+    }
+
     private func handleItemClick(_ id: PersistentIdentifier) {
         let now = Date()
         let isDoubleClick = lastClickedID == id && now.timeIntervalSince(lastClickTime) < 0.3
@@ -121,7 +131,7 @@ struct QuickPanelView: View {
         } else {
             selectItem(id)
         }
-        isSearchFocused = true
+        restoreSearchFocusIfNeeded()
         lastClickedID = id
         lastClickTime = now
     }
@@ -200,7 +210,7 @@ struct QuickPanelView: View {
             installKeyMonitor()
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(50))
-                isSearchFocused = true
+                resetSearchFocusForPresentation()
             }
         }
         .onDisappear {
@@ -233,7 +243,7 @@ struct QuickPanelView: View {
                 lastSeenFirstItemID = latestItemID
             }
             targetApp = QuickPanelWindowController.shared.previousApp
-            isSearchFocused = true
+            resetSearchFocusForPresentation()
         }
         .onChange(of: searchText) {
             groupSuggestionIndex = -1
@@ -714,15 +724,16 @@ struct QuickPanelView: View {
             HStack(spacing: 6) {
                 badge(L10n.tr("filter.pinned"), isActive: selectedFilter == .pinned) {
                     selectedFilter = selectedFilter == .pinned ? .all : .pinned
-                    isSearchFocused = true
+                    restoreSearchFocusIfNeeded()
                 }
                 badge(L10n.tr("filter.all"), isActive: selectedFilter == .all) {
-                    selectedFilter = .all; isSearchFocused = true
+                    selectedFilter = .all
+                    restoreSearchFocusIfNeeded()
                 }
                 ForEach(availableContentTypes, id: \.self) { type in
                     badge(type.label, isActive: selectedFilter == .type(type)) {
                         selectedFilter = selectedFilter == .type(type) ? .all : .type(type)
-                        isSearchFocused = true
+                        restoreSearchFocusIfNeeded()
                     }
                 }
             }
@@ -736,16 +747,16 @@ struct QuickPanelView: View {
             HStack(spacing: 6) {
                 bottomFilterBadge(L10n.tr("filter.pinned"), isActive: selectedFilter == .pinned) {
                     selectedFilter = selectedFilter == .pinned ? .all : .pinned
-                    isSearchFocused = true
+                    restoreSearchFocusIfNeeded()
                 }
                 bottomFilterBadge(L10n.tr("filter.all"), isActive: selectedFilter == .all) {
                     selectedFilter = .all
-                    isSearchFocused = true
+                    restoreSearchFocusIfNeeded()
                 }
                 ForEach(availableContentTypes, id: \.self) { type in
                     bottomFilterBadge(type.label, isActive: selectedFilter == .type(type)) {
                         selectedFilter = selectedFilter == .type(type) ? .all : .type(type)
-                        isSearchFocused = true
+                        restoreSearchFocusIfNeeded()
                     }
                 }
             }
@@ -893,7 +904,7 @@ struct QuickPanelView: View {
                                     .popover(
                                         isPresented: Binding(
                                             get: { showCommandPalette && selectedItemIDs.contains(itemID) && (lastNavigatedID ?? selectedItemIDs.first) == itemID },
-                                            set: { if !$0 { showCommandPalette = false; isSearchFocused = true } }
+                                            set: { if !$0 { showCommandPalette = false; restoreSearchFocusIfNeeded() } }
                                         ),
                                         arrowEdge: .trailing
                                     ) {
@@ -901,7 +912,7 @@ struct QuickPanelView: View {
                                             item: item,
                                             isMultiSelected: isMultiSelected,
                                             onAction: { handleCommandAction($0) },
-                                            onDismiss: { showCommandPalette = false; isSearchFocused = true }
+                                            onDismiss: { showCommandPalette = false; restoreSearchFocusIfNeeded() }
                                         )
                                     }
                                     .onAppear {
@@ -1030,7 +1041,7 @@ struct QuickPanelView: View {
                         .popover(
                             isPresented: Binding(
                                 get: { showCommandPalette && selectedItemIDs.contains(itemID) && (lastNavigatedID ?? selectedItemIDs.first) == itemID },
-                                set: { if !$0 { showCommandPalette = false; isSearchFocused = true } }
+                                set: { if !$0 { showCommandPalette = false; restoreSearchFocusIfNeeded() } }
                             ),
                             attachmentAnchor: .point(.top),
                             arrowEdge: .top
@@ -1039,7 +1050,7 @@ struct QuickPanelView: View {
                                 item: item,
                                 isMultiSelected: isMultiSelected,
                                 onAction: { handleCommandAction($0) },
-                                onDismiss: { showCommandPalette = false; isSearchFocused = true }
+                                onDismiss: { showCommandPalette = false; restoreSearchFocusIfNeeded() }
                             )
                         }
                         .onTapGesture {
@@ -1243,6 +1254,7 @@ struct QuickPanelView: View {
 
     private var compactFooterBar: some View {
         HStack(spacing: 12) {
+            footerKey("Space", L10n.tr("quick.preview"))
             footerKey("←→", L10n.tr("quick.navigate"))
             footerKey("↑↓", L10n.tr("quick.switchType"))
             footerKey("⌘O", bottomMode == .compact ? L10n.tr("quick.expandDetails") : L10n.tr("quick.collapseDetails"))
@@ -1348,9 +1360,8 @@ struct QuickPanelView: View {
             }
 
             if Int(event.keyCode) == 53,
-               let qlPanel = QLPreviewPanel.shared(),
-               qlPanel.isVisible {
-                qlPanel.orderOut(nil)
+               QuickLookHelper.shared.isVisible {
+                QuickLookHelper.shared.closePreview()
                 return nil
             }
 
@@ -1359,7 +1370,8 @@ struct QuickPanelView: View {
                 bottomMode: bottomMode,
                 keyCode: Int(event.keyCode),
                 hasCommand: hasCmd,
-                suggestionVisible: isShowingSuggestions
+                suggestionVisible: isShowingSuggestions,
+                searchFocused: isSearchFocused
             ) {
                 switch intent {
                 case .moveSelection(let delta):
@@ -1372,6 +1384,8 @@ struct QuickPanelView: View {
                     setBottomMode(.compact)
                 case .focusSearch:
                     isSearchFocused = true
+                case .togglePreview:
+                    togglePreview()
                 }
                 return nil
             }
@@ -1391,8 +1405,8 @@ struct QuickPanelView: View {
                     groupSuggestionIndex = -1
                     return nil
                 }
-                if let qlPanel = QLPreviewPanel.shared(), qlPanel.isVisible {
-                    qlPanel.orderOut(nil)
+                if QuickLookHelper.shared.isVisible {
+                    QuickLookHelper.shared.closePreview()
                     return nil
                 }
                 handleDismiss(); return nil
@@ -1489,7 +1503,7 @@ struct QuickPanelView: View {
 
     private func handleCommandAction(_ action: CommandAction) {
         showCommandPalette = false
-        isSearchFocused = true
+        restoreSearchFocusIfNeeded()
         switch action {
         case .paste:
             handlePaste()
@@ -1807,6 +1821,15 @@ struct QuickPanelView: View {
     }
 
     private func handleDismiss() { HotkeyManager.shared.hideQuickPanel() }
+
+    private func togglePreview() {
+        if QuickLookHelper.shared.isVisible {
+            QuickLookHelper.shared.closePreview()
+            return
+        }
+        guard !isMultiSelected, let item = currentItem else { return }
+        QuickLookHelper.shared.toggle(item: item)
+    }
 
     private var isTargetFinder: Bool {
         clipboardManager.isFinderApp(QuickPanelWindowController.shared.previousApp)

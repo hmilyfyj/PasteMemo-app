@@ -127,7 +127,8 @@ struct QuickPanelConfigurationTests {
                 bottomMode: .compact,
                 keyCode: 124,
                 hasCommand: false,
-                suggestionVisible: false
+                suggestionVisible: false,
+                searchFocused: false
             ) == .moveSelection(1)
         )
         #expect(
@@ -136,7 +137,8 @@ struct QuickPanelConfigurationTests {
                 bottomMode: .compact,
                 keyCode: 126,
                 hasCommand: false,
-                suggestionVisible: false
+                suggestionVisible: false,
+                searchFocused: false
             ) == .switchType(-1)
         )
         #expect(
@@ -145,7 +147,8 @@ struct QuickPanelConfigurationTests {
                 bottomMode: .expanded,
                 keyCode: 53,
                 hasCommand: false,
-                suggestionVisible: false
+                suggestionVisible: false,
+                searchFocused: false
             ) == .collapseOrDismiss
         )
         #expect(
@@ -154,8 +157,29 @@ struct QuickPanelConfigurationTests {
                 bottomMode: .compact,
                 keyCode: 31,
                 hasCommand: true,
-                suggestionVisible: false
+                suggestionVisible: false,
+                searchFocused: false
             ) == .toggleBottomMode
+        )
+        #expect(
+            QuickPanelKeyboardRouter.intent(
+                style: .bottomFloating,
+                bottomMode: .compact,
+                keyCode: 49,
+                hasCommand: false,
+                suggestionVisible: false,
+                searchFocused: false
+            ) == .togglePreview
+        )
+        #expect(
+            QuickPanelKeyboardRouter.intent(
+                style: .bottomFloating,
+                bottomMode: .compact,
+                keyCode: 49,
+                hasCommand: false,
+                suggestionVisible: false,
+                searchFocused: true
+            ) == nil
         )
     }
 
