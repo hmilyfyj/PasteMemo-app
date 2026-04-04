@@ -409,7 +409,6 @@
 "relay.previous" = "이전";
 "relay.skip" = "건너뛰기";
 "relay.delete" = "삭제";
-"relay.deleteSelected" = "선택 항목 삭제";
 "relay.split" = "분할";
 "relay.addToQueue" = "릴레이 대기열에 추가";
 "relay.splitAndRelay" = "분할 후 릴레이";

@@ -409,7 +409,6 @@ Utilisez %@ pour coller un par un.";
 "relay.previous" = "Précédent";
 "relay.skip" = "Passer";
 "relay.delete" = "Supprimer";
-"relay.deleteSelected" = "Supprimer la sélection";
 "relay.split" = "Diviser";
 "relay.addToQueue" = "Ajouter à la file relais";
 "relay.splitAndRelay" = "Diviser et relais";
