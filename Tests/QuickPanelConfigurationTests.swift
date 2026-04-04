@@ -71,7 +71,7 @@ struct QuickPanelConfigurationTests {
             preferredHeight: 1200
         )
 
-        #expect(frame.width == QuickPanelBottomGeometry.minimumWidth)
+        #expect(frame.width == screenFrame.width - QuickPanelBottomGeometry.horizontalInset * 2)
         #expect(frame.height == visibleFrame.height - QuickPanelBottomGeometry.bottomInset)
         #expect(frame.maxY <= visibleFrame.maxY)
     }

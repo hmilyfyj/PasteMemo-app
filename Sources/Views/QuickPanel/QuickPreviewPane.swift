@@ -5,6 +5,7 @@ import AppKit
 struct QuickPreviewPane: View {
     let item: ClipItem
     var searchText: String = ""
+    var usesBottomFloatingStyle: Bool = false
     @AppStorage(OCRTaskCoordinator.enableOCRKey) private var ocrEnabled = true
 
     private var isContentImage: Bool {
@@ -20,7 +21,7 @@ struct QuickPreviewPane: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: usesBottomFloatingStyle ? 12 : 0) {
             Group {
                 if item.isSensitive {
                     SensitiveMask { quickContentArea }
@@ -29,13 +30,36 @@ struct QuickPreviewPane: View {
                     quickContentArea
                 }
             }
-            .background(Color.primary.opacity(0.04))
+            .background(contentBackground)
+            .clipShape(
+                RoundedRectangle(
+                    cornerRadius: usesBottomFloatingStyle ? QuickPanelBottomTheme.previewCornerRadius : 0,
+                    style: .continuous
+                )
+            )
 
-            Divider().opacity(0.3)
+            if !usesBottomFloatingStyle {
+                Divider().opacity(0.3)
+            }
 
             propertiesSection
         }
+        .padding(usesBottomFloatingStyle ? 12 : 0)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private var contentBackground: some View {
+        if usesBottomFloatingStyle {
+            RoundedRectangle(cornerRadius: QuickPanelBottomTheme.previewCornerRadius, style: .continuous)
+                .fill(QuickPanelBottomTheme.previewBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: QuickPanelBottomTheme.previewCornerRadius, style: .continuous)
+                        .stroke(QuickPanelBottomTheme.faintStroke, lineWidth: 1)
+                )
+        } else {
+            Color.primary.opacity(0.04)
+        }
     }
 
     @ViewBuilder
@@ -230,7 +254,7 @@ struct QuickPreviewPane: View {
         }
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(Color.primary.opacity(0.05))
+                .fill(usesBottomFloatingStyle ? QuickPanelBottomTheme.glassFill : Color.primary.opacity(0.05))
         )
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -500,6 +524,20 @@ struct QuickPreviewPane: View {
             QuickPanelWindowController.shared.dismiss()
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 6)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(
+                cornerRadius: usesBottomFloatingStyle ? QuickPanelBottomTheme.sectionCornerRadius : 0,
+                style: .continuous
+            )
+            .fill(usesBottomFloatingStyle ? QuickPanelBottomTheme.glassFill : Color.clear)
+        )
+        .overlay(
+            RoundedRectangle(
+                cornerRadius: usesBottomFloatingStyle ? QuickPanelBottomTheme.sectionCornerRadius : 0,
+                style: .continuous
+            )
+            .stroke(usesBottomFloatingStyle ? QuickPanelBottomTheme.faintStroke : Color.clear, lineWidth: 1)
+        )
     }
 }

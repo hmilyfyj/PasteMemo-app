@@ -202,6 +202,8 @@ final class QuickPanelWindowController {
     private var snapGuide: SnapGuideWindow?
     private weak var dragCoverView: NSView?
     private weak var resizeHandleOverlayView: ResizeHandleOverlayView?
+    private weak var panelContainerView: NSView?
+    private weak var panelVisualEffectView: NSVisualEffectView?
     private(set) var bottomMode: QuickPanelBottomMode = .compact
 
     private var panelStyle: QuickPanelStyle {
@@ -396,6 +398,7 @@ final class QuickPanelWindowController {
         container.wantsLayer = true
         container.layer?.cornerRadius = 16
         container.layer?.masksToBounds = true
+        panelContainerView = container
 
         let visualEffect = NSVisualEffectView(frame: container.bounds)
         visualEffect.material = .headerView
@@ -403,6 +406,7 @@ final class QuickPanelWindowController {
         visualEffect.state = .active
         visualEffect.autoresizingMask = [.width, .height]
         container.addSubview(visualEffect)
+        panelVisualEffectView = visualEffect
 
         let hostingView = hosting.view
         hostingView.translatesAutoresizingMaskIntoConstraints = false
@@ -453,9 +457,14 @@ final class QuickPanelWindowController {
         panel.styleMask = isBottomFloating ? bottomFloatingMask : classicMask
         panel.isMovableByWindowBackground = !isBottomFloating
         panel.titlebarAppearsTransparent = !isBottomFloating
+        panel.hasShadow = isBottomFloating
         dragCoverView?.isHidden = isBottomFloating
         resizeHandleOverlayView?.isHidden = !isBottomFloating
         resizeHandleOverlayView?.isEnabled = isBottomFloating
+        panelContainerView?.layer?.cornerRadius = isBottomFloating ? QuickPanelBottomTheme.windowCornerRadius : 16
+        panelContainerView?.layer?.borderWidth = isBottomFloating ? 1 : 0
+        panelContainerView?.layer?.borderColor = NSColor.white.withAlphaComponent(isBottomFloating ? 0.06 : 0).cgColor
+        panelVisualEffectView?.material = isBottomFloating ? .hudWindow : .headerView
         panel.minSize = isBottomFloating
             ? NSSize(width: QuickPanelBottomGeometry.minimumWidth, height: QuickPanelBottomGeometry.minimumHeight(for: bottomMode))
             : NSSize(width: MIN_WIDTH, height: MIN_HEIGHT)

@@ -304,25 +304,31 @@ struct QuickPanelView: View {
         GeometryReader { proxy in
             let metrics = bottomCardLayoutMetrics(for: proxy.size)
 
-            VStack(spacing: 0) {
+            VStack(spacing: 12) {
                 bottomHeader
                 if filteredItems.isEmpty {
                     bottomEmptyState
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .quickPanelBottomSection()
                 } else {
                     bottomClipRail(metrics: metrics)
                         .frame(height: metrics.railHeight)
+                        .quickPanelBottomSection()
 
                     if bottomMode == .expanded {
-                        Divider().opacity(0.18)
                         previewPane
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        Divider().opacity(0.18)
+                            .quickPanelBottomSection()
                         compactFooterBar
                     }
                 }
             }
+            .padding(QuickPanelBottomTheme.contentInset)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .quickPanelBottomShell()
+            .padding(.horizontal, QuickPanelBottomTheme.shellInset)
+            .padding(.top, 6)
+            .padding(.bottom, 4)
         }
         .frame(
             minWidth: QuickPanelBottomGeometry.minimumWidth,
@@ -331,31 +337,21 @@ struct QuickPanelView: View {
             minHeight: bottomMode == .compact ? QuickPanelBottomGeometry.compactHeight : QuickPanelBottomGeometry.expandedHeight,
             maxHeight: .infinity
         )
-        .background(
-            LinearGradient(
-                colors: [
-                    Color(nsColor: .windowBackgroundColor).opacity(0.94),
-                    Color.black.opacity(0.86),
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
     }
 
     private func bottomCardLayoutMetrics(for size: CGSize) -> BottomCardLayoutMetrics {
-        let horizontalPadding: CGFloat = 8
-        let verticalPadding: CGFloat = bottomMode == .compact ? 4 : 8
+        let horizontalPadding: CGFloat = 10
+        let verticalPadding: CGFloat = bottomMode == .compact ? 10 : 12
         let spacing: CGFloat = 12
 
         let railHeight: CGFloat
         if bottomMode == .compact {
-            railHeight = max(size.height - 44, 150)
+            railHeight = max(size.height - 86, 150)
         } else {
-            railHeight = min(max(size.height * 0.34, 220), 360)
+            railHeight = min(max(size.height * 0.31, 228), 300)
         }
 
-        let cardSide = max(railHeight - verticalPadding * 2, 138)
+        let cardSide = max(railHeight - verticalPadding * 2, 156)
 
         return BottomCardLayoutMetrics(
             railHeight: railHeight,
@@ -598,47 +594,71 @@ struct QuickPanelView: View {
     }
 
     private var bottomHeader: some View {
-        bottomHeaderContent
-        .padding(.horizontal, 12)
-        .padding(.top, 8)
-        .padding(.bottom, 0)
-    }
+        VStack(spacing: 10) {
+            ZStack {
+                bottomSearchField
+                    .frame(maxWidth: QuickPanelBottomTheme.searchWidth)
+                    .frame(maxWidth: .infinity)
 
-    private var bottomHeaderContent: some View {
-        ViewThatFits(in: .horizontal) {
-            bottomHeaderExpandedContent
-            bottomHeaderCompactContent
+                HStack {
+                    Spacer()
+                    bottomWindowOrnaments
+                }
+            }
+
+            ViewThatFits(in: .horizontal) {
+                bottomSecondaryBar
+                bottomSecondaryCompactBar
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var bottomHeaderExpandedContent: some View {
-        HStack(spacing: 6) {
-            bottomSearchField
+    private var bottomSecondaryBar: some View {
+        HStack(spacing: 8) {
             bottomInlineFilterBar
-            bottomTargetAppBadge
             Spacer(minLength: 0)
+            bottomTargetAppBadge
             bottomModeToggleButton
             bottomPinButton
             bottomCountBadge
         }
     }
 
-    private var bottomHeaderCompactContent: some View {
-        HStack(spacing: 6) {
-            bottomSearchField
+    private var bottomSecondaryCompactBar: some View {
+        HStack(spacing: 8) {
+            bottomInlineFilterBar
+                .frame(maxWidth: 240)
             Spacer(minLength: 0)
+            bottomTargetAppBadge
             bottomModeToggleIconButton
             bottomPinButton
             bottomCountBadge
         }
     }
 
+    private var bottomWindowOrnaments: some View {
+        HStack(spacing: 7) {
+            ForEach([
+                Color(red: 0.95, green: 0.30, blue: 0.34),
+                Color(red: 0.99, green: 0.74, blue: 0.13),
+                Color(red: 0.70, green: 0.45, blue: 0.98),
+                Color.white.opacity(0.65),
+                Color(red: 0.31, green: 0.84, blue: 0.43),
+            ], id: \.self) { color in
+                Circle()
+                    .fill(color)
+                    .frame(width: 7, height: 7)
+                    .shadow(color: color.opacity(0.28), radius: 3, y: 1)
+            }
+        }
+        .padding(.trailing, 2)
+    }
+
     private var bottomSearchField: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(QuickPanelBottomTheme.tertiaryText)
 
             if let filterName = selectedGroupFilter {
                 HStack(spacing: 4) {
@@ -656,13 +676,14 @@ struct QuickPanelView: View {
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 5)
-                .background(Color.accentColor, in: Capsule())
+                .background(QuickPanelBottomTheme.accentBlue, in: Capsule())
             }
 
             TextField(L10n.tr("quick.search"), text: $searchText)
                 .textFieldStyle(.plain)
-                .font(.system(size: 14))
+                .font(.system(size: 13.5, weight: .medium))
                 .focused($isSearchFocused)
+                .foregroundStyle(.white.opacity(0.95))
 
             if !searchText.isEmpty || selectedGroupFilter != nil {
                 Button {
@@ -677,14 +698,14 @@ struct QuickPanelView: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 8)
-        .frame(height: 26)
-        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal, 12)
+        .frame(height: QuickPanelBottomTheme.searchHeight)
+        .background(QuickPanelBottomTheme.controlFill, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.white.opacity(0.06))
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(QuickPanelBottomTheme.thinStroke, lineWidth: 1)
         )
-        .frame(minWidth: 180, idealWidth: 240, maxWidth: 320)
+        .frame(minWidth: QuickPanelBottomTheme.searchMinWidth)
     }
 
     // MARK: - Tabs
@@ -731,7 +752,7 @@ struct QuickPanelView: View {
             }
             .padding(.horizontal, 2)
         }
-        .frame(minWidth: 140, idealWidth: 240, maxWidth: 320, minHeight: 26, maxHeight: 26)
+        .frame(minWidth: 150, idealWidth: 260, maxWidth: 340, minHeight: 28, maxHeight: 28)
     }
 
     @ViewBuilder
@@ -741,16 +762,16 @@ struct QuickPanelView: View {
                 if let icon = app.icon {
                     Image(nsImage: icon)
                         .resizable()
-                        .frame(width: 14, height: 14)
+                        .frame(width: 13, height: 13)
                 }
                 Text(L10n.tr("quick.pasteToApp", name))
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(QuickPanelBottomTheme.secondaryText)
                     .lineLimit(1)
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(Color.white.opacity(0.05), in: Capsule())
+            .background(QuickPanelBottomTheme.mutedFill, in: Capsule())
             .frame(maxWidth: 200, alignment: .leading)
             .layoutPriority(0.4)
         }
@@ -768,7 +789,7 @@ struct QuickPanelView: View {
             .foregroundStyle(.white.opacity(0.88))
             .padding(.horizontal, 9)
             .padding(.vertical, 5)
-            .background(Color.white.opacity(0.08), in: Capsule())
+            .background(QuickPanelBottomTheme.controlFill, in: Capsule())
         }
         .buttonStyle(.plain)
     }
@@ -781,7 +802,7 @@ struct QuickPanelView: View {
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.white.opacity(0.88))
                 .frame(width: 28, height: 24)
-                .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 7))
+                .background(QuickPanelBottomTheme.controlFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
         .help(bottomMode == .compact ? L10n.tr("quick.expandDetails") : L10n.tr("quick.collapseDetails"))
@@ -796,7 +817,10 @@ struct QuickPanelView: View {
                 .font(.system(size: 11))
                 .foregroundStyle(.white.opacity(0.72))
                 .frame(width: 24, height: 24)
-                .background(Color.white.opacity(isPanelPinned ? 0.12 : 0.04), in: RoundedRectangle(cornerRadius: 7))
+                .background(
+                    isPanelPinned ? QuickPanelBottomTheme.controlFill.opacity(1.3) : QuickPanelBottomTheme.mutedFill,
+                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                )
         }
         .buttonStyle(.plain)
         .help(isPanelPinned ? L10n.tr("quickPanel.unpin") : L10n.tr("quickPanel.pin"))
@@ -805,10 +829,10 @@ struct QuickPanelView: View {
     private var bottomCountBadge: some View {
         Text("\(store.totalCount)")
             .font(.system(size: 11, weight: .semibold).monospacedDigit())
-            .foregroundStyle(.white.opacity(0.68))
+            .foregroundStyle(.white.opacity(0.72))
             .padding(.horizontal, 7)
             .padding(.vertical, 5)
-            .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 7))
+            .background(QuickPanelBottomTheme.mutedFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private func badge(_ label: String, isActive: Bool, action: @escaping () -> Void) -> some View {
@@ -834,7 +858,7 @@ struct QuickPanelView: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
                 .background(
-                    isActive ? Color.accentColor : Color.white.opacity(0.06),
+                    isActive ? QuickPanelBottomTheme.accentBlue : QuickPanelBottomTheme.mutedFill,
                     in: Capsule()
                 )
                 .overlay(
@@ -1031,6 +1055,7 @@ struct QuickPanelView: View {
                 .padding(.horizontal, metrics.horizontalPadding)
                 .padding(.vertical, metrics.verticalPadding)
             }
+            .scrollClipDisabled()
             .frame(
                 maxWidth: .infinity,
                 maxHeight: .infinity,
@@ -1076,17 +1101,18 @@ struct QuickPanelView: View {
             Spacer()
             Image(systemName: "tray")
                 .font(.system(size: 24, weight: .light))
-                .foregroundStyle(.white.opacity(0.32))
+                .foregroundStyle(.white.opacity(0.3))
             Text(L10n.tr("empty.noResults"))
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.white.opacity(0.54))
+                .foregroundStyle(.white.opacity(0.56))
             if bottomMode == .compact {
                 Text(L10n.tr("quick.expandHint"))
                     .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.38))
+                    .foregroundStyle(.white.opacity(0.36))
             }
             Spacer()
         }
+        .padding(.horizontal, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -1097,7 +1123,7 @@ struct QuickPanelView: View {
         if isMultiSelected {
             multiSelectPreview
         } else if let item = currentItem {
-            QuickPreviewPane(item: item, searchText: searchText)
+            QuickPreviewPane(item: item, searchText: searchText, usesBottomFloatingStyle: isBottomFloatingStyle)
         } else {
             VStack(spacing: 8) {
                 Image(systemName: "square.text.square")
@@ -1115,13 +1141,13 @@ struct QuickPanelView: View {
         VStack(spacing: 12) {
             Image(systemName: "square.stack.3d.up")
                 .font(.system(size: 32, weight: .light))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(isBottomFloatingStyle ? Color.white.opacity(0.38) : Color.secondary.opacity(0.6))
             Text(L10n.tr("quick.multiSelected", selectedItemIDs.count))
                 .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(isBottomFloatingStyle ? Color.white.opacity(0.72) : Color.secondary)
             Text(L10n.tr("quick.batchPaste"))
                 .font(.system(size: 12))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(isBottomFloatingStyle ? Color.white.opacity(0.5) : Color.secondary.opacity(0.7))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -1227,8 +1253,7 @@ struct QuickPanelView: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(Color.white.opacity(0.04))
+        .padding(.vertical, 2)
     }
 
     private func footerKey(_ key: String, _ label: String) -> some View {

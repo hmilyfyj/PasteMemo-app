@@ -7,14 +7,12 @@ struct QuickClipCard: View {
     let cardWidth: CGFloat
     let cardHeight: CGFloat
 
-    private let cardCornerRadius: CGFloat = 14
-
     init(
         item: ClipItem,
         isSelected: Bool,
         shortcutIndex: Int?,
-        cardWidth: CGFloat = 198,
-        cardHeight: CGFloat = 178
+        cardWidth: CGFloat = 188,
+        cardHeight: CGFloat = 220
     ) {
         self.item = item
         self.isSelected = isSelected
@@ -24,7 +22,7 @@ struct QuickClipCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(spacing: 0) {
             header
             preview
             footer
@@ -32,165 +30,324 @@ struct QuickClipCard: View {
         .frame(width: cardWidth, height: cardHeight)
         .background(cardBackground)
         .overlay(cardBorder)
-        .shadow(color: isSelected ? Color.accentColor.opacity(0.28) : .black.opacity(0.12), radius: isSelected ? 14 : 8, y: 3)
-        .contentShape(RoundedRectangle(cornerRadius: cardCornerRadius))
+        .shadow(
+            color: isSelected ? QuickPanelBottomTheme.selectionBlue.opacity(0.32) : .black.opacity(0.22),
+            radius: isSelected ? 18 : 10,
+            y: isSelected ? 8 : 4
+        )
+        .contentShape(RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous))
     }
 
     private var header: some View {
-        HStack(spacing: 6) {
-            Text(item.contentType.label)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.96))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(typeColor, in: Capsule())
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(item.contentType.label)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+
+                Text(formatTimeAgo(item.lastUsedAt))
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.82))
+                    .lineLimit(1)
+            }
 
             Spacer(minLength: 0)
 
-            if let appIcon = appIcon(forBundleID: item.sourceAppBundleID, name: item.sourceApp) {
-                Image(nsImage: appIcon)
+            if let icon = appIcon(forBundleID: item.sourceAppBundleID, name: item.sourceApp) {
+                Image(nsImage: icon)
                     .resizable()
-                    .frame(width: 17, height: 17)
-                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                    .interpolation(.high)
+                    .frame(width: 24, height: 24)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(Color.white.opacity(0.22), lineWidth: 1)
+                    )
+                    .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
+            } else {
+                Image(systemName: item.contentType.icon)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .frame(width: 24, height: 24)
+                    .background(Color.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
-
-            if let shortcutIndex {
-                Text("\(shortcutIndex)")
-                    .font(.system(size: 9, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.85))
-                    .frame(minWidth: 16, minHeight: 16)
-                    .background(Color.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 5))
-            }
         }
-        .padding(.horizontal, 8)
-        .padding(.top, 8)
-    }
-
-    @ViewBuilder
-    private var preview: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.white.opacity(isSelected ? 0.08 : 0.045))
-
-            previewContent
-                .padding(10)
-        }
-        .padding(.horizontal, 8)
-        .padding(.top, 8)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private var footer: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(item.displayTitle ?? item.content)
-                .font(.system(size: 11.5, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.94))
-                .lineLimit(3)
-
-            Text(metaText)
-                .font(.system(size: 10))
-                .foregroundStyle(.white.opacity(0.58))
-                .lineLimit(1)
-        }
-        .padding(.horizontal, 11)
-        .padding(.bottom, 8)
-    }
-
-    private var cardBackground: some ShapeStyle {
-        LinearGradient(
-            colors: [
-                Color.white.opacity(isSelected ? 0.11 : 0.07),
-                Color.white.opacity(isSelected ? 0.08 : 0.04),
-            ],
-            startPoint: .top,
-            endPoint: .bottom
+        .padding(.horizontal, 10)
+        .frame(height: 34)
+        .frame(maxWidth: .infinity)
+        .background(headerColor)
+        .clipShape(
+            UnevenRoundedRectangle(
+                topLeadingRadius: QuickPanelBottomTheme.cardCornerRadius,
+                bottomLeadingRadius: 0,
+                bottomTrailingRadius: 0,
+                topTrailingRadius: QuickPanelBottomTheme.cardCornerRadius
+            )
         )
     }
 
-    private var cardBorder: some View {
-        RoundedRectangle(cornerRadius: cardCornerRadius)
-            .stroke(
-                isSelected ? Color.accentColor : Color.white.opacity(0.06),
-                lineWidth: isSelected ? 2 : 1
+    private var preview: some View {
+        ZStack {
+            previewBackground
+            previewContent
+                .padding(12)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var footer: some View {
+        HStack(spacing: 8) {
+            Text(metaText)
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundStyle(QuickPanelBottomTheme.tertiaryText)
+                .lineLimit(1)
+
+            Spacer(minLength: 0)
+
+            if let shortcutIndex {
+                Text("⌘\(shortcutIndex)")
+                    .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.66))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Color.white.opacity(0.07), in: Capsule())
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.bottom, 10)
+        .padding(.top, 8)
+        .background(
+            LinearGradient(
+                colors: [Color.clear, Color.black.opacity(0.08)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+    }
+
+    private var cardBackground: some View {
+        RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous)
+            .fill(
+                LinearGradient(
+                    colors: [
+                        Color.white.opacity(isSelected ? 0.12 : 0.06),
+                        Color.white.opacity(isSelected ? 0.06 : 0.025),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
             )
     }
 
-    private var typeColor: Color {
-        switch item.contentType {
-        case .text, .code: return .blue
-        case .image: return .orange
-        case .link: return .green
-        case .video: return .purple
-        case .audio: return .pink
-        case .document: return .indigo
-        case .archive: return .gray
-        case .application: return .teal
-        case .color: return .mint
-        case .email: return .cyan
-        case .phone: return .red
-        case .file: return .brown
-        }
+    private var cardBorder: some View {
+        RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous)
+            .stroke(
+                isSelected ? QuickPanelBottomTheme.selectionBlue : Color.white.opacity(0.06),
+                lineWidth: isSelected ? 2 : 1
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous)
+                    .stroke(Color.white.opacity(isSelected ? 0.14 : 0.025), lineWidth: 1)
+            )
     }
 
-    private var metaText: String {
-        let time = formatTimeAgo(item.lastUsedAt)
-        switch item.contentType {
-        case .image:
-            if let data = item.imageData, let image = NSImage(data: data) {
-                return "\(Int(image.size.width))×\(Int(image.size.height))"
-            }
-            return time
-        case .file, .document, .archive, .application, .video, .audio:
-            let count = item.content.split(separator: "\n").count
-            return count > 1 ? L10n.tr("quick.fileCount", count) : time
-        default:
-            return "\(item.content.count) 字符"
+    @MainActor
+    private var headerColor: Color {
+        QuickPanelBottomTheme.headerColor(for: item.contentType)
+    }
+
+    @ViewBuilder
+    private var previewBackground: some View {
+        if item.contentType == .image, item.imageData != nil {
+            QuickPanelBottomCheckerboard(cornerRadius: 0)
+        } else {
+            LinearGradient(
+                colors: [
+                    Color.white.opacity(isSelected ? 0.08 : 0.05),
+                    Color.black.opacity(0.08),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
         }
     }
 
     @ViewBuilder
     private var previewContent: some View {
         if item.isSensitive {
-            Image(systemName: "lock.shield.fill")
-                .font(.system(size: 20))
-                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 10) {
+                Image(systemName: "lock.shield.fill")
+                    .font(.system(size: 22))
+                    .foregroundStyle(.orange)
+                Text(L10n.tr("sensitive.masked"))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.92))
+                Text(L10n.tr("sensitive.optionHint"))
+                    .font(.system(size: 11))
+                    .foregroundStyle(QuickPanelBottomTheme.secondaryText)
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         } else if item.contentType == .image,
                   let data = item.imageData,
                   let image = ImageCache.shared.thumbnail(for: data, key: item.itemID) {
             Image(nsImage: image)
                 .resizable()
+                .interpolation(.high)
                 .scaledToFit()
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-        } else if item.contentType == .link, let data = item.faviconData,
-                  let image = ImageCache.shared.favicon(for: data, key: item.content) {
-            VStack(spacing: 6) {
-                Image(nsImage: image)
-                    .resizable()
-                    .frame(width: 28, height: 28)
-                Text(URL(string: item.content)?.host ?? item.sourceApp ?? "Link")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.72))
-                    .lineLimit(1)
-            }
-        } else if item.contentType.isFileBased, let firstPath = firstPath {
-            Image(nsImage: systemIcon(forFile: firstPath))
-                .resizable()
-                .scaledToFit()
-                .padding(4)
-        } else if item.contentType == .color, let parsed = ColorConverter.parse(item.content) {
-            Circle()
-                .fill(Color(nsColor: parsed.nsColor))
-                .overlay(Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
-                .padding(16)
-        } else {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.displayTitle ?? item.content)
-                    .font(.system(size: 11, weight: .medium))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        } else if item.contentType == .link {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    if let data = item.faviconData,
+                       let image = ImageCache.shared.favicon(for: data, key: item.content) {
+                        Image(nsImage: image)
+                            .resizable()
+                            .interpolation(.high)
+                            .frame(width: 24, height: 24)
+                            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    } else {
+                        Image(systemName: "link")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.82))
+                            .frame(width: 24, height: 24)
+                            .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    }
+                    Text(linkHost)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .lineLimit(1)
+                }
+
+                Text(linkTitle)
+                    .font(.system(size: 12.5, weight: .medium))
                     .foregroundStyle(.white.opacity(0.9))
+                    .lineLimit(4)
+                    .multilineTextAlignment(.leading)
+
+                Spacer(minLength: 0)
+
+                Text(item.content)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(QuickPanelBottomTheme.tertiaryText)
+                    .lineLimit(2)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else if item.contentType.isFileBased, let firstPath {
+            VStack(alignment: .leading, spacing: 10) {
+                Image(nsImage: systemIcon(forFile: firstPath))
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 46, height: 46)
+                    .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
+
+                Text(fileDisplayTitle)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.92))
                     .lineLimit(3)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Spacer(minLength: 0)
+
+                if let sourceApp = item.sourceApp, !sourceApp.isEmpty {
+                    Text(sourceApp)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(QuickPanelBottomTheme.tertiaryText)
+                        .lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else if item.contentType == .color, let parsed = ColorConverter.parse(item.content) {
+            VStack(alignment: .leading, spacing: 12) {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color(nsColor: parsed.nsColor))
+                    .frame(maxWidth: .infinity, minHeight: 56, maxHeight: 64)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                    )
+
+                Text(parsed.formatted(parsed.originalFormat))
+                    .font(.system(size: 12.5, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.88))
+                    .lineLimit(1)
+
                 Spacer(minLength: 0)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(primaryText)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.94))
+                    .lineLimit(4)
+
+                Text(secondaryText)
+                    .font(.system(size: 11))
+                    .foregroundStyle(QuickPanelBottomTheme.secondaryText)
+                    .lineLimit(6)
+
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+    }
+
+    private var primaryText: String {
+        let title = item.displayTitle ?? item.content
+        return title.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var secondaryText: String {
+        let normalized = item.content
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return L10n.tr("empty.message") }
+        if normalized == primaryText { return L10n.tr("help.action.paste") }
+        return normalized
+    }
+
+    private var linkTitle: String {
+        if let linkTitle = item.linkTitle, !linkTitle.isEmpty {
+            return linkTitle
+        }
+        return item.displayTitle ?? item.content
+    }
+
+    private var linkHost: String {
+        URL(string: item.content)?.host ?? item.sourceApp ?? "Link"
+    }
+
+    private var fileDisplayTitle: String {
+        let paths = item.content
+            .split(separator: "\n")
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard let first = paths.first else { return item.displayTitle ?? item.content }
+        if paths.count == 1 {
+            return URL(fileURLWithPath: first).lastPathComponent
+        }
+        return "\(URL(fileURLWithPath: first).lastPathComponent) +\(paths.count - 1)"
+    }
+
+    private var metaText: String {
+        switch item.contentType {
+        case .image:
+            if let data = item.imageData, let image = NSImage(data: data) {
+                return "\(Int(image.size.width)) × \(Int(image.size.height))"
+            }
+            return formatTimeAgo(item.lastUsedAt)
+        case .file, .document, .archive, .application, .video, .audio:
+            let count = item.content.split(separator: "\n").count
+            return count > 1 ? "\(count) 个项目" : formatTimeAgo(item.lastUsedAt)
+        case .link:
+            return linkHost
+        case .color:
+            return "颜色样本"
+        default:
+            return "\(item.content.count) 字符"
         }
     }
 

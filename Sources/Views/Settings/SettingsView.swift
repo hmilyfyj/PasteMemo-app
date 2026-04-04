@@ -419,7 +419,6 @@ struct RelayTab: View {
 
 struct PrivacyTab: View {
     @AppStorage("sensitiveDetectionEnabled") private var isSensitiveDetectionEnabled = true
-    @AppStorage(UsageTracker.ANALYTICS_ENABLED_KEY) private var analyticsEnabled = true
 
     var body: some View {
         Form {
@@ -431,13 +430,6 @@ struct PrivacyTab: View {
             }
 
             IgnoredAppsSection()
-
-            Section(L10n.tr("settings.privacy.analytics")) {
-                Toggle(L10n.tr("settings.privacy.analyticsToggle"), isOn: $analyticsEnabled)
-                Text(L10n.tr("settings.privacy.analyticsHint"))
-                    .font(.callout)
-                    .foregroundStyle(.tertiary)
-            }
         }
         .formStyle(.grouped)
         .scrollDisabled(true)

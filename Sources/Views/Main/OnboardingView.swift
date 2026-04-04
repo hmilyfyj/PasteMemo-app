@@ -12,11 +12,10 @@ struct OnboardingView: View {
     @AppStorage("retentionDays") private var retentionDays = 90
     @AppStorage("sensitiveDetectionEnabled") private var sensitiveDetectionEnabled = true
     @AppStorage("soundEnabled") private var soundEnabled = false
-    @AppStorage(UsageTracker.ANALYTICS_ENABLED_KEY) private var analyticsEnabled = true
     @State private var detectedManagers: [(bundleID: String, name: String, icon: NSImage)] = []
     @State private var selectedManagerIDs: Set<String> = []
 
-    private let totalSteps = 7
+    private let totalSteps = 6
     private let allRetentionOptions = [1, 3, 7, 14, 30, 60, 90, 180, 365]
 
     private var availableOptions: [Int] { allRetentionOptions }
@@ -34,7 +33,6 @@ struct OnboardingView: View {
                 case 3: preferencesStep
                 case 4: relayIntroStep
                 case 5: shortcutStep
-                case 6: analyticsStep
                 default: EmptyView()
                 }
             }
@@ -483,49 +481,6 @@ struct OnboardingView: View {
         .padding(28)
     }
 
-    private var analyticsStep: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "chart.bar.fill")
-                .font(.system(size: 28))
-                .foregroundStyle(.white)
-                .frame(width: 60, height: 60)
-                .background(Color.orange, in: Circle())
-
-            Text(L10n.tr("onboarding.analytics.title"))
-                .font(.title2)
-                .fontWeight(.bold)
-
-            Text(L10n.tr("onboarding.analytics.desc"))
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 360)
-
-            VStack(spacing: 0) {
-                HStack(spacing: 10) {
-                    Image(systemName: "chart.line.uptrend.xyaxis")
-                        .frame(width: 20)
-                        .foregroundStyle(.secondary)
-                    Text(L10n.tr("settings.privacy.analyticsToggle"))
-                    Spacer()
-                    Toggle("", isOn: $analyticsEnabled)
-                        .labelsHidden()
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-            }
-            .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
-            .frame(maxWidth: 340)
-
-            Text(L10n.tr("onboarding.analytics.hint"))
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-                .multilineTextAlignment(.center)
-                .padding(.top, 4)
-        }
-        .padding(28)
-    }
-
     // If already completed onboarding but accessibility is off, jump to step 1
     private static func initialStep() -> Int {
         let hasCompleted = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
@@ -575,7 +530,6 @@ struct OnboardingView: View {
             }
         }
 
-        UsageTracker.markConsentAsked()
         UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
         HotkeyManager.shared.register()
         WindowManager.shared.close(id: "onboarding")
