@@ -695,14 +695,12 @@ struct QuickPanelView: View {
             ForEach([
                 Color(red: 0.95, green: 0.30, blue: 0.34),
                 Color(red: 0.99, green: 0.74, blue: 0.13),
-                Color(red: 0.70, green: 0.45, blue: 0.98),
-                Color.white.opacity(0.65),
                 Color(red: 0.31, green: 0.84, blue: 0.43),
             ], id: \.self) { color in
                 Circle()
                     .fill(color)
-                    .frame(width: 7, height: 7)
-                    .shadow(color: color.opacity(0.28), radius: 3, y: 1)
+                    .frame(width: 6.5, height: 6.5)
+                    .shadow(color: color.opacity(0.22), radius: 2, y: 0.5)
             }
         }
         .padding(.trailing, 2)
@@ -967,85 +965,7 @@ struct QuickPanelView: View {
                                         handleItemClick(itemID)
                                     }
                                     .contextMenu {
-                                        if isMultiSelected, selectedItemIDs.contains(itemID) {
-                                            let items = currentItems
-                                            let hasPinned = items.contains(where: \.isPinned)
-                                            Button(hasPinned ? L10n.tr("action.unpin") : L10n.tr("action.pin")) {
-                                                let newValue = !hasPinned
-                                                for i in items { i.isPinned = newValue }
-                                                ClipItemStore.saveAndNotify(modelContext)
-                                            }
-                                            let hasSensitive = items.contains(where: \.isSensitive)
-                                            Button(hasSensitive ? L10n.tr("sensitive.unmarkSensitive") : L10n.tr("sensitive.markSensitive")) {
-                                                let newValue = !hasSensitive
-                                                for i in items { i.isSensitive = newValue }
-                                                ClipItemStore.saveAndNotify(modelContext)
-                                            }
-                                            Button(L10n.tr("action.mergeCopy")) {
-                                                copyItemsToClipboard(items)
-                                            }
-                                            Divider()
-                                            Button(L10n.tr("relay.addToQueue")) {
-                                                let texts = items.compactMap(\.content)
-                                                RelayManager.shared.enqueue(texts: texts)
-                                                if !RelayManager.shared.isActive {
-                                                    RelayManager.shared.activate()
-                                                }
-                                            }
-                                            Divider()
-                                            Button(L10n.tr("action.delete"), role: .destructive) {
-                                                handleDeleteSelected()
-                                            }
-                                        } else {
-                                            Button(item.isPinned ? L10n.tr("action.unpin") : L10n.tr("action.pin")) {
-                                                item.isPinned.toggle()
-                                                ClipItemStore.saveAndNotify(modelContext)
-                                                selectItem(itemID)
-                                            }
-                                            Button(item.isSensitive ? L10n.tr("sensitive.unmarkSensitive") : L10n.tr("sensitive.markSensitive")) {
-                                                item.isSensitive.toggle()
-                                                ClipItemStore.saveAndNotify(modelContext)
-                                                selectItem(itemID)
-                                            }
-                                            Button(L10n.tr("action.mergeCopy")) {
-                                                copyItemsToClipboard([item])
-                                                selectItem(itemID)
-                                            }
-                                            if item.contentType.isMergeable,
-                                               ProManager.AUTOMATION_ENABLED {
-                                                let manualRules = fetchEnabledRules()
-                                                if !manualRules.isEmpty {
-                                                    Divider()
-                                                    Menu(L10n.tr("cmd.automation")) {
-                                                        ForEach(manualRules) { rule in
-                                                            Button(rule.isBuiltIn ? L10n.tr(rule.name) : rule.name) {
-                                                                applyRule(rule, to: item)
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            Divider()
-                                            if !item.content.isEmpty {
-                                                Button(L10n.tr("relay.addToQueue")) {
-                                                    RelayManager.shared.enqueue(texts: [item.content])
-                                                    if !RelayManager.shared.isActive {
-                                                        RelayManager.shared.activate()
-                                                    }
-                                                }
-                                                Button(L10n.tr("relay.splitAndRelay")) {
-                                                    relaySplitText = item.content
-                                                }
-                                            }
-                                            Divider()
-                                            Button(L10n.tr("action.copyDebugInfo")) {
-                                                copyDebugInfo(for: item)
-                                            }
-                                            Divider()
-                                            Button(L10n.tr("action.delete"), role: .destructive) {
-                                                deleteItem(item)
-                                            }
-                                        }
+                                        quickPanelItemContextMenu(for: item, itemID: itemID)
                                     }
                             }
                         }
@@ -1100,6 +1020,9 @@ struct QuickPanelView: View {
                         }
                         .onTapGesture {
                             handleItemClick(itemID)
+                        }
+                        .contextMenu {
+                            quickPanelItemContextMenu(for: item, itemID: itemID)
                         }
                         .onAppear {
                             if item.id == filteredItems.last?.id { store.loadMore() }
@@ -1324,6 +1247,114 @@ struct QuickPanelView: View {
             Text(label)
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
+        }
+    }
+
+    @ViewBuilder
+    private func quickPanelItemContextMenu(for item: ClipItem, itemID: PersistentIdentifier) -> some View {
+        if isMultiSelected, selectedItemIDs.contains(itemID) {
+            multiSelectionContextMenu(items: currentItems)
+        } else {
+            singleItemContextMenu(item: item, itemID: itemID)
+        }
+    }
+
+    @ViewBuilder
+    private func multiSelectionContextMenu(items: [ClipItem]) -> some View {
+        let hasPinned = items.contains(where: \.isPinned)
+        Button(hasPinned ? L10n.tr("action.unpin") : L10n.tr("action.pin")) {
+            let newValue = !hasPinned
+            for item in items { item.isPinned = newValue }
+            ClipItemStore.saveAndNotify(modelContext)
+        }
+
+        let hasSensitive = items.contains(where: \.isSensitive)
+        Button(hasSensitive ? L10n.tr("sensitive.unmarkSensitive") : L10n.tr("sensitive.markSensitive")) {
+            let newValue = !hasSensitive
+            for item in items { item.isSensitive = newValue }
+            ClipItemStore.saveAndNotify(modelContext)
+        }
+
+        Button(L10n.tr("action.mergeCopy")) {
+            copyItemsToClipboard(items)
+        }
+
+        Divider()
+
+        Button(L10n.tr("relay.addToQueue")) {
+            let texts = items.compactMap(\.content)
+            RelayManager.shared.enqueue(texts: texts)
+            if !RelayManager.shared.isActive {
+                RelayManager.shared.activate()
+            }
+        }
+
+        Divider()
+
+        Button(L10n.tr("action.delete"), role: .destructive) {
+            handleDeleteSelected()
+        }
+    }
+
+    @ViewBuilder
+    private func singleItemContextMenu(item: ClipItem, itemID: PersistentIdentifier) -> some View {
+        Button(item.isPinned ? L10n.tr("action.unpin") : L10n.tr("action.pin")) {
+            item.isPinned.toggle()
+            ClipItemStore.saveAndNotify(modelContext)
+            selectItem(itemID)
+        }
+
+        Button(item.isSensitive ? L10n.tr("sensitive.unmarkSensitive") : L10n.tr("sensitive.markSensitive")) {
+            item.isSensitive.toggle()
+            ClipItemStore.saveAndNotify(modelContext)
+            selectItem(itemID)
+        }
+
+        Button(L10n.tr("action.mergeCopy")) {
+            copyItemsToClipboard([item])
+            selectItem(itemID)
+        }
+
+        if item.contentType.isMergeable,
+           ProManager.AUTOMATION_ENABLED {
+            let manualRules = fetchEnabledRules()
+            if !manualRules.isEmpty {
+                Divider()
+                Menu(L10n.tr("cmd.automation")) {
+                    ForEach(manualRules) { rule in
+                        Button(rule.isBuiltIn ? L10n.tr(rule.name) : rule.name) {
+                            applyRule(rule, to: item)
+                        }
+                    }
+                }
+            }
+        }
+
+        Divider()
+
+        if !item.content.isEmpty {
+            Button(L10n.tr("relay.addToQueue")) {
+                RelayManager.shared.enqueue(texts: [item.content])
+                if !RelayManager.shared.isActive {
+                    RelayManager.shared.activate()
+                }
+            }
+
+            Button(L10n.tr("relay.splitAndRelay")) {
+                relaySplitText = item.content
+            }
+        }
+
+        Divider()
+
+        Button(L10n.tr("action.copyDebugInfo")) {
+            copyDebugInfo(for: item)
+        }
+
+        Divider()
+
+        Button(L10n.tr("action.delete"), role: .destructive) {
+            deleteItem(item)
         }
     }
 

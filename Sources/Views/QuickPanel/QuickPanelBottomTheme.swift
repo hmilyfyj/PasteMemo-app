@@ -2,16 +2,16 @@ import SwiftUI
 import AppKit
 
 enum QuickPanelBottomTheme {
-    static let windowCornerRadius: CGFloat = 22
-    static let sectionCornerRadius: CGFloat = 18
-    static let cardCornerRadius: CGFloat = 22
-    static let previewCornerRadius: CGFloat = 20
+    static let windowCornerRadius: CGFloat = 20
+    static let sectionCornerRadius: CGFloat = 16
+    static let cardCornerRadius: CGFloat = 18
+    static let previewCornerRadius: CGFloat = 18
     static let shellInset: CGFloat = 0
     static let contentInset: CGFloat = 12
-    static let thinStroke = Color.white.opacity(0.08)
-    static let faintStroke = Color.white.opacity(0.05)
-    static let selectionBlue = Color(red: 0.17, green: 0.50, blue: 1.0)
-    static let accentBlue = Color(red: 0.24, green: 0.54, blue: 1.0)
+    static let thinStroke = Color.white.opacity(0.09)
+    static let faintStroke = Color.white.opacity(0.06)
+    static let selectionBlue = Color(red: 0.11, green: 0.38, blue: 0.90)
+    static let accentBlue = Color(red: 0.16, green: 0.46, blue: 0.98)
     static let searchWidth: CGFloat = 360
     static let searchMinWidth: CGFloat = 240
     static let searchHeight: CGFloat = 32
@@ -19,21 +19,21 @@ enum QuickPanelBottomTheme {
     static var shellBackground: LinearGradient {
         LinearGradient(
             colors: [
-                Color(red: 0.13, green: 0.13, blue: 0.14).opacity(0.98),
-                Color(red: 0.08, green: 0.08, blue: 0.09).opacity(0.98),
+                Color(red: 0.12, green: 0.12, blue: 0.13).opacity(0.98),
+                Color(red: 0.09, green: 0.09, blue: 0.10).opacity(0.985),
             ],
-            startPoint: .top,
-            endPoint: .bottom
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
         )
     }
 
     static var shellOverlay: LinearGradient {
         LinearGradient(
             colors: [
-                Color.white.opacity(0.12),
-                Color.white.opacity(0.03),
+                Color.white.opacity(0.14),
+                Color.white.opacity(0.02),
             ],
-            startPoint: .top,
+            startPoint: .topLeading,
             endPoint: .bottom
         )
     }
@@ -41,8 +41,8 @@ enum QuickPanelBottomTheme {
     static var sectionBackground: LinearGradient {
         LinearGradient(
             colors: [
-                Color.white.opacity(0.065),
-                Color.white.opacity(0.03),
+                Color(red: 0.15, green: 0.15, blue: 0.16).opacity(0.96),
+                Color(red: 0.10, green: 0.10, blue: 0.11).opacity(0.96),
             ],
             startPoint: .top,
             endPoint: .bottom
@@ -52,19 +52,19 @@ enum QuickPanelBottomTheme {
     static var previewBackground: LinearGradient {
         LinearGradient(
             colors: [
-                Color.white.opacity(0.05),
-                Color.black.opacity(0.12),
+                Color.white.opacity(0.045),
+                Color.black.opacity(0.18),
             ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
     }
 
-    static var controlFill: Color { Color.white.opacity(0.055) }
-    static var mutedFill: Color { Color.white.opacity(0.035) }
-    static var glassFill: Color { Color.white.opacity(0.025) }
-    static var secondaryText: Color { Color.white.opacity(0.7) }
-    static var tertiaryText: Color { Color.white.opacity(0.52) }
+    static var controlFill: Color { Color.white.opacity(0.07) }
+    static var mutedFill: Color { Color.white.opacity(0.045) }
+    static var glassFill: Color { Color.white.opacity(0.03) }
+    static var secondaryText: Color { Color.white.opacity(0.72) }
+    static var tertiaryText: Color { Color.white.opacity(0.5) }
 
     @MainActor
     static func headerColor(for type: ClipContentType) -> Color {
@@ -121,10 +121,10 @@ private struct QuickPanelBottomShellModifier: ViewModifier {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: QuickPanelBottomTheme.windowCornerRadius, style: .continuous)
-                    .stroke(Color.black.opacity(0.35), lineWidth: 1)
+                    .stroke(Color.black.opacity(0.42), lineWidth: 1)
                     .blur(radius: 0.4)
             )
-            .shadow(color: .black.opacity(0.32), radius: 30, y: 18)
+            .shadow(color: .black.opacity(0.4), radius: 24, y: 12)
     }
 }
 

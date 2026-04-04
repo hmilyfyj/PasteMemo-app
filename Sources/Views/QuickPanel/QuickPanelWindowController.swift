@@ -359,6 +359,12 @@ final class QuickPanelWindowController {
         suppressDismiss = isVisible
     }
 
+    func keepPanelInteractiveDuringQuickLook() {
+        guard let panel, panel.isVisible else { return }
+        panel.orderFrontRegardless()
+        panel.makeKey()
+    }
+
     func setBottomFloatingMode(_ mode: QuickPanelBottomMode, animated: Bool = true) {
         bottomMode = mode
         guard panelStyle == .bottomFloating, let panel, panel.isVisible else { return }

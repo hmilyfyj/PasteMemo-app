@@ -34,11 +34,11 @@ struct QuickClipCard: View {
         .overlay(cardBorder)
         .clipShape(RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous))
         .shadow(
-            color: isSelected ? QuickPanelBottomTheme.selectionBlue.opacity(0.34) : .black.opacity(0.22),
-            radius: isSelected ? 24 : 14,
-            y: isSelected ? 14 : 8
+            color: isSelected ? QuickPanelBottomTheme.selectionBlue.opacity(0.22) : .black.opacity(0.20),
+            radius: isSelected ? 18 : 10,
+            y: isSelected ? 8 : 5
         )
-        .offset(y: isSelected ? -2 : 0)
+        .offset(y: isSelected ? -1 : 0)
         .contentShape(RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous))
     }
 
@@ -67,7 +67,7 @@ struct QuickClipCard: View {
 
             headerIconPanel
         }
-        .frame(height: 62)
+        .frame(height: 56)
         .frame(maxWidth: .infinity)
         .background(headerBackground)
         .clipShape(
@@ -116,10 +116,10 @@ struct QuickClipCard: View {
             }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(.vertical, 10)
         .background(
             LinearGradient(
-                colors: [Color.clear, Color.black.opacity(0.14), Color.black.opacity(0.32)],
+                colors: [Color.clear, Color.black.opacity(0.10), Color.black.opacity(0.24)],
                 startPoint: .top,
                 endPoint: .bottom
             )
@@ -128,7 +128,21 @@ struct QuickClipCard: View {
 
     private var cardBackground: some View {
         RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous)
-            .fill(Color(red: 0.10, green: 0.10, blue: 0.11))
+            .fill(
+                LinearGradient(
+                    colors: isSelected
+                        ? [
+                            Color(red: 0.12, green: 0.24, blue: 0.46),
+                            Color(red: 0.09, green: 0.18, blue: 0.35),
+                        ]
+                        : [
+                            Color(red: 0.12, green: 0.12, blue: 0.13),
+                            Color(red: 0.09, green: 0.09, blue: 0.10),
+                        ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
     }
 
     private var cardBorder: some View {
@@ -138,30 +152,28 @@ struct QuickClipCard: View {
                     ? AnyShapeStyle(
                         LinearGradient(
                             colors: [
-                                Color(red: 0.14, green: 0.52, blue: 1.0),
-                                Color(red: 0.08, green: 0.44, blue: 0.96),
+                                QuickPanelBottomTheme.accentBlue,
+                                QuickPanelBottomTheme.selectionBlue,
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
                     : AnyShapeStyle(
-                        LinearGradient(
-                            colors: [
-                                Color.white.opacity(0.08),
-                                Color.black.opacity(0.28),
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
+                        Color.white.opacity(0.08)
                     ),
-                lineWidth: isSelected ? 4 : 1.2
+                lineWidth: isSelected ? 1.6 : 1
             )
     }
 
     private var headerBackground: some View {
         LinearGradient(
-            colors: headerGradientColors,
+            colors: isSelected
+                ? [
+                    QuickPanelBottomTheme.accentBlue.opacity(0.96),
+                    QuickPanelBottomTheme.selectionBlue.opacity(0.88),
+                ]
+                : headerGradientColors,
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
@@ -189,17 +201,17 @@ struct QuickClipCard: View {
             return [Color(nsColor: start), Color(nsColor: end)]
         }
 
-        let tunedSaturation = min(max(saturation * 1.08, 0.42), 0.95)
+        let tunedSaturation = min(max(saturation * 0.72, 0.22), 0.68)
         let start = NSColor(
             calibratedHue: hue,
-            saturation: max(tunedSaturation - 0.04, 0),
-            brightness: min(max(brightness + 0.10, 0.62), 0.98),
+            saturation: max(tunedSaturation - 0.03, 0),
+            brightness: min(max(brightness + 0.02, 0.34), 0.60),
             alpha: 1
         )
         let end = NSColor(
             calibratedHue: hue,
-            saturation: min(tunedSaturation + 0.02, 1),
-            brightness: min(max(brightness - 0.04, 0.48), 0.92),
+            saturation: min(tunedSaturation + 0.03, 1),
+            brightness: min(max(brightness - 0.10, 0.22), 0.48),
             alpha: 1
         )
         return [Color(nsColor: start), Color(nsColor: end)]
@@ -248,7 +260,7 @@ struct QuickClipCard: View {
             )
             .fill(
                 LinearGradient(
-                    colors: [Color.white, Color.white.opacity(0.94)],
+                    colors: [Color.white.opacity(0.18), Color.white.opacity(0.08)],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
@@ -260,13 +272,13 @@ struct QuickClipCard: View {
                     bottomTrailingRadius: 0,
                     topTrailingRadius: QuickPanelBottomTheme.cardCornerRadius
                 )
-                .stroke(Color.black.opacity(0.08), lineWidth: 1)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
             )
 
             headerIconBadge
                 .offset(x: -8, y: 0)
         }
-        .frame(width: headerBadgeWidth, height: 62)
+        .frame(width: headerBadgeWidth, height: 56)
         .clipShape(
             UnevenRoundedRectangle(
                 topLeadingRadius: 24,
@@ -283,20 +295,19 @@ struct QuickClipCard: View {
             Image(nsImage: sourceAppIcon)
                 .resizable()
                 .interpolation(.high)
-                .scaledToFill()
-                .frame(width: headerBadgeWidth + 34, height: 82)
-                .clipped()
-                .shadow(color: .black.opacity(0.10), radius: 2, y: 1)
+                .scaledToFit()
+                .frame(width: min(headerBadgeWidth - 18, 32), height: 32)
+                .shadow(color: .black.opacity(0.18), radius: 3, y: 1)
         } else {
             Image(systemName: item.contentType.icon)
-                .font(.system(size: 32, weight: .bold))
-                .foregroundStyle(headerGradientColors.first ?? Color(red: 0.24, green: 0.47, blue: 0.96))
+                .font(.system(size: 24, weight: .bold))
+                .foregroundStyle(.white.opacity(0.88))
         }
     }
 
     @ViewBuilder
     private var previewBackground: some View {
-        Color(red: 0.11, green: 0.11, blue: 0.12)
+        QuickPanelBottomTheme.previewBackground
     }
 
     @ViewBuilder
@@ -420,7 +431,7 @@ struct QuickClipCard: View {
     }
 
     private var imagePreviewMaxDimension: CGFloat {
-        let headerHeight: CGFloat = 62
+        let headerHeight: CGFloat = 56
         let footerHeight: CGFloat = 42
         let previewPadding: CGFloat = 8
 

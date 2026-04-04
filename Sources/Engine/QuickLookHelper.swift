@@ -32,6 +32,9 @@ final class QuickLookHelper: NSObject, QLPreviewPanelDataSource, QLPreviewPanelD
         } else {
             QuickPanelWindowController.shared.setQuickLookPreviewVisible(true)
             panel.makeKeyAndOrderFront(nil)
+            Task { @MainActor in
+                QuickPanelWindowController.shared.keepPanelInteractiveDuringQuickLook()
+            }
         }
     }
 
