@@ -61,7 +61,7 @@ struct QuickClipCard: View {
                 Spacer(minLength: 0)
             }
             .padding(.leading, 14)
-            .padding(.trailing, headerBadgeWidth + 6)
+            .padding(.trailing, headerBadgeWidth + 2)
             .padding(.vertical, 8)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
 
@@ -235,7 +235,7 @@ struct QuickClipCard: View {
     }
 
     private var headerBadgeWidth: CGFloat {
-        min(max(cardWidth * 0.24, 74), 94)
+        min(max(cardWidth * 0.20, 64), 78)
     }
 
     private var headerIconPanel: some View {
@@ -264,11 +264,17 @@ struct QuickClipCard: View {
             )
 
             headerIconBadge
-                .padding(.leading, 2)
-                .padding(.trailing, -6)
-                .padding(.vertical, -3)
+                .offset(x: -8, y: 0)
         }
         .frame(width: headerBadgeWidth, height: 62)
+        .clipShape(
+            UnevenRoundedRectangle(
+                topLeadingRadius: 24,
+                bottomLeadingRadius: 24,
+                bottomTrailingRadius: 0,
+                topTrailingRadius: QuickPanelBottomTheme.cardCornerRadius
+            )
+        )
     }
 
     @ViewBuilder
@@ -278,7 +284,7 @@ struct QuickClipCard: View {
                 .resizable()
                 .interpolation(.high)
                 .scaledToFill()
-                .frame(width: headerBadgeWidth + 18, height: 70)
+                .frame(width: headerBadgeWidth + 34, height: 82)
                 .clipped()
                 .shadow(color: .black.opacity(0.10), radius: 2, y: 1)
         } else {
