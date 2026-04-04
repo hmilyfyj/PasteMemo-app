@@ -798,7 +798,7 @@ struct QuickPanelView: View {
                     activateSearchField()
                 } label: {
                     Image(systemName: "magnifyingglass")
-                        .font(.system(size: 26, weight: .regular))
+                        .font(.system(size: 20, weight: .regular))
                         .foregroundStyle(.white.opacity(0.88))
                         .frame(width: QuickPanelBottomTheme.searchHeight, height: QuickPanelBottomTheme.searchHeight)
                         .contentShape(Rectangle())
