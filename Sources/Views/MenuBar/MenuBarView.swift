@@ -9,68 +9,43 @@ struct MenuBarContent: View {
 
     var body: some View {
         let _ = storeOpenWindowAction()
-
-        Button {
-            handleOpenMainWindow()
-        } label: {
-            let shortcut = hotkeyManager.isManagerCleared ? "" : shortcutDisplayString(keyCode: hotkeyManager.managerKeyCode, modifiers: hotkeyManager.managerModifiers)
-            if shortcut.isEmpty {
-                Text(L10n.tr("menu.manager"))
-            } else {
-                Text("\(L10n.tr("menu.manager"))    \(shortcut)")
+        let sections = AppMenuFactory.makeSections(
+            hotkeyManager: hotkeyManager,
+            clipboardManager: clipboardManager,
+            onOpenManager: handleOpenMainWindow,
+            onOpenQuickPanel: handleOpenQuickPanel,
+            onOpenAutomationManager: {
+                AppAction.shared.openAutomationManager?()
+            },
+            onOpenSettings: {
+                if !hideDockIcon {
+                    NSApp.setActivationPolicy(.regular)
+                }
+                NSApp.activate(ignoringOtherApps: true)
+                openSettings()
             }
-        }
+        )
 
-        Button {
-            handleOpenQuickPanel()
-        } label: {
-            let shortcut = hotkeyManager.displayString
-            if shortcut.isEmpty {
-                Text(L10n.tr("menu.quickPanel"))
-            } else {
-                Text("\(L10n.tr("menu.quickPanel"))    \(shortcut)")
+        ForEach(Array(sections.enumerated()), id: \.element.id) { index, section in
+            ForEach(section.items) { item in
+                Button {
+                    item.action()
+                } label: {
+                    HStack(spacing: 12) {
+                        Text(item.title)
+                        Spacer(minLength: 12)
+                        if let trailingText = item.trailingText, !trailingText.isEmpty {
+                            Text(trailingText)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .disabled(!item.isEnabled)
             }
-        }
 
-        Button {
-            clipboardManager.togglePause()
-        } label: {
-            Text(clipboardManager.isPaused ? L10n.tr("menu.resume") : L10n.tr("menu.pause"))
-        }
-        .disabled(RelayManager.shared.isActive)
-
-        if RelayManager.shared.isActive {
-            Button {
-                RelayManager.shared.deactivate()
-            } label: {
-                Text("\(L10n.tr("relay.title")) (\(RelayManager.shared.progressText)) — \(L10n.tr("relay.exitRelay"))")
+            if index < sections.count - 1 {
+                Divider()
             }
-        } else {
-            Button(L10n.tr("relay.startRelay")) {
-                RelayManager.shared.activate()
-            }
-        }
-
-        Divider()
-
-        Button(L10n.tr("settings.automation.manage")) {
-            AppAction.shared.openAutomationManager?()
-        }
-
-        Button(L10n.tr("menu.settings")) {
-            if !hideDockIcon {
-                NSApp.setActivationPolicy(.regular)
-            }
-            NSApp.activate(ignoringOtherApps: true)
-            openSettings()
-        }
-
-        Divider()
-
-        let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "PasteMemo"
-        Button(L10n.tr("menu.quit", appName)) {
-            AppDelegate.shouldReallyQuit = true
-            NSApp.terminate(nil)
         }
     }
 

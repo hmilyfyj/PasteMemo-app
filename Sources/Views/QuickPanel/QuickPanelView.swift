@@ -363,7 +363,10 @@ private final class DraggableView: NSView {
 struct QuickPanelView: View {
     @EnvironmentObject var clipboardManager: ClipboardManager
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettings
     @AppStorage(QuickPanelStyle.storageKey) private var quickPanelStyle = QuickPanelStyle.classic.rawValue
+    @ObservedObject private var hotkeyManager = HotkeyManager.shared
     @State private var store = ClipItemStore()
     @State private var searchText = ""
     @State private var groupSuggestionIndex = -1
@@ -396,6 +399,7 @@ struct QuickPanelView: View {
     @State private var isLiveResizing = false
     @State private var frozenBottomCardMetrics: BottomCardLayoutMetrics?
     @State private var bottomClipAllowsDirectionalFallback = true
+    @State private var showBottomOverflowMenu = false
 
     private var filteredItems: [ClipItem] { store.items }
 
@@ -438,6 +442,57 @@ struct QuickPanelView: View {
 
     private var shouldRenderBottomDetails: Bool {
         isBottomExpanded || keepBottomDetailsMounted
+    }
+
+    private var bottomOverflowMenuSections: [AppMenuSectionDefinition] {
+        AppMenuFactory.makeSections(
+            hotkeyManager: hotkeyManager,
+            clipboardManager: clipboardManager,
+            onOpenManager: {
+                showBottomOverflowMenu = false
+                handleDismiss()
+                AppAction.shared.openMainWindow?()
+            },
+            onOpenQuickPanel: {
+                showBottomOverflowMenu = false
+                HotkeyManager.shared.toggleQuickPanel()
+            },
+            onOpenAutomationManager: {
+                showBottomOverflowMenu = false
+                handleDismiss()
+                AppAction.shared.openAutomationManager?()
+            },
+            onOpenSettings: {
+                showBottomOverflowMenu = false
+                handleDismiss()
+                AppAction.shared.openSettings?()
+            }
+        )
+    }
+
+    private func storeAppActions() {
+        let hideDock = UserDefaults.standard.bool(forKey: "hideDockIcon")
+        AppAction.shared.openMainWindow = { [openWindow] in
+            openWindow(id: "main")
+            if !hideDock {
+                NSApp.setActivationPolicy(.regular)
+            }
+            NSApp.activate(ignoringOtherApps: true)
+        }
+        AppAction.shared.openSettings = { [openSettings] in
+            if !hideDock {
+                NSApp.setActivationPolicy(.regular)
+            }
+            NSApp.activate(ignoringOtherApps: true)
+            openSettings()
+        }
+        AppAction.shared.openAutomationManager = { [openWindow] in
+            if !hideDock {
+                NSApp.setActivationPolicy(.regular)
+            }
+            openWindow(id: "automationManager")
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 
     private func rebuildGroupedItems() {
@@ -680,6 +735,27 @@ struct QuickPanelView: View {
             }
             // Command palette is now shown via popover on the selected row
         }
+        if isBottomFloatingStyle && showBottomOverflowMenu {
+            Color.black.opacity(0.001)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    showBottomOverflowMenu = false
+                }
+                .zIndex(20)
+        }
+        if isBottomFloatingStyle && showBottomOverflowMenu {
+            VStack {
+                HStack {
+                    Spacer(minLength: 0)
+                    QuickPanelOverflowMenu(sections: bottomOverflowMenuSections)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.top, 42)
+            .padding(.trailing, 16)
+            .zIndex(21)
+        }
         // Floating group suggestions overlay
         if isShowingSuggestions {
             VStack(spacing: 0) {
@@ -702,6 +778,7 @@ struct QuickPanelView: View {
         }
         } // ZStack
         .onAppear {
+            storeAppActions()
             store.configure(modelContext: modelContext)
             rebuildGroupedItems()
             if let id = defaultItem?.persistentModelID { selectedItemIDs = [id]; lastNavigatedID = id }
@@ -713,10 +790,13 @@ struct QuickPanelView: View {
             }
         }
         .onDisappear {
+            showBottomOverflowMenu = false
             removeKeyMonitor()
             store.isActive = false
         }
         .onReceive(NotificationCenter.default.publisher(for: .quickPanelDidShow)) { _ in
+            storeAppActions()
+            showBottomOverflowMenu = false
             showCommandPalette = false
             searchText = ""
             selectedGroupFilter = nil
@@ -749,6 +829,7 @@ struct QuickPanelView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .quickPanelLiveResizeDidBegin)) { notification in
             guard isBottomFloatingStyle else { return }
+            showBottomOverflowMenu = false
             if let panel = notification.object as? NSPanel {
                 let contentSize = panel.contentView?.bounds.size ?? panel.frame.size
                 frozenBottomCardMetrics = bottomCardLayoutMetrics(for: contentSize, freezeForLiveResize: true)
@@ -1180,6 +1261,7 @@ struct QuickPanelView: View {
                 bottomHeaderLiveResizeModeBadge
                 bottomPinButton
                 bottomCountBadge
+                bottomOverflowMenuButton
             }
             .fixedSize(horizontal: true, vertical: false)
         }
@@ -1266,6 +1348,7 @@ struct QuickPanelView: View {
             bottomModeToggleIconButton
             bottomPinButton
             bottomCountBadge
+            bottomOverflowMenuButton
         }
     }
 
@@ -1275,6 +1358,7 @@ struct QuickPanelView: View {
             bottomModeToggleButton
             bottomPinButton
             bottomCountBadge
+            bottomOverflowMenuButton
         }
         .fixedSize(horizontal: true, vertical: false)
     }
@@ -1551,6 +1635,26 @@ struct QuickPanelView: View {
         }
         .buttonStyle(.plain)
         .help(bottomMode == .compact ? L10n.tr("quick.expandDetails") : L10n.tr("quick.collapseDetails"))
+    }
+
+    private var bottomOverflowMenuButton: some View {
+        Button {
+            showBottomOverflowMenu.toggle()
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(.white.opacity(0.86))
+                .frame(width: 30, height: 24)
+                .background(
+                    showBottomOverflowMenu ? QuickPanelBottomTheme.controlFill.opacity(1.15) : QuickPanelBottomTheme.mutedFill,
+                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Color.white.opacity(showBottomOverflowMenu ? 0.16 : 0.06), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
     }
 
     private var bottomPinButton: some View {
