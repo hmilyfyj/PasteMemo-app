@@ -8,6 +8,8 @@ struct QuickClipCard: View {
     let shortcutIndex: Int?
     let cardWidth: CGFloat
     let cardHeight: CGFloat
+    
+    @State private var isHovered: Bool = false
 
     init(
         item: ClipItem,
@@ -35,6 +37,11 @@ struct QuickClipCard: View {
         }
         .frame(width: cardWidth, height: cardHeight)
         .contentShape(RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous))
+        .onHover { hovering in
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                isHovered = hovering
+            }
+        }
     }
 
     private var regularBody: some View {
@@ -50,7 +57,10 @@ struct QuickClipCard: View {
             radius: isSelected ? 18 : 10,
             y: isSelected ? 8 : 5
         )
+        .scaleEffect(isHovered ? 1.02 : 1.0)
         .offset(y: isSelected ? -1 : 0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovered)
     }
 
     private var liveResizeBody: some View {

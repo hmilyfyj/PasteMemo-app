@@ -2,7 +2,8 @@ import AppKit
 import SwiftUI
 import SwiftData
 
-private let CLIPBOARD_POLL_INTERVAL: TimeInterval = 0.5
+private let CLIPBOARD_POLL_INTERVAL_ACTIVE: TimeInterval = 0.3
+private let CLIPBOARD_POLL_INTERVAL_IDLE: TimeInterval = 1.0
 private let PASTE_SIMULATION_DELAY: Duration = .milliseconds(30)
 private let V_KEY_CODE: UInt16 = 0x09
 
@@ -20,6 +21,12 @@ final class ClipboardManager: ObservableObject {
     private var lastSwitchTime: Date = .distantPast
     private var appSwitchObserver: Any?
     private static let APP_SWITCH_THRESHOLD: TimeInterval = 1.0
+    
+    // Performance optimization: adaptive polling
+    private var lastClipboardChangeTime: Date = .distantPast
+    private var clipboardObserver: Any?
+    private var isAppActive: Bool = true
+    private var appActivationObserver: Any?
 
     private init() {}
 
@@ -28,11 +35,8 @@ final class ClipboardManager: ObservableObject {
     func startMonitoring() {
         lastChangeCount = NSPasteboard.general.changeCount
         startAppSwitchTracking()
-        timer = Timer.scheduledTimer(withTimeInterval: CLIPBOARD_POLL_INTERVAL, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.checkClipboard()
-            }
-        }
+        startClipboardObserver()
+        startAdaptivePolling()
     }
 
     func stopMonitoring() {
@@ -41,6 +45,100 @@ final class ClipboardManager: ObservableObject {
         if let observer = appSwitchObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(observer)
             appSwitchObserver = nil
+        }
+        if let observer = clipboardObserver {
+            DistributedNotificationCenter.default().removeObserver(observer)
+            clipboardObserver = nil
+        }
+        if let observer = appActivationObserver {
+            NotificationCenter.default.removeObserver(observer)
+            appActivationObserver = nil
+        }
+    }
+    
+    // MARK: - Performance Optimization
+    
+    private func startClipboardObserver() {
+        guard clipboardObserver == nil else { return }
+        
+        let pasteboardNotification = NSNotification.Name("com.apple.Carbon.Pasteboard")
+        clipboardObserver = DistributedNotificationCenter.default().addObserver(
+            forName: pasteboardNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.handleClipboardNotification()
+            }
+        }
+    }
+    
+    private func startAdaptivePolling() {
+        startAppActivationTracking()
+        scheduleNextPoll()
+    }
+    
+    private func startAppActivationTracking() {
+        guard appActivationObserver == nil else { return }
+        
+        appActivationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.isAppActive = true
+                self?.reschedulePolling()
+            }
+        }
+        
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.isAppActive = false
+                self?.reschedulePolling()
+            }
+        }
+    }
+    
+    private func handleClipboardNotification() {
+        checkClipboard()
+        lastClipboardChangeTime = Date()
+    }
+    
+    private func scheduleNextPoll() {
+        timer?.invalidate()
+        
+        let interval = calculateOptimalPollingInterval()
+        
+        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.checkClipboard()
+                self?.scheduleNextPoll()
+            }
+        }
+    }
+    
+    private func reschedulePolling() {
+        scheduleNextPoll()
+    }
+    
+    private func calculateOptimalPollingInterval() -> TimeInterval {
+        let timeSinceLastChange = Date().timeIntervalSince(lastClipboardChangeTime)
+        
+        if !isAppActive {
+            return CLIPBOARD_POLL_INTERVAL_IDLE * 2
+        }
+        
+        if timeSinceLastChange < 60 {
+            return CLIPBOARD_POLL_INTERVAL_ACTIVE
+        } else if timeSinceLastChange < 300 {
+            return CLIPBOARD_POLL_INTERVAL_IDLE
+        } else {
+            return CLIPBOARD_POLL_INTERVAL_IDLE * 2
         }
     }
 

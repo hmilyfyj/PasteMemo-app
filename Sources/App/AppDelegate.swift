@@ -51,6 +51,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ClipboardManager.shared.startMonitoring()
         LaunchPerformanceMonitor.shared.endStage("Clipboard Monitoring")
         
+        LaunchPerformanceMonitor.shared.beginStage("Memory Monitoring")
+        MemoryMonitor.shared.startMonitoring()
+        LaunchPerformanceMonitor.shared.endStage("Memory Monitoring")
+        
         hideAllMainWindows(NSApp)
         isLaunchComplete = true
         

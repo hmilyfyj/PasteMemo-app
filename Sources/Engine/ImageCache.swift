@@ -6,6 +6,7 @@ final class ImageCache: @unchecked Sendable {
 
     private let cache = NSCache<NSString, NSImage>()
     private let preloadQueue = DispatchQueue(label: "com.lifedever.pastememo.imagepreload", qos: .utility)
+    private let decodeQueue = DispatchQueue(label: "com.lifedever.pastememo.imagedecode", qos: .userInitiated)
     private var preloadedKeys = Set<String>()
 
     private init() {
@@ -31,6 +32,33 @@ final class ImageCache: @unchecked Sendable {
         cache.setObject(thumb, forKey: cacheKey, cost: data.count)
         return thumb
     }
+    
+    // MARK: - Async Image Decoding
+    
+    func thumbnailAsync(for data: Data, key: String, size: CGFloat = 36) async -> NSImage? {
+        let normalizedSize = Self.normalizedThumbnailDimension(size)
+        let cacheKey = "\(key)_\(Int(normalizedSize))" as NSString
+        
+        if let cached = cache.object(forKey: cacheKey) { return cached }
+        
+        return await withCheckedContinuation { continuation in
+            decodeQueue.async { [weak self] in
+                guard let self = self else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                
+                guard let source = self.downsample(data: data, maxPixelSize: normalizedSize * 2) ?? NSImage(data: data) else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                
+                let thumb = self.resize(source, to: normalizedSize)
+                self.cache.setObject(thumb, forKey: cacheKey, cost: data.count)
+                continuation.resume(returning: thumb)
+            }
+        }
+    }
 
     func cachedPreview(for key: String, maxDimension: CGFloat) -> NSImage? {
         cache.object(forKey: previewCacheKey(for: key, maxDimension: maxDimension))
@@ -45,6 +73,28 @@ final class ImageCache: @unchecked Sendable {
         }
         cache.setObject(image, forKey: cacheKey, cost: data.count)
         return image
+    }
+    
+    func previewAsync(for data: Data, key: String, maxDimension: CGFloat) async -> NSImage? {
+        let cacheKey = previewCacheKey(for: key, maxDimension: maxDimension)
+        if let cached = cache.object(forKey: cacheKey) { return cached }
+        
+        return await withCheckedContinuation { continuation in
+            decodeQueue.async { [weak self] in
+                guard let self = self else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                
+                guard let image = self.downsample(data: data, maxPixelSize: maxDimension * 2) ?? NSImage(data: data) else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                
+                self.cache.setObject(image, forKey: cacheKey, cost: data.count)
+                continuation.resume(returning: image)
+            }
+        }
     }
 
     func imageDimensions(for data: Data) -> NSSize? {
