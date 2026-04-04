@@ -662,7 +662,12 @@ struct QuickPanelView: View {
                 .layoutPriority(2)
 
             bottomSearchField
-                .frame(minWidth: QuickPanelBottomTheme.searchMinWidth, maxWidth: .infinity)
+                .frame(
+                    minWidth: QuickPanelBottomTheme.searchMinWidth,
+                    idealWidth: QuickPanelBottomTheme.searchWidth,
+                    maxWidth: QuickPanelBottomTheme.searchWidth,
+                    alignment: .leading
+                )
                 .layoutPriority(1)
 
             bottomHeaderTrailingControls
@@ -676,7 +681,12 @@ struct QuickPanelView: View {
                 .layoutPriority(2)
 
             bottomSearchField
-                .frame(minWidth: 220, maxWidth: .infinity)
+                .frame(
+                    minWidth: QuickPanelBottomTheme.searchMinWidth,
+                    idealWidth: QuickPanelBottomTheme.searchWidth,
+                    maxWidth: QuickPanelBottomTheme.searchWidth,
+                    alignment: .leading
+                )
                 .layoutPriority(1)
 
             bottomModeToggleIconButton
@@ -763,7 +773,7 @@ struct QuickPanelView: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(QuickPanelBottomTheme.thinStroke, lineWidth: 1)
         )
-        .frame(minWidth: 180, maxWidth: .infinity)
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Tabs
@@ -1291,6 +1301,38 @@ struct QuickPanelView: View {
 
         Divider()
 
+        let groupNames = Set(items.compactMap(\.groupName))
+        let currentGroup = groupNames.count == 1 ? groupNames.first : nil
+        Menu(L10n.tr("action.assignGroup")) {
+            ForEach(store.sidebarCounts.byGroup, id: \.name) { group in
+                if group.name == currentGroup {
+                    Button {
+                        // 已在当前分组中，保持菜单状态一致即可。
+                    } label: {
+                        Label(group.name, systemImage: "checkmark")
+                    }
+                } else {
+                    Button(group.name) {
+                        assignToGroup(items: items, name: group.name)
+                    }
+                }
+            }
+            if !store.sidebarCounts.byGroup.isEmpty {
+                Divider()
+            }
+            Button(L10n.tr("action.newGroup")) {
+                showNewGroupAlert(for: items)
+            }
+        }
+
+        if items.contains(where: { $0.groupName != nil }) {
+            Button(L10n.tr("action.removeFromGroup")) {
+                removeFromGroup(items: items)
+            }
+        }
+
+        Divider()
+
         Button(L10n.tr("relay.addToQueue")) {
             let texts = items.compactMap(\.content)
             RelayManager.shared.enqueue(texts: texts)
@@ -1323,6 +1365,40 @@ struct QuickPanelView: View {
         Button(L10n.tr("action.mergeCopy")) {
             copyItemsToClipboard([item])
             selectItem(itemID)
+        }
+
+        Divider()
+
+        let currentGroup = item.groupName
+        Menu(L10n.tr("action.assignGroup")) {
+            ForEach(store.sidebarCounts.byGroup, id: \.name) { group in
+                if group.name == currentGroup {
+                    Button {
+                        // 已在当前分组中，保持菜单状态一致即可。
+                    } label: {
+                        Label(group.name, systemImage: "checkmark")
+                    }
+                } else {
+                    Button(group.name) {
+                        assignToGroup(items: [item], name: group.name)
+                        selectItem(itemID)
+                    }
+                }
+            }
+            if !store.sidebarCounts.byGroup.isEmpty {
+                Divider()
+            }
+            Button(L10n.tr("action.newGroup")) {
+                showNewGroupAlert(for: [item])
+                selectItem(itemID)
+            }
+        }
+
+        if item.groupName != nil {
+            Button(L10n.tr("action.removeFromGroup")) {
+                removeFromGroup(items: [item])
+                selectItem(itemID)
+            }
         }
 
         if item.contentType.isMergeable,
@@ -1825,6 +1901,44 @@ struct QuickPanelView: View {
 
     private func deleteItem(_ item: ClipItem) {
         deleteItems([item])
+    }
+
+    private func assignToGroup(items: [ClipItem], name: String) {
+        for item in items {
+            let oldGroup = item.groupName
+            item.groupName = name
+            ClipboardManager.shared.upsertSmartGroup(name: name, context: modelContext)
+            if let oldGroup, !oldGroup.isEmpty {
+                ClipboardManager.shared.decrementSmartGroup(name: oldGroup, context: modelContext)
+            }
+        }
+        try? modelContext.save()
+        store.refreshSidebarCounts()
+    }
+
+    private func removeFromGroup(items: [ClipItem]) {
+        for item in items {
+            guard let name = item.groupName, !name.isEmpty else { continue }
+            item.groupName = nil
+            ClipboardManager.shared.decrementSmartGroup(name: name, context: modelContext)
+        }
+        try? modelContext.save()
+        store.refreshSidebarCounts()
+    }
+
+    private func showNewGroupAlert(for items: [ClipItem]) {
+        guard let result = GroupEditorPanel.show() else { return }
+        let name = result.name
+        let descriptor = FetchDescriptor<SmartGroup>(predicate: #Predicate { $0.name == name })
+        if let existing = try? modelContext.fetch(descriptor).first {
+            existing.icon = result.icon
+        } else {
+            let maxOrder = (try? modelContext.fetch(FetchDescriptor<SmartGroup>()))?.map(\.sortOrder).max() ?? -1
+            let group = SmartGroup(name: result.name, icon: result.icon, sortOrder: maxOrder + 1)
+            modelContext.insert(group)
+        }
+        try? modelContext.save()
+        assignToGroup(items: items, name: result.name)
     }
 
     private func applyTransform(_ action: RuleAction, to item: ClipItem) {
