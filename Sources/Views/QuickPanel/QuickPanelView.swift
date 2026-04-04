@@ -2283,6 +2283,10 @@ struct QuickPanelView: View {
                     let character = characters.first!
                     // Only trigger for letters and digits, exclude space and other special keys
                     if character.isLetter || character.isNumber {
+                        // Close QuickLook preview if visible
+                        if QuickLookHelper.shared.isVisible {
+                            QuickLookHelper.shared.closePreview()
+                        }
                         // Add the character to search text and activate search field
                         searchText += String(character)
                         activateSearchField()
