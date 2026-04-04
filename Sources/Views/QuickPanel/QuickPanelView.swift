@@ -52,6 +52,7 @@ struct QuickPanelView: View {
     @State private var cachedItemMap: [PersistentIdentifier: ClipItem] = [:]
     @State private var cachedIDSet: Set<PersistentIdentifier> = []
     @State private var bottomMode: QuickPanelBottomMode = .compact
+    @State private var keepBottomDetailsMounted = false
 
     private var filteredItems: [ClipItem] { store.items }
 
@@ -70,6 +71,14 @@ struct QuickPanelView: View {
 
     private var isBottomFloatingStyle: Bool {
         panelStyle == .bottomFloating
+    }
+
+    private var isBottomExpanded: Bool {
+        isBottomFloatingStyle && bottomMode == .expanded
+    }
+
+    private var shouldRenderBottomDetails: Bool {
+        isBottomExpanded || keepBottomDetailsMounted
     }
 
     private func rebuildGroupedItems() {
@@ -219,6 +228,7 @@ struct QuickPanelView: View {
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(50))
                 resetSearchFocusForPresentation()
+                prewarmBottomDetailsIfNeeded()
             }
         }
         .onDisappear {
@@ -252,6 +262,7 @@ struct QuickPanelView: View {
             }
             targetApp = QuickPanelWindowController.shared.previousApp
             resetSearchFocusForPresentation()
+            prewarmBottomDetailsIfNeeded()
         }
         .onChange(of: searchText) {
             groupSuggestionIndex = -1
@@ -332,11 +343,17 @@ struct QuickPanelView: View {
                     bottomClipRail(metrics: metrics)
                         .frame(height: metrics.railHeight)
 
-                    if bottomMode == .expanded {
-                        previewPane
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .quickPanelBottomSection()
-                        compactFooterBar
+                    if shouldRenderBottomDetails {
+                        bottomDetailsSection
+                            .frame(
+                                maxWidth: .infinity,
+                                maxHeight: isBottomExpanded ? .infinity : 0,
+                                alignment: .top
+                            )
+                            .opacity(isBottomExpanded ? 1 : 0)
+                            .allowsHitTesting(isBottomExpanded)
+                            .accessibilityHidden(!isBottomExpanded)
+                            .clipped()
                     }
                 }
             }
@@ -378,6 +395,16 @@ struct QuickPanelView: View {
             verticalPadding: verticalPadding,
             spacing: spacing
         )
+    }
+
+    private var bottomDetailsSection: some View {
+        VStack(spacing: 8) {
+            previewPane
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            compactFooterBar
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .quickPanelBottomSection()
     }
 
     // MARK: - Search
@@ -1072,6 +1099,7 @@ struct QuickPanelView: View {
                 .frame(maxHeight: .infinity, alignment: .top)
                 .padding(.horizontal, metrics.horizontalPadding)
                 .padding(.vertical, metrics.verticalPadding)
+                .background(HorizontalWheelScrollAdapter())
             }
             .scrollClipDisabled()
             .frame(
@@ -1319,12 +1347,22 @@ struct QuickPanelView: View {
 
     private func setBottomMode(_ newMode: QuickPanelBottomMode, animated: Bool = true) {
         guard isBottomFloatingStyle else { return }
+        if newMode == .expanded {
+            keepBottomDetailsMounted = true
+        }
         bottomMode = newMode
         QuickPanelWindowController.shared.setBottomFloatingMode(newMode, animated: animated)
     }
 
     private func toggleBottomMode() {
         setBottomMode(bottomMode == .compact ? .expanded : .compact)
+    }
+
+    private func prewarmBottomDetailsIfNeeded() {
+        guard isBottomFloatingStyle, !filteredItems.isEmpty, !keepBottomDetailsMounted else { return }
+        DispatchQueue.main.async {
+            keepBottomDetailsMounted = true
+        }
     }
 
     private func installKeyMonitor() {
