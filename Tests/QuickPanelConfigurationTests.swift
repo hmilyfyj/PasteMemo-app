@@ -7,20 +7,34 @@ import Testing
 struct QuickPanelConfigurationTests {
     @Test("Bottom floating compact frame stays inside visible frame")
     func compactFrameFitsVisibleFrame() {
+        let screenFrame = CGRect(x: 0, y: 0, width: 1512, height: 982)
         let visibleFrame = CGRect(x: 0, y: 38, width: 1440, height: 862)
-        let frame = QuickPanelBottomGeometry.frame(in: visibleFrame, mode: .compact)
+        let frame = QuickPanelBottomGeometry.frame(
+            screenFrame: screenFrame,
+            visibleFrame: visibleFrame,
+            mode: .compact
+        )
 
-        #expect(frame.minX >= visibleFrame.minX)
-        #expect(frame.maxX <= visibleFrame.maxX)
+        #expect(frame.minX >= screenFrame.minX)
+        #expect(frame.maxX <= screenFrame.maxX)
         #expect(frame.minY == visibleFrame.minY + QuickPanelBottomGeometry.bottomInset)
         #expect(frame.height == QuickPanelBottomGeometry.compactHeight)
     }
 
     @Test("Bottom floating expanded frame grows upward from same bottom anchor")
     func expandedFrameAnchorsToBottom() {
+        let screenFrame = CGRect(x: 0, y: 0, width: 1728, height: 1117)
         let visibleFrame = CGRect(x: 0, y: 24, width: 1728, height: 1056)
-        let compact = QuickPanelBottomGeometry.frame(in: visibleFrame, mode: .compact)
-        let expanded = QuickPanelBottomGeometry.frame(in: visibleFrame, mode: .expanded)
+        let compact = QuickPanelBottomGeometry.frame(
+            screenFrame: screenFrame,
+            visibleFrame: visibleFrame,
+            mode: .compact
+        )
+        let expanded = QuickPanelBottomGeometry.frame(
+            screenFrame: screenFrame,
+            visibleFrame: visibleFrame,
+            mode: .expanded
+        )
 
         #expect(compact.minY == expanded.minY)
         #expect(compact.midX == expanded.midX)

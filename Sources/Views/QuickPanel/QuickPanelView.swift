@@ -651,7 +651,7 @@ struct QuickPanelView: View {
                 .padding(.vertical, 6)
                 .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 7))
         }
-        .padding(.horizontal, 18)
+        .padding(.horizontal, 10)
         .padding(.top, 16)
         .padding(.bottom, 12)
     }
@@ -875,7 +875,7 @@ struct QuickPanelView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 18)
+                .padding(.horizontal, 8)
                 .padding(.vertical, bottomMode == .compact ? 16 : 18)
             }
             .frame(maxWidth: .infinity, minHeight: 168, maxHeight: 196)

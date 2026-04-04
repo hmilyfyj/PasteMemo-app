@@ -157,7 +157,11 @@ final class QuickPanelWindowController {
         bottomMode = mode
         guard panelStyle == .bottomFloating, let panel, panel.isVisible else { return }
         guard let screen = NSScreen.screenWithMouse ?? NSScreen.main ?? NSScreen.screens.first else { return }
-        let frame = QuickPanelBottomGeometry.frame(in: screen.visibleFrame, mode: mode)
+        let frame = QuickPanelBottomGeometry.frame(
+            screenFrame: screen.frame,
+            visibleFrame: screen.visibleFrame,
+            mode: mode
+        )
         panel.setFrame(frame, display: true, animate: animated)
     }
 
@@ -263,7 +267,11 @@ final class QuickPanelWindowController {
         let visibleFrame = screen.visibleFrame
 
         if panelStyle == .bottomFloating {
-            let frame = QuickPanelBottomGeometry.frame(in: visibleFrame, mode: bottomMode)
+            let frame = QuickPanelBottomGeometry.frame(
+                screenFrame: screen.frame,
+                visibleFrame: visibleFrame,
+                mode: bottomMode
+            )
             panel.setFrame(frame, display: true)
             return
         }
