@@ -601,6 +601,38 @@ struct MainWindowView: View {
                         copyToClipboard(item)
                     }
                 }
+                // 文件类型：提供"作为文本路径复制"选项（支持多选）
+                let fileTypes: Set<ClipContentType> = [.file, .image, .video, .audio, .document, .archive, .application]
+                let isMultiSelect = selectedItems.contains(item.persistentModelID) && selectedItems.count > 1
+                let checkItems = isMultiSelect ? selectedClipItems : [item]
+                if checkItems.contains(where: { fileTypes.contains($0.contentType) }) {
+                    Button(L10n.tr("action.copyAsFilePath")) {
+                        let merged = checkItems.map(\.content).joined(separator: "\n")
+                        let pasteboard = NSPasteboard.general
+                        pasteboard.clearContents()
+                        pasteboard.setString(merged, forType: .string)
+                        clipboardManager.lastChangeCount = pasteboard.changeCount
+                        showCopiedToast = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                            showCopiedToast = false
+                        }
+                    }
+                }
+                // 文本类型：如果内容是有效文件路径，提供"作为文件粘贴"选项（支持多选）
+                if checkItems.allSatisfy({ $0.contentType == .text || $0.contentType == .link }) {
+                    let validPathItems = checkItems.filter { clipboardManager.canPasteAsFile($0) }
+                    if !validPathItems.isEmpty {
+                        Button(L10n.tr("action.pasteAsFile")) {
+                            let merged = validPathItems.map(\.content).joined(separator: "\n")
+                            let tempItem = ClipItem(content: merged, contentType: .text)
+                            _ = clipboardManager.writeAsFileReference(tempItem)
+                            showCopiedToast = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                showCopiedToast = false
+                            }
+                        }
+                    }
+                }
                 if selectedItems.count > 1, selectedClipItems.allSatisfy({ $0.contentType.isMergeable }) {
                     Button(L10n.tr("action.merge")) { mergeSelectedItems() }
                 }

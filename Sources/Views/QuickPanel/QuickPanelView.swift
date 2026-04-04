@@ -2174,6 +2174,33 @@ struct QuickPanelView: View {
             copyItemsToClipboard(items)
         }
 
+        // 多选文件类型：提供"作为文本路径复制"选项
+        if items.contains(where: { $0.contentType == .file || $0.contentType == .image || $0.contentType == .video || $0.contentType == .audio || $0.contentType == .document || $0.contentType == .archive || $0.contentType == .application }) {
+            Button(L10n.tr("action.copyAsFilePath")) {
+                let merged = items.map(\.content).joined(separator: "\n")
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.setString(merged, forType: .string)
+                clipboardManager.lastChangeCount = pasteboard.changeCount
+                showCopiedToast = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { showCopiedToast = false }
+            }
+        }
+
+        // 多选文本类型：如果内容是有效文件路径，提供"作为文件粘贴"选项
+        if items.allSatisfy({ $0.contentType == .text || $0.contentType == .link }) {
+            let validPathItems = items.filter { clipboardManager.canPasteAsFile($0) }
+            if !validPathItems.isEmpty {
+                Button(L10n.tr("action.pasteAsFile")) {
+                    let merged = validPathItems.map(\.content).joined(separator: "\n")
+                    let tempItem = ClipItem(content: merged, contentType: .text)
+                    _ = clipboardManager.writeAsFileReference(tempItem)
+                    showCopiedToast = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { showCopiedToast = false }
+                }
+            }
+        }
+
         Divider()
 
         let groupNames = Set(items.compactMap(\.groupName))
@@ -2240,6 +2267,26 @@ struct QuickPanelView: View {
         Button(L10n.tr("action.mergeCopy")) {
             copyItemsToClipboard([item])
             selectItem(itemID)
+        }
+
+        // 文件类型：提供"作为文本路径复制"选项
+        if item.contentType == .file || item.contentType == .image || item.contentType == .video || item.contentType == .audio || item.contentType == .document || item.contentType == .archive || item.contentType == .application {
+            Button(L10n.tr("action.copyAsFilePath")) {
+                clipboardManager.writeAsTextPath(item)
+                showCopiedToast = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { showCopiedToast = false }
+                selectItem(itemID)
+            }
+        }
+
+        // 文本类型：如果内容是有效文件路径，提供"作为文件粘贴"选项
+        if (item.contentType == .text || item.contentType == .link) && clipboardManager.canPasteAsFile(item) {
+            Button(L10n.tr("action.pasteAsFile")) {
+                _ = clipboardManager.writeAsFileReference(item)
+                showCopiedToast = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { showCopiedToast = false }
+                selectItem(itemID)
+            }
         }
 
         Divider()

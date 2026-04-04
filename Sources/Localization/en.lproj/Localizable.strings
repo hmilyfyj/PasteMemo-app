@@ -388,6 +388,8 @@
 "action.merge" = "Merge";
 "action.mergeCopy" = "Copy";
 "action.copyDebugInfo" = "Copy Debug Info";
+"action.copyAsFilePath" = "Copy as File Path";
+"action.pasteAsFile" = "Paste as File";
 "quick.multiSelected" = "%d items selected";
 "quick.batchPaste" = "Batch Paste";
 

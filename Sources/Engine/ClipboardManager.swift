@@ -371,7 +371,8 @@ final class ClipboardManager: ObservableObject {
         if isPhone(trimmed) { return DetectedContent(type: .phone, language: nil) }
         if isColor(trimmed) { return DetectedContent(type: .color, language: nil) }
         if isURL(trimmed) { return DetectedContent(type: .link, language: nil) }
-        if isFilePath(trimmed) { return DetectedContent(type: .file, language: nil) }
+        // NOTE: 纯文本路径不再自动解析为文件类型，保持为文本以便用户粘贴路径
+        // 文件类型仅通过 Finder 复制文件时识别（captureCurrentClipboard 中的 fileURLs 检测）
         if let lang = CodeDetector.detectLanguage(trimmed) {
             return DetectedContent(type: .code, language: lang.rawValue)
         }
@@ -481,6 +482,48 @@ final class ClipboardManager: ObservableObject {
             }
         }
         lastChangeCount = NSPasteboard.general.changeCount
+    }
+
+    /// 将文件类型的内容作为纯文本路径写入剪贴板（不作为文件引用）
+    func writeAsTextPath(_ item: ClipItem) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(item.content, forType: .string)
+        lastChangeCount = pasteboard.changeCount
+    }
+
+    /// 将文本内容作为文件引用写入剪贴板（如果路径有效）
+    /// 返回是否成功写入文件引用
+    @discardableResult
+    func writeAsFileReference(_ item: ClipItem) -> Bool {
+        let content = item.content
+        let lines = content.components(separatedBy: .newlines).filter { !$0.isEmpty }
+        // 检查是否所有行都是有效的文件路径
+        let expandedPaths = lines.compactMap { line -> String? in
+            let expanded = NSString(string: line).expandingTildeInPath
+            guard FileManager.default.fileExists(atPath: expanded) else { return nil }
+            return expanded
+        }
+        guard expandedPaths.count == lines.count, !expandedPaths.isEmpty else {
+            return false
+        }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        writeFileURLsToPasteboard(pasteboard, paths: expandedPaths)
+        lastChangeCount = pasteboard.changeCount
+        return true
+    }
+
+    /// 检查文本内容是否可以作为文件引用粘贴
+    func canPasteAsFile(_ item: ClipItem) -> Bool {
+        let content = item.content
+        let lines = content.components(separatedBy: .newlines).filter { !$0.isEmpty }
+        guard !lines.isEmpty else { return false }
+        // 检查是否所有行都是有效的文件路径
+        return lines.allSatisfy { line in
+            let expanded = NSString(string: line).expandingTildeInPath
+            return FileManager.default.fileExists(atPath: expanded)
+        }
     }
 
     func writeFileURLsToPasteboard(_ pasteboard: NSPasteboard, paths: [String]) {

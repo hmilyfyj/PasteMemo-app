@@ -389,6 +389,8 @@
 "action.merge" = "合并";
 "action.mergeCopy" = "复制";
 "action.copyDebugInfo" = "复制调试信息";
+"action.copyAsFilePath" = "作为文本路径复制";
+"action.pasteAsFile" = "作为文件粘贴";
 "quick.multiSelected" = "已选中 %d 条";
 "quick.batchPaste" = "批量粘贴";
 
