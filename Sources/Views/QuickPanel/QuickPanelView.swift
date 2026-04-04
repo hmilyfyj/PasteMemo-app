@@ -2278,6 +2278,20 @@ struct QuickPanelView: View {
             let hasShift = event.modifierFlags.contains(.shift)
             let hasCmd = event.modifierFlags.contains(.command)
 
+            // Auto-focus search field when typing text or numbers
+            if !hasCmd && !isSearchFocused {
+                if let characters = event.characters, !characters.isEmpty {
+                    let character = characters.first!
+                    // Check if it's a printable character (letter, digit, or common punctuation)
+                    if character.isLetter || character.isNumber || character == " " || character == "/" {
+                        // Add the character to search text and activate search field
+                        searchText += String(character)
+                        activateSearchField()
+                        return nil
+                    }
+                }
+            }
+
             // Group suggestion keyboard navigation
             if isShowingSuggestions {
                 let total = totalSuggestionCount
