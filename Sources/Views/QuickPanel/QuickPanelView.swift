@@ -101,14 +101,22 @@ struct QuickPanelView: View {
         lastNavigatedID = id
     }
 
+    private func resetSearchFocusForPresentation() {
+        isSearchFocused = !isBottomFloatingStyle
+    }
+
     private func restoreSearchFocusIfNeeded() {
         if !isBottomFloatingStyle {
             isSearchFocused = true
         }
     }
 
-    private func resetSearchFocusForPresentation() {
-        isSearchFocused = !isBottomFloatingStyle
+    private func moveFocusToSelectionIfNeeded() {
+        if isBottomFloatingStyle {
+            isSearchFocused = false
+        } else {
+            isSearchFocused = true
+        }
     }
 
     private func handleItemClick(_ id: PersistentIdentifier) {
@@ -131,7 +139,7 @@ struct QuickPanelView: View {
         } else {
             selectItem(id)
         }
-        restoreSearchFocusIfNeeded()
+        moveFocusToSelectionIfNeeded()
         lastClickedID = id
         lastClickTime = now
     }
