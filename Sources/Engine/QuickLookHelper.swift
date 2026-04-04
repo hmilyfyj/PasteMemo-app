@@ -10,6 +10,7 @@ final class QuickLookHelper: NSObject, QLPreviewPanelDataSource, QLPreviewPanelD
     private var localKeyMonitor: Any?
     private var globalKeyMonitor: Any?
     private var localMouseMonitor: Any?
+    private var globalMouseMonitor: Any?
 
     private override init() { super.init() }
 
@@ -197,10 +198,37 @@ final class QuickLookHelper: NSObject, QLPreviewPanelDataSource, QLPreviewPanelD
                 guard let self, self.isVisible else { return event }
                 guard let quickPanelFrame = QuickPanelWindowController.shared.currentPanelFrame else { return event }
 
-                if quickPanelFrame.contains(NSEvent.mouseLocation) {
-                    QuickPanelWindowController.shared.keepPanelInteractiveDuringQuickLook()
+                let mouseLocation = NSEvent.mouseLocation
+                
+                // 点击面板外部：同时关闭预览和面板
+                if !quickPanelFrame.contains(mouseLocation) {
+                    self.closePreview()
+                    Task { @MainActor in
+                        QuickPanelWindowController.shared.dismiss()
+                    }
+                    return nil
                 }
+                
+                // 点击面板内部：保持面板交互性
+                QuickPanelWindowController.shared.keepPanelInteractiveDuringQuickLook()
                 return event
+            }
+        }
+
+        if globalMouseMonitor == nil {
+            globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+                guard let self, self.isVisible else { return }
+                guard let quickPanelFrame = QuickPanelWindowController.shared.currentPanelFrame else { return }
+                
+                let mouseLocation = NSEvent.mouseLocation
+                
+                // 点击面板外部：同时关闭预览和面板
+                if !quickPanelFrame.contains(mouseLocation) {
+                    Task { @MainActor [weak self] in
+                        self?.closePreview()
+                        QuickPanelWindowController.shared.dismiss()
+                    }
+                }
             }
         }
 
@@ -218,6 +246,10 @@ final class QuickLookHelper: NSObject, QLPreviewPanelDataSource, QLPreviewPanelD
         if let localMouseMonitor {
             NSEvent.removeMonitor(localMouseMonitor)
             self.localMouseMonitor = nil
+        }
+        if let globalMouseMonitor {
+            NSEvent.removeMonitor(globalMouseMonitor)
+            self.globalMouseMonitor = nil
         }
     }
 }
