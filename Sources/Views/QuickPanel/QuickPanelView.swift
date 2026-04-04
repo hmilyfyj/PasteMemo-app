@@ -681,25 +681,19 @@ struct QuickPanelView: View {
     }
 
     private var bottomHeaderSingleRow: some View {
-        HStack(spacing: 10) {
-            bottomInlineFilterBar
-                .frame(minWidth: 280, idealWidth: 360, maxWidth: 460, alignment: .leading)
-                .layoutPriority(2)
+        ZStack {
+            HStack(spacing: 10) {
+                bottomInlineFilterBar
+                    .frame(minWidth: 280, idealWidth: 360, maxWidth: .infinity, alignment: .leading)
+                    .layoutPriority(2)
 
-            bottomSearchField
-                .frame(
-                    minWidth: QuickPanelBottomTheme.searchMinWidth,
-                    idealWidth: QuickPanelBottomTheme.searchWidth,
-                    maxWidth: QuickPanelBottomTheme.searchWidth,
-                    alignment: .leading
-                )
-                .layoutPriority(1)
+                bottomHeaderTrailingControls
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
 
-            bottomCustomGroupToolbar
-                .frame(minWidth: 220, idealWidth: 340, maxWidth: 520, alignment: .leading)
-                .layoutPriority(1)
-
-            bottomHeaderTrailingControls
+            bottomHeaderCenterCluster
+                .fixedSize(horizontal: true, vertical: false)
+                .frame(maxWidth: .infinity, alignment: .center)
         }
     }
 
@@ -735,6 +729,22 @@ struct QuickPanelView: View {
             bottomModeToggleButton
             bottomPinButton
             bottomCountBadge
+        }
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private var bottomHeaderCenterCluster: some View {
+        HStack(spacing: 10) {
+            bottomSearchField
+                .frame(
+                    minWidth: QuickPanelBottomTheme.searchMinWidth,
+                    idealWidth: QuickPanelBottomTheme.searchWidth,
+                    maxWidth: QuickPanelBottomTheme.searchWidth,
+                    alignment: .leading
+                )
+
+            bottomCustomGroupToolbar
+                .frame(minWidth: 220, idealWidth: 340, maxWidth: 520, alignment: .leading)
         }
         .fixedSize(horizontal: true, vertical: false)
     }
