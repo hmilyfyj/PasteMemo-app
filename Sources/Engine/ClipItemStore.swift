@@ -246,17 +246,16 @@ final class ClipItemStore {
         let tokens = SearchMatcher.tokens(from: searchText)
         guard !tokens.isEmpty else { return }
 
-        let perTokenCondition = "(content LIKE ? OR displayTitle LIKE ? OR linkTitle LIKE ? OR ocrText LIKE ?)"
-        let searchClause = Array(repeating: perTokenCondition, count: tokens.count).joined(separator: " AND ")
-        conditions.append("ZITEMID IN (SELECT itemID FROM clip_fts WHERE \(searchClause))")
-
+        var tokenConditions: [String] = []
         for token in tokens {
             let pattern = "%\(token)%"
+            tokenConditions.append("(ZCONTENT LIKE ? OR ZDISPLAYTITLE LIKE ? OR ZLINKTITLE LIKE ? OR ZOCRTEXT LIKE ?)")
             params.append(pattern)
             params.append(pattern)
             params.append(pattern)
             params.append(pattern)
         }
+        conditions.append("(" + tokenConditions.joined(separator: " AND ") + ")")
     }
 
     // MARK: - Metadata Queries

@@ -879,9 +879,18 @@ struct QuickPanelView: View {
                 // Group tag is active — search text is just keyword
                 store.searchText = searchText
             } else if searchText.hasPrefix(Self.GROUP_SEARCH_PREFIX) {
-                // Typing / for group selection — don't search yet
-                store.searchText = ""
-                store.groupName = nil
+                // Check if this looks like a path (contains multiple slashes)
+                let slashCount = searchText.filter { $0 == "/" }.count
+                if slashCount > 1 {
+                    // Looks like a path - perform normal search
+                    store.groupName = nil
+                    store.searchText = searchText
+                } else {
+                    // Single slash - group selection mode
+                    // Typing / for group selection — don't search yet
+                    store.searchText = ""
+                    store.groupName = nil
+                }
             } else {
                 store.groupName = nil
                 store.searchText = searchText
