@@ -247,8 +247,12 @@ final class QuickPanelWindowController {
 
     private func applyPanelBehavior(_ panel: NSPanel) {
         let isBottomFloating = panelStyle == .bottomFloating
+        let classicMask: NSWindow.StyleMask = [.nonactivatingPanel, .titled, .borderless, .resizable, .fullSizeContentView]
+        let bottomFloatingMask: NSWindow.StyleMask = [.nonactivatingPanel, .borderless]
+
+        panel.styleMask = isBottomFloating ? bottomFloatingMask : classicMask
         panel.isMovableByWindowBackground = !isBottomFloating
-        panel.styleMask = isBottomFloating ? panel.styleMask.subtracting(.resizable) : panel.styleMask.union(.resizable)
+        panel.titlebarAppearsTransparent = !isBottomFloating
         dragCoverView?.isHidden = isBottomFloating
         panel.minSize = isBottomFloating
             ? NSSize(width: QuickPanelBottomGeometry.minimumWidth, height: QuickPanelBottomGeometry.compactHeight)

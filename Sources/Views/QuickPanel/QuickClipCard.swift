@@ -6,6 +6,8 @@ struct QuickClipCard: View {
     let shortcutIndex: Int?
 
     private let cardCornerRadius: CGFloat = 14
+    private let cardWidth: CGFloat = 198
+    private let cardHeight: CGFloat = 178
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -13,7 +15,7 @@ struct QuickClipCard: View {
             preview
             footer
         }
-        .frame(width: 184, height: 138)
+        .frame(width: cardWidth, height: cardHeight)
         .background(cardBackground)
         .overlay(cardBorder)
         .shadow(color: isSelected ? Color.accentColor.opacity(0.28) : .black.opacity(0.12), radius: isSelected ? 14 : 8, y: 3)
@@ -57,19 +59,19 @@ struct QuickClipCard: View {
                 .fill(Color.white.opacity(isSelected ? 0.08 : 0.045))
 
             previewContent
-                .padding(8)
+                .padding(10)
         }
-        .padding(.horizontal, 10)
-        .padding(.top, 10)
+        .padding(.horizontal, 8)
+        .padding(.top, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var footer: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(item.displayTitle ?? item.content)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: 11.5, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.94))
-                .lineLimit(2)
+                .lineLimit(3)
 
             Text(metaText)
                 .font(.system(size: 10))
@@ -77,7 +79,7 @@ struct QuickClipCard: View {
                 .lineLimit(1)
         }
         .padding(.horizontal, 11)
-        .padding(.bottom, 10)
+        .padding(.bottom, 8)
     }
 
     private var cardBackground: some ShapeStyle {

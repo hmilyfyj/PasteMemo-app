@@ -67,8 +67,8 @@ enum QuickPanelKeyboardRouter {
 enum QuickPanelBottomGeometry {
     static let horizontalInset: CGFloat = 6
     static let bottomInset: CGFloat = 12
-    static let compactHeight: CGFloat = 260
-    static let expandedHeight: CGFloat = 640
+    static let compactHeight: CGFloat = 286
+    static let expandedHeight: CGFloat = 720
     static let maxWidth: CGFloat = 10_000
     static let minimumWidth: CGFloat = 900
 

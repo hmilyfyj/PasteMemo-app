@@ -294,7 +294,6 @@ struct QuickPanelView: View {
     private var bottomFloatingLayout: some View {
         VStack(spacing: 0) {
             bottomHeader
-            tabBar
             if filteredItems.isEmpty {
                 bottomEmptyState
             } else {
@@ -557,7 +556,79 @@ struct QuickPanelView: View {
     }
 
     private var bottomHeader: some View {
-        HStack(spacing: 10) {
+        HStack {
+            Spacer(minLength: 0)
+            bottomHeaderContent
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 2)
+        .padding(.bottom, 2)
+    }
+
+    private var bottomHeaderContent: some View {
+        HStack(spacing: 6) {
+            bottomSearchField
+            bottomInlineFilterBar
+
+            if let app = targetApp, let name = app.localizedName {
+                HStack(spacing: 5) {
+                    if let icon = app.icon {
+                        Image(nsImage: icon)
+                            .resizable()
+                            .frame(width: 14, height: 14)
+                    }
+                    Text(L10n.tr("quick.pasteToApp", name))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.white.opacity(0.05), in: Capsule())
+                .fixedSize(horizontal: true, vertical: false)
+            }
+
+            Button {
+                toggleBottomMode()
+            } label: {
+                Label(
+                    bottomMode == .compact ? L10n.tr("quick.expandDetails") : L10n.tr("quick.collapseDetails"),
+                    systemImage: bottomMode == .compact ? "rectangle.expand.vertical" : "rectangle.compress.vertical"
+                )
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.white.opacity(0.88))
+                .padding(.horizontal, 9)
+                .padding(.vertical, 5)
+                .background(Color.white.opacity(0.08), in: Capsule())
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                isPanelPinned.toggle()
+                QuickPanelWindowController.shared.isPinned = isPanelPinned
+            } label: {
+                Image(systemName: isPanelPinned ? "pin.fill" : "pin")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.72))
+                    .frame(width: 24, height: 24)
+                    .background(Color.white.opacity(isPanelPinned ? 0.12 : 0.04), in: RoundedRectangle(cornerRadius: 7))
+            }
+            .buttonStyle(.plain)
+            .help(isPanelPinned ? L10n.tr("quickPanel.unpin") : L10n.tr("quickPanel.pin"))
+
+            Text("\(store.totalCount)")
+                .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                .foregroundStyle(.white.opacity(0.68))
+                .padding(.horizontal, 7)
+                .padding(.vertical, 5)
+                .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 7))
+        }
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private var bottomSearchField: some View {
+        HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(.secondary)
@@ -598,62 +669,15 @@ struct QuickPanelView: View {
                 }
                 .buttonStyle(.plain)
             }
-
-            if let app = targetApp, let name = app.localizedName {
-                HStack(spacing: 5) {
-                    if let icon = app.icon {
-                        Image(nsImage: icon)
-                            .resizable()
-                            .frame(width: 14, height: 14)
-                    }
-                    Text(L10n.tr("quick.pasteToApp", name))
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
-                .background(Color.white.opacity(0.05), in: Capsule())
-            }
-
-            Button {
-                toggleBottomMode()
-            } label: {
-                Label(
-                    bottomMode == .compact ? L10n.tr("quick.expandDetails") : L10n.tr("quick.collapseDetails"),
-                    systemImage: bottomMode == .compact ? "rectangle.expand.vertical" : "rectangle.compress.vertical"
-                )
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.white.opacity(0.88))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color.white.opacity(0.08), in: Capsule())
-            }
-            .buttonStyle(.plain)
-
-            Button {
-                isPanelPinned.toggle()
-                QuickPanelWindowController.shared.isPinned = isPanelPinned
-            } label: {
-                Image(systemName: isPanelPinned ? "pin.fill" : "pin")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.72))
-                    .frame(width: 24, height: 24)
-                    .background(Color.white.opacity(isPanelPinned ? 0.12 : 0.04), in: RoundedRectangle(cornerRadius: 7))
-            }
-            .buttonStyle(.plain)
-            .help(isPanelPinned ? L10n.tr("quickPanel.unpin") : L10n.tr("quickPanel.pin"))
-
-            Text("\(store.totalCount)")
-                .font(.system(size: 11, weight: .semibold).monospacedDigit())
-                .foregroundStyle(.white.opacity(0.68))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 7))
         }
-        .padding(.horizontal, 10)
-        .padding(.top, 16)
-        .padding(.bottom, 12)
+        .padding(.horizontal, 8)
+        .frame(height: 26)
+        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.white.opacity(0.06))
+        )
+        .frame(width: 260)
     }
 
     // MARK: - Tabs
@@ -680,6 +704,30 @@ struct QuickPanelView: View {
         }
     }
 
+    private var bottomInlineFilterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                bottomFilterBadge(L10n.tr("filter.pinned"), isActive: selectedFilter == .pinned) {
+                    selectedFilter = selectedFilter == .pinned ? .all : .pinned
+                    isSearchFocused = true
+                }
+                bottomFilterBadge(L10n.tr("filter.all"), isActive: selectedFilter == .all) {
+                    selectedFilter = .all
+                    isSearchFocused = true
+                }
+                ForEach(availableContentTypes, id: \.self) { type in
+                    bottomFilterBadge(type.label, isActive: selectedFilter == .type(type)) {
+                        selectedFilter = selectedFilter == .type(type) ? .all : .type(type)
+                        isSearchFocused = true
+                    }
+                }
+            }
+            .padding(.horizontal, 2)
+        }
+        .frame(maxWidth: 360, minHeight: 26, maxHeight: 26)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
     private func badge(_ label: String, isActive: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(label)
@@ -690,6 +738,25 @@ struct QuickPanelView: View {
                 .background(
                     isActive ? Color.accentColor : Color.primary.opacity(0.06),
                     in: Capsule()
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func bottomFilterBadge(_ label: String, isActive: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 11, weight: isActive ? .semibold : .regular))
+                .foregroundStyle(isActive ? .white : .white.opacity(0.7))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(
+                    isActive ? Color.accentColor : Color.white.opacity(0.06),
+                    in: Capsule()
+                )
+                .overlay(
+                    Capsule()
+                        .stroke(Color.white.opacity(isActive ? 0 : 0.05))
                 )
         }
         .buttonStyle(.plain)
@@ -876,9 +943,13 @@ struct QuickPanelView: View {
                     }
                 }
                 .padding(.horizontal, 8)
-                .padding(.vertical, bottomMode == .compact ? 16 : 18)
+                .padding(.vertical, bottomMode == .compact ? 6 : 10)
             }
-            .frame(maxWidth: .infinity, minHeight: 168, maxHeight: 196)
+            .frame(
+                maxWidth: .infinity,
+                minHeight: bottomMode == .compact ? 232 : 258,
+                maxHeight: bottomMode == .compact ? 244 : 274
+            )
             .onChange(of: lastNavigatedID) {
                 guard let id = lastNavigatedID else { return }
                 withAnimation(.easeOut(duration: 0.16)) {
