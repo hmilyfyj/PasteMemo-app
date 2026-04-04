@@ -16,7 +16,10 @@ final class QuickLookHelper: NSObject, QLPreviewPanelDataSource, QLPreviewPanelD
 
     func preview(item: ClipItem) {
         let url = prepareURL(for: item)
-        guard let url else { return }
+        guard let url else {
+            closePreview()
+            return
+        }
 
         previewURL = url
 

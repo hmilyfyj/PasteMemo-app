@@ -149,8 +149,18 @@ struct QuickPanelView: View {
             selectItem(id)
         }
         moveFocusToSelectionIfNeeded()
+        syncQuickLookPreviewForSelection()
         lastClickedID = id
         lastClickTime = now
+    }
+
+    private func syncQuickLookPreviewForSelection() {
+        guard QuickLookHelper.shared.isVisible else { return }
+        guard !isMultiSelected, let item = currentItem else {
+            QuickLookHelper.shared.closePreview()
+            return
+        }
+        QuickLookHelper.shared.preview(item: item)
     }
 
     private func toggleItemInSelection(_ id: PersistentIdentifier) {
@@ -1343,6 +1353,7 @@ struct QuickPanelView: View {
             selectedItemIDs = [targetID]
             selectionAnchor = nil
         }
+        syncQuickLookPreviewForSelection()
     }
 
     private func setBottomMode(_ newMode: QuickPanelBottomMode, animated: Bool = true) {

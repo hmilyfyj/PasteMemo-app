@@ -30,6 +30,12 @@ private class DragOnlyView: NSView {
     }
 }
 
+private final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+}
+
 private struct ResizeEdges: OptionSet {
     let rawValue: Int
 
@@ -379,8 +385,6 @@ final class QuickPanelWindowController {
             .environmentObject(clipboardManager)
             .modelContainer(modelContainer)
 
-        let hosting = NSHostingController(rootView: content.ignoresSafeArea())
-
         let panel = KeyablePanel(
             contentRect: NSRect(x: 0, y: 0, width: classicPanelWidth, height: classicPanelHeight),
             styleMask: [.nonactivatingPanel, .titled, .borderless, .resizable, .fullSizeContentView],
@@ -424,7 +428,7 @@ final class QuickPanelWindowController {
         container.addSubview(visualEffect)
         panelVisualEffectView = visualEffect
 
-        let hostingView = hosting.view
+        let hostingView = FirstMouseHostingView(rootView: content.ignoresSafeArea())
         hostingView.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(hostingView)
         NSLayoutConstraint.activate([
