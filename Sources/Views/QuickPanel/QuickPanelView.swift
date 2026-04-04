@@ -545,6 +545,7 @@ struct QuickPanelView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .focusEffectDisabled()
     }
 
     private func selectSuggestion(_ item: SuggestionItem) {
@@ -655,39 +656,44 @@ struct QuickPanelView: View {
     }
 
     private var bottomHeaderSingleRow: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             bottomInlineFilterBar
-                .frame(maxWidth: 320)
-
-            Spacer(minLength: 8)
+                .frame(minWidth: 280, idealWidth: 360, maxWidth: 460, alignment: .leading)
+                .layoutPriority(2)
 
             bottomSearchField
-                .frame(width: QuickPanelBottomTheme.searchWidth)
+                .frame(minWidth: QuickPanelBottomTheme.searchMinWidth, maxWidth: .infinity)
                 .layoutPriority(1)
 
-            Spacer(minLength: 8)
-
-            bottomWindowOrnaments
-            bottomTargetAppBadge
-            bottomModeToggleButton
-            bottomPinButton
-            bottomCountBadge
+            bottomHeaderTrailingControls
         }
     }
 
     private var bottomHeaderCompactSingleRow: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             bottomInlineFilterBar
-                .frame(minWidth: 120, idealWidth: 180, maxWidth: 220)
+                .frame(minWidth: 180, idealWidth: 240, maxWidth: 320, alignment: .leading)
+                .layoutPriority(2)
 
             bottomSearchField
-                .frame(minWidth: 200, maxWidth: .infinity)
+                .frame(minWidth: 220, maxWidth: .infinity)
                 .layoutPriority(1)
 
             bottomModeToggleIconButton
             bottomPinButton
             bottomCountBadge
         }
+    }
+
+    private var bottomHeaderTrailingControls: some View {
+        HStack(spacing: 8) {
+            bottomWindowOrnaments
+            bottomTargetAppBadge
+            bottomModeToggleButton
+            bottomPinButton
+            bottomCountBadge
+        }
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     private var bottomWindowOrnaments: some View {
@@ -803,9 +809,10 @@ struct QuickPanelView: View {
                     }
                 }
             }
-            .padding(.horizontal, 2)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 1)
         }
-        .frame(minWidth: 150, idealWidth: 260, maxWidth: 340, minHeight: 28, maxHeight: 28)
+        .frame(minWidth: 200, idealWidth: 340, maxWidth: 460, minHeight: 28, maxHeight: 28)
     }
 
     @ViewBuilder
@@ -845,6 +852,7 @@ struct QuickPanelView: View {
             .background(QuickPanelBottomTheme.controlFill, in: Capsule())
         }
         .buttonStyle(.plain)
+        .focusEffectDisabled()
     }
 
     private var bottomModeToggleIconButton: some View {
@@ -901,6 +909,7 @@ struct QuickPanelView: View {
                 )
         }
         .buttonStyle(.plain)
+        .focusEffectDisabled()
     }
 
     private func bottomFilterBadge(_ label: String, isActive: Bool, action: @escaping () -> Void) -> some View {
@@ -920,6 +929,7 @@ struct QuickPanelView: View {
                 )
         }
         .buttonStyle(.plain)
+        .focusEffectDisabled()
     }
 
     // MARK: - List
