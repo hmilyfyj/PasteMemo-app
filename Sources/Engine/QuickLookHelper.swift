@@ -7,6 +7,9 @@ final class QuickLookHelper: NSObject, QLPreviewPanelDataSource, QLPreviewPanelD
 
     private var previewURL: URL?
     private var tempFiles: [URL] = []
+    private var localKeyMonitor: Any?
+    private var globalKeyMonitor: Any?
+    private var localMouseMonitor: Any?
 
     private override init() { super.init() }
 
@@ -30,13 +33,13 @@ final class QuickLookHelper: NSObject, QLPreviewPanelDataSource, QLPreviewPanelD
         if panel.isVisible {
             panel.reloadData()
             cleanupTempFiles(keeping: previewURL)
+            QuickPanelWindowController.shared.keepPanelInteractiveDuringQuickLook()
         } else {
             QuickPanelWindowController.shared.setQuickLookPreviewVisible(true)
             panel.makeKeyAndOrderFront(nil)
-            Task { @MainActor in
-                QuickPanelWindowController.shared.keepPanelInteractiveDuringQuickLook()
-            }
+            QuickPanelWindowController.shared.keepPanelInteractiveDuringQuickLook()
         }
+        installInteractionMonitorsIfNeeded()
     }
 
     func toggle(item: ClipItem) {
@@ -50,11 +53,14 @@ final class QuickLookHelper: NSObject, QLPreviewPanelDataSource, QLPreviewPanelD
     func closePreview() {
         guard let panel = QLPreviewPanel.shared(), panel.isVisible else {
             QuickPanelWindowController.shared.setQuickLookPreviewVisible(false)
+            removeInteractionMonitors()
             cleanupTempFiles()
             return
         }
         panel.orderOut(nil)
         QuickPanelWindowController.shared.setQuickLookPreviewVisible(false)
+        QuickPanelWindowController.shared.restorePanelInteractionAfterQuickLookClose()
+        removeInteractionMonitors()
         cleanupTempFiles()
     }
 
@@ -152,7 +158,68 @@ final class QuickLookHelper: NSObject, QLPreviewPanelDataSource, QLPreviewPanelD
     nonisolated func previewPanelWillClose(_ panel: QLPreviewPanel!) {
         Task { @MainActor in
             QuickPanelWindowController.shared.setQuickLookPreviewVisible(false)
+            QuickPanelWindowController.shared.restorePanelInteractionAfterQuickLookClose()
+            removeInteractionMonitors()
             cleanupTempFiles()
+        }
+    }
+
+    private func installInteractionMonitorsIfNeeded() {
+        if localKeyMonitor == nil {
+            localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                guard let self, self.isVisible else { return event }
+                switch Int(event.keyCode) {
+                case 49, 53:
+                    self.closePreview()
+                    return nil
+                default:
+                    return event
+                }
+            }
+        }
+
+        if globalKeyMonitor == nil {
+            globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                guard let self, self.isVisible else { return }
+                switch Int(event.keyCode) {
+                case 49, 53:
+                    Task { @MainActor [weak self] in
+                        self?.closePreview()
+                    }
+                default:
+                    break
+                }
+            }
+        }
+
+        if localMouseMonitor == nil {
+            localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+                guard let self, self.isVisible else { return event }
+                guard QuickPanelWindowController.shared.isVisible else { return event }
+                guard let panel = QLPreviewPanel.shared(), panel.isVisible else { return event }
+
+                let mouseLocation = NSEvent.mouseLocation
+                if let quickPanelFrame = QuickPanelWindowController.shared.currentPanelFrame,
+                   quickPanelFrame.contains(mouseLocation) {
+                    self.closePreview()
+                }
+                return event
+            }
+        }
+    }
+
+    private func removeInteractionMonitors() {
+        if let localKeyMonitor {
+            NSEvent.removeMonitor(localKeyMonitor)
+            self.localKeyMonitor = nil
+        }
+        if let globalKeyMonitor {
+            NSEvent.removeMonitor(globalKeyMonitor)
+            self.globalKeyMonitor = nil
+        }
+        if let localMouseMonitor {
+            NSEvent.removeMonitor(localMouseMonitor)
+            self.localMouseMonitor = nil
         }
     }
 }

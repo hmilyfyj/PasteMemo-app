@@ -438,14 +438,39 @@ final class QuickPanelWindowController {
         panel?.isVisible ?? false
     }
 
+    var currentPanelFrame: CGRect? {
+        panel?.frame
+    }
+
     func setQuickLookPreviewVisible(_ isVisible: Bool) {
         suppressDismiss = isVisible
     }
 
     func keepPanelInteractiveDuringQuickLook() {
+        reclaimPanelFocus()
+        // Quick Look 首次创建时会在下一轮 run loop 再次抢回 key window，
+        // 这里补一次延迟回收，避免第一次打开后主面板失去键盘/点击响应。
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.reclaimPanelFocus()
+            }
+        }
+    }
+
+    func restorePanelInteractionAfterQuickLookClose() {
+        reclaimPanelFocus()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.reclaimPanelFocus()
+            }
+        }
+    }
+
+    private func reclaimPanelFocus() {
         guard let panel, panel.isVisible else { return }
+        NSApp.activate(ignoringOtherApps: true)
         panel.orderFrontRegardless()
-        panel.makeKey()
+        panel.makeKeyAndOrderFront(nil)
     }
 
     func setBottomFloatingMode(_ mode: QuickPanelBottomMode, animated: Bool = true) {
