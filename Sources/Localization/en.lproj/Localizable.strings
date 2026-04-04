@@ -628,6 +628,7 @@
 "relay.previous" = "Previous";
 "relay.skip" = "Skip";
 "relay.delete" = "Delete";
+"relay.deleteSelected" = "Delete Selected";
 "relay.split" = "Split";
 "relay.addToQueue" = "Add to Relay Queue";
 "relay.splitAndRelay" = "Split & Relay";

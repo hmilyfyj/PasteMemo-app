@@ -12,6 +12,7 @@ struct OnboardingView: View {
     @AppStorage("retentionDays") private var retentionDays = 90
     @AppStorage("sensitiveDetectionEnabled") private var sensitiveDetectionEnabled = true
     @AppStorage("soundEnabled") private var soundEnabled = false
+    @AppStorage(QuickPanelStyle.storageKey) private var quickPanelStyle = QuickPanelStyle.bottomFloating.rawValue
     @State private var detectedManagers: [(bundleID: String, name: String, icon: NSImage)] = []
     @State private var selectedManagerIDs: Set<String> = []
 
@@ -364,6 +365,21 @@ struct OnboardingView: View {
                     title: L10n.tr("settings.sound.enabled"),
                     isOn: $soundEnabled
                 )
+                Divider().padding(.leading, 42)
+                HStack(spacing: 10) {
+                    Image(systemName: "rectangle.3.group")
+                        .frame(width: 20)
+                        .foregroundStyle(.secondary)
+                    Text(L10n.tr("settings.quickPanelStyle"))
+                    Spacer()
+                    Picker("", selection: $quickPanelStyle) {
+                        Text(L10n.tr("settings.quickPanelStyle.classic")).tag(QuickPanelStyle.classic.rawValue)
+                        Text(L10n.tr("settings.quickPanelStyle.bottomFloating")).tag(QuickPanelStyle.bottomFloating.rawValue)
+                    }
+                    .labelsHidden()
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
                 Divider().padding(.leading, 42)
                 HStack(spacing: 10) {
                     Image(systemName: "clock")

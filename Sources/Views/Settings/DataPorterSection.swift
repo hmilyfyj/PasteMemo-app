@@ -19,9 +19,38 @@ struct DataPorterSection: View {
     @State private var progressTitle = ""
     @State private var showClearMenu = false
 
+    @State private var showPasteAppMigrationConfirm = false
+    @State private var pasteAppItemCount = 0
+
     var body: some View {
         Section(L10n.tr("dataPorter.section")) {
             exportControls
+        }
+
+        if PasteAppMigrator.checkPasteAppDatabaseExists() {
+            Section("Paste.app Migration") {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Import data from Paste.app")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    Text("Found \(pasteAppItemCount) items in Paste.app database")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                .onAppear { pasteAppItemCount = PasteAppMigrator.getPasteAppItemCount() }
+
+                Button("Migrate from Paste.app") {
+                    showPasteAppMigrationConfirm = true
+                }
+                .disabled(isProcessing || pasteAppItemCount == 0)
+                .pointerCursor()
+                .alert("Migrate from Paste.app", isPresented: $showPasteAppMigrationConfirm) {
+                    Button("Migrate") { performPasteAppMigration() }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("This will import \(pasteAppItemCount) items from Paste.app. Duplicate items will be skipped.")
+                }
+            }
         }
     }
 
@@ -313,6 +342,42 @@ struct DataPorterSection: View {
             ClipboardManager.shared.recalculateAllGroupCounts(context: modelContext)
             alertMessage = L10n.tr("settings.clearData.result", total)
             showClearResult = true
+        }
+    }
+
+    // MARK: - Paste.app Migration
+
+    private func performPasteAppMigration() {
+        progressTitle = "Migrating from Paste.app"
+        isProcessing = true
+        importProgress = ""
+        progressValue = 0
+        Task { @MainActor in
+            defer {
+                isProcessing = false
+                importProgress = ""
+                progressValue = 0
+                ClipItemStore.isBulkOperation = false
+            }
+            ClipItemStore.isBulkOperation = true
+
+            let result = await PasteAppMigrator.migrate(
+                into: modelContext
+            ) { current, total, status in
+                importProgress = "\(current) / \(total) - \(status)"
+                progressValue = Double(current) / Double(max(total, 1))
+            }
+
+            ClipItemStore.isBulkOperation = false
+            var message = "Migration completed: \(result.imported) items imported, \(result.skipped) skipped"
+            if !result.errors.isEmpty {
+                message += "\nErrors: \(result.errors.prefix(3).joined(separator: ", "))"
+                if result.errors.count > 3 {
+                    message += "..."
+                }
+            }
+            showAlert(message)
+            pasteAppItemCount = PasteAppMigrator.getPasteAppItemCount()
         }
     }
 }

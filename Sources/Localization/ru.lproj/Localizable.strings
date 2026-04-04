@@ -446,6 +446,7 @@
 "relay.previous" = "Назад";
 "relay.skip" = "Пропустить";
 "relay.delete" = "Удалить";
+"relay.deleteSelected" = "Удалить выбранные";
 "relay.split" = "Разделить";
 "relay.addToQueue" = "Добавить в очередь";
 "relay.splitAndRelay" = "Разделить и эстафета";

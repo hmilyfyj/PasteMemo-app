@@ -13,6 +13,8 @@ final class RelayManager {
     var isActive = false
     var isPaused = false
     var autoExitOnEmpty = true
+    var selectedIndices: Set<Int> = []
+    var lastSelectedIndex: Int?
 
     weak var clipboardController: (any ClipboardControllable)?
     weak var hotkeyController: (any HotkeyControllable)?
@@ -135,6 +137,52 @@ final class RelayManager {
         return true
     }
 
+    // MARK: - Selection Management
+
+    func toggleSelection(at index: Int) {
+        if selectedIndices.contains(index) {
+            selectedIndices.remove(index)
+        } else {
+            selectedIndices.insert(index)
+        }
+        lastSelectedIndex = index
+    }
+
+    func selectRange(from start: Int, to end: Int) {
+        let range = min(start, end)...max(start, end)
+        selectedIndices = Set(range)
+        lastSelectedIndex = end
+    }
+
+    func selectAll() {
+        selectedIndices = Set(items.indices)
+        lastSelectedIndex = items.isEmpty ? nil : items.count - 1
+    }
+
+    func clearSelection() {
+        selectedIndices.removeAll()
+        lastSelectedIndex = nil
+    }
+
+    func deleteSelectedItems() {
+        guard !selectedIndices.isEmpty else { return }
+        let sortedIndices = selectedIndices.sorted(by: >)
+        for index in sortedIndices {
+            items.remove(at: index)
+        }
+        selectedIndices.removeAll()
+        lastSelectedIndex = nil
+        windowController?.updateSize(for: items.count)
+        if items.isEmpty {
+            currentIndex = 0
+            return
+        }
+        if currentIndex >= items.count {
+            currentIndex = items.count - 1
+        }
+        markCurrentIfNeeded()
+    }
+
     // MARK: - Activation Alert
 
     private func showActivationAlert() {
@@ -248,6 +296,15 @@ final class RelayManager {
         }
         handler.onPrevious = { [weak self] in
             Task { @MainActor in self?.rollback() }
+        }
+        handler.onSelectAll = { [weak self] in
+            Task { @MainActor in self?.selectAll() }
+        }
+        handler.onDeleteSelected = { [weak self] in
+            Task { @MainActor in self?.deleteSelectedItems() }
+        }
+        handler.onClearSelection = { [weak self] in
+            Task { @MainActor in self?.clearSelection() }
         }
         handler.start()
         hotkeyHandler = handler

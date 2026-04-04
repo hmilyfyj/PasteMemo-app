@@ -425,6 +425,7 @@
 "relay.previous" = "前へ";
 "relay.skip" = "スキップ";
 "relay.delete" = "削除";
+"relay.deleteSelected" = "選択項目を削除";
 "relay.split" = "分割";
 "relay.addToQueue" = "リレーキューに追加";
 "relay.splitAndRelay" = "分割してリレー";
