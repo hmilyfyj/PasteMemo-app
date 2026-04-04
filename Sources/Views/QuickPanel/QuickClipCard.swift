@@ -25,58 +25,45 @@ struct QuickClipCard: View {
         VStack(spacing: 0) {
             header
             preview
-            footer
         }
         .frame(width: cardWidth, height: cardHeight)
         .background(cardBackground)
+        .overlay(cardBorder)
+        .clipShape(RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous))
         .shadow(
-            color: isSelected ? QuickPanelBottomTheme.selectionBlue.opacity(0.22) : .black.opacity(0.24),
-            radius: isSelected ? 22 : 12,
-            y: isSelected ? 12 : 6
+            color: isSelected ? QuickPanelBottomTheme.selectionBlue.opacity(0.34) : .black.opacity(0.22),
+            radius: isSelected ? 24 : 14,
+            y: isSelected ? 14 : 8
         )
         .offset(y: isSelected ? -2 : 0)
         .contentShape(RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous))
     }
 
     private var header: some View {
-        HStack(spacing: 8) {
+        HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 1) {
                 Text(item.contentType.label)
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(.white)
                     .lineLimit(1)
 
                 Text(formatTimeAgo(item.lastUsedAt))
-                    .font(.system(size: 9.5, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.82))
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.9))
                     .lineLimit(1)
             }
 
             Spacer(minLength: 0)
 
-            if let icon = appIcon(forBundleID: item.sourceAppBundleID, name: item.sourceApp) {
-                Image(nsImage: icon)
-                    .resizable()
-                    .interpolation(.high)
-                    .frame(width: 24, height: 24)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(Color.white.opacity(0.22), lineWidth: 1)
-                    )
-                    .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
-            } else {
-                Image(systemName: item.contentType.icon)
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.9))
-                    .frame(width: 24, height: 24)
-                    .background(Color.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            }
+            headerIconBadge
         }
-        .padding(.horizontal, 10)
-        .frame(height: 34)
+        .padding(.leading, 14)
+        .padding(.trailing, 8)
+        .padding(.top, 8)
+        .padding(.bottom, 6)
+        .frame(height: 62)
         .frame(maxWidth: .infinity)
-        .background(headerColor)
+        .background(headerBackground)
         .clipShape(
             UnevenRoundedRectangle(
                 topLeadingRadius: QuickPanelBottomTheme.cardCornerRadius,
@@ -88,10 +75,11 @@ struct QuickClipCard: View {
     }
 
     private var preview: some View {
-        ZStack {
+        ZStack(alignment: .bottomLeading) {
             previewBackground
             previewContent
-                .padding(12)
+                .padding(previewContentPadding)
+            footer
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -99,27 +87,33 @@ struct QuickClipCard: View {
     private var footer: some View {
         HStack(spacing: 8) {
             Text(metaText)
-                .font(.system(size: 10.5, weight: .medium))
-                .foregroundStyle(QuickPanelBottomTheme.tertiaryText)
+                .font(.system(size: 12.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.74))
                 .lineLimit(1)
 
             Spacer(minLength: 0)
 
             if let shortcutIndex {
                 Text("⌘\(shortcutIndex)")
-                    .font(.system(size: 9.5, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.66))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(Color.white.opacity(0.07), in: Capsule())
+                    .font(.system(size: 11.5, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.82))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(Color.white.opacity(0.12))
+                    )
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                    )
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.bottom, 10)
-        .padding(.top, 8)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
         .background(
             LinearGradient(
-                colors: [Color.clear, Color.black.opacity(0.08)],
+                colors: [Color.clear, Color.black.opacity(0.14), Color.black.opacity(0.32)],
                 startPoint: .top,
                 endPoint: .bottom
             )
@@ -128,37 +122,92 @@ struct QuickClipCard: View {
 
     private var cardBackground: some View {
         RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous)
-            .fill(
-                LinearGradient(
-                    colors: [
-                        Color.white.opacity(isSelected ? 0.12 : 0.06),
-                        Color.white.opacity(isSelected ? 0.06 : 0.025),
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+            .fill(Color(red: 0.10, green: 0.10, blue: 0.11))
+    }
+
+    private var cardBorder: some View {
+        RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous)
+            .strokeBorder(
+                isSelected
+                    ? AnyShapeStyle(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.14, green: 0.52, blue: 1.0),
+                                Color(red: 0.08, green: 0.44, blue: 0.96),
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    : AnyShapeStyle(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.08),
+                                Color.black.opacity(0.28),
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    ),
+                lineWidth: isSelected ? 4 : 1.2
             )
     }
 
-    @MainActor
-    private var headerColor: Color {
-        QuickPanelBottomTheme.headerColor(for: item.contentType)
+    private var headerBackground: some View {
+        LinearGradient(
+            colors: [
+                Color(red: 0.24, green: 0.47, blue: 0.96),
+                Color(red: 0.22, green: 0.42, blue: 0.92),
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    private var previewContentPadding: EdgeInsets {
+        switch item.contentType {
+        case .image:
+            return EdgeInsets()
+        default:
+            return EdgeInsets(top: 14, leading: 14, bottom: 42, trailing: 14)
+        }
+    }
+
+    @ViewBuilder
+    private var headerIconBadge: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.white, Color.white.opacity(0.92)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color(red: 0.90, green: 0.93, blue: 1.0), lineWidth: 1)
+
+            if let icon = appIcon(forBundleID: item.sourceAppBundleID, name: item.sourceApp) {
+                Image(nsImage: icon)
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 28, height: 28)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .shadow(color: .black.opacity(0.10), radius: 2, y: 1)
+            } else {
+                Image(systemName: item.contentType.icon)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(Color(red: 0.24, green: 0.47, blue: 0.96))
+            }
+        }
+        .frame(width: 50, height: 50)
+        .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
     }
 
     @ViewBuilder
     private var previewBackground: some View {
-        if item.contentType == .image, item.imageData != nil {
-            QuickPanelBottomCheckerboard(cornerRadius: 0)
-        } else {
-            LinearGradient(
-                colors: [
-                    Color.white.opacity(isSelected ? 0.08 : 0.05),
-                    Color.black.opacity(0.08),
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        }
+        Color(red: 0.11, green: 0.11, blue: 0.12)
     }
 
     @ViewBuilder
@@ -185,7 +234,6 @@ struct QuickClipCard: View {
                 .interpolation(.high)
                 .scaledToFit()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         } else if item.contentType == .link {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
@@ -283,9 +331,9 @@ struct QuickClipCard: View {
     }
 
     private var imagePreviewMaxDimension: CGFloat {
-        let headerHeight: CGFloat = 34
-        let footerHeight: CGFloat = 38
-        let previewPadding: CGFloat = 24
+        let headerHeight: CGFloat = 62
+        let footerHeight: CGFloat = 42
+        let previewPadding: CGFloat = 8
 
         let availableWidth = max(cardWidth - previewPadding, 72)
         let availableHeight = max(cardHeight - headerHeight - footerHeight - previewPadding, 72)

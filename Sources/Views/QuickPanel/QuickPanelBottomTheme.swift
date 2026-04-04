@@ -4,7 +4,7 @@ import AppKit
 enum QuickPanelBottomTheme {
     static let windowCornerRadius: CGFloat = 22
     static let sectionCornerRadius: CGFloat = 18
-    static let cardCornerRadius: CGFloat = 18
+    static let cardCornerRadius: CGFloat = 22
     static let previewCornerRadius: CGFloat = 20
     static let shellInset: CGFloat = 0
     static let contentInset: CGFloat = 12
