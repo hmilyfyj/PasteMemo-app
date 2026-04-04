@@ -125,24 +125,38 @@ final class ClipItemStore {
         guard let context = modelContext, !ids.isEmpty else { return [] }
         var seen = Set<String>()
         let uniqueIDs = ids.filter { seen.insert($0).inserted }
-        // Batch fetch in chunks to avoid N individual queries
-        var map: [String: ClipItem] = [:]
-        map.reserveCapacity(uniqueIDs.count)
+        
+        var result: [ClipItem] = []
+        result.reserveCapacity(uniqueIDs.count)
+        
+        var uncachedIDs: [String] = []
+        for id in uniqueIDs {
+            if let cached = ClipItemCache.shared.get(itemID: id) {
+                result.append(cached)
+            } else {
+                uncachedIDs.append(id)
+            }
+        }
+        
+        guard !uncachedIDs.isEmpty else { return result }
+        
         let chunkSize = 50
-        for start in stride(from: 0, to: uniqueIDs.count, by: chunkSize) {
-            let end = min(start + chunkSize, uniqueIDs.count)
-            let chunkIDs = Array(uniqueIDs[start..<end])
+        for start in stride(from: 0, to: uncachedIDs.count, by: chunkSize) {
+            let end = min(start + chunkSize, uncachedIDs.count)
+            let chunkIDs = Array(uncachedIDs[start..<end])
             let predicate = #Predicate<ClipItem> { item in
                 chunkIDs.contains(item.itemID)
             }
             var desc = FetchDescriptor<ClipItem>(predicate: predicate)
             if let fetched = try? context.fetch(desc) {
-                for item in fetched {
-                    map[item.itemID] = item
-                }
+                ClipItemCache.shared.cache(fetched)
+                result.append(contentsOf: fetched)
             }
         }
-        return uniqueIDs.compactMap { map[$0] }
+        
+        return uniqueIDs.compactMap { id in
+            result.first { $0.itemID == id }
+        }
     }
 
     /// Quick check: get the itemID of the latest item (no filters)

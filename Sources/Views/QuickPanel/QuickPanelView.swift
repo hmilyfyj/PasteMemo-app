@@ -1378,6 +1378,7 @@ struct QuickPanelView: View {
                 .layoutPriority(1)
 
             bottomModeToggleIconButton
+            bottomRelayButton
             bottomPinButton
             bottomCountBadge
             bottomOverflowMenuButton
@@ -1388,6 +1389,7 @@ struct QuickPanelView: View {
         HStack(spacing: 8) {
             bottomTargetAppBadge
             bottomModeToggleButton
+            bottomRelayButton
             bottomPinButton
             bottomCountBadge
             bottomOverflowMenuButton
@@ -1705,6 +1707,23 @@ struct QuickPanelView: View {
         }
         .buttonStyle(.plain)
         .help(isPanelPinned ? L10n.tr("quickPanel.unpin") : L10n.tr("quickPanel.pin"))
+    }
+
+    private var bottomRelayButton: some View {
+        Button {
+            handleRelayAction()
+        } label: {
+            Image(systemName: RelayManager.shared.isActive ? "arrowshape.turn.up.right.fill" : "arrowshape.turn.up.right")
+                .font(.system(size: 11))
+                .foregroundStyle(RelayManager.shared.isActive ? .white : .white.opacity(0.72))
+                .frame(width: 24, height: 24)
+                .background(
+                    RelayManager.shared.isActive ? QuickPanelBottomTheme.accentBlue : QuickPanelBottomTheme.mutedFill,
+                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                )
+        }
+        .buttonStyle(.plain)
+        .help(RelayManager.shared.isActive ? L10n.tr("relay.active") : L10n.tr("relay.addToQueue"))
     }
 
     private var bottomCountBadge: some View {
@@ -3021,6 +3040,20 @@ struct QuickPanelView: View {
     }
 
     private func handleDismiss() { HotkeyManager.shared.hideQuickPanel() }
+
+    private func handleRelayAction() {
+        if RelayManager.shared.isActive {
+            RelayManager.shared.deactivate()
+        } else {
+            let items = isMultiSelected ? currentItems : (currentItem.map { [$0] } ?? [])
+            let texts = items.compactMap { $0.content.isEmpty ? nil : $0.content }
+            guard !texts.isEmpty else { return }
+            
+            RelayManager.shared.enqueue(texts: texts)
+            RelayManager.shared.activate()
+            handleDismiss()
+        }
+    }
 
     private func togglePreview() {
         if QuickLookHelper.shared.isVisible {
