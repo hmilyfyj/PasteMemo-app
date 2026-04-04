@@ -724,7 +724,6 @@ struct QuickPanelView: View {
 
     private var bottomHeaderTrailingControls: some View {
         HStack(spacing: 8) {
-            bottomWindowOrnaments
             bottomTargetAppBadge
             bottomModeToggleButton
             bottomPinButton
@@ -747,22 +746,6 @@ struct QuickPanelView: View {
                 .frame(minWidth: 220, idealWidth: 340, maxWidth: 520, alignment: .leading)
         }
         .fixedSize(horizontal: true, vertical: false)
-    }
-
-    private var bottomWindowOrnaments: some View {
-        HStack(spacing: 7) {
-            ForEach([
-                Color(red: 0.95, green: 0.30, blue: 0.34),
-                Color(red: 0.99, green: 0.74, blue: 0.13),
-                Color(red: 0.31, green: 0.84, blue: 0.43),
-            ], id: \.self) { color in
-                Circle()
-                    .fill(color)
-                    .frame(width: 6.5, height: 6.5)
-                    .shadow(color: color.opacity(0.22), radius: 2, y: 0.5)
-            }
-        }
-        .padding(.trailing, 2)
     }
 
     private var bottomSearchField: some View {
