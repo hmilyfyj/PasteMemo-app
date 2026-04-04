@@ -29,6 +29,7 @@ final class QuickLookHelper: NSObject, QLPreviewPanelDataSource, QLPreviewPanelD
 
         if panel.isVisible {
             panel.reloadData()
+            cleanupTempFiles(keeping: previewURL)
         } else {
             QuickPanelWindowController.shared.setQuickLookPreviewVisible(true)
             panel.makeKeyAndOrderFront(nil)
@@ -109,7 +110,8 @@ final class QuickLookHelper: NSObject, QLPreviewPanelDataSource, QLPreviewPanelD
     private func writeTempFile(data: Data, name: String) -> URL? {
         let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("PasteMemo-QL")
         try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        let url = tempDir.appendingPathComponent(name)
+        let fileName = "\(UUID().uuidString)-\(name)"
+        let url = tempDir.appendingPathComponent(fileName)
         do {
             try data.write(to: url)
             tempFiles.append(url)
@@ -120,10 +122,19 @@ final class QuickLookHelper: NSObject, QLPreviewPanelDataSource, QLPreviewPanelD
     }
 
     private func cleanupTempFiles() {
+        cleanupTempFiles(keeping: nil)
+    }
+
+    private func cleanupTempFiles(keeping currentURL: URL?) {
         for url in tempFiles {
+            if let currentURL, url == currentURL { continue }
             try? FileManager.default.removeItem(at: url)
         }
-        tempFiles.removeAll()
+        if let currentURL {
+            tempFiles = tempFiles.filter { $0 == currentURL }
+        } else {
+            tempFiles.removeAll()
+        }
     }
 
     // MARK: - QLPreviewPanelDataSource

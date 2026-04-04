@@ -21,6 +21,40 @@ private struct BottomCardLayoutMetrics {
     let spacing: CGFloat
 }
 
+private enum BottomClipRailCoordinateSpace {
+    static let name = "bottomClipRailScroll"
+}
+
+private struct BottomClipCardFramePreferenceKey: PreferenceKey {
+    static let defaultValue: [PersistentIdentifier: CGRect] = [:]
+
+    static func reduce(value: inout [PersistentIdentifier: CGRect], nextValue: () -> [PersistentIdentifier: CGRect]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+    }
+}
+
+private struct BottomClipViewportPreferenceKey: PreferenceKey {
+    static let defaultValue: CGRect = .zero
+
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+        value = nextValue()
+    }
+}
+
+private struct WindowDragArea: NSViewRepresentable {
+    func makeNSView(context: Context) -> DraggableView {
+        DraggableView()
+    }
+
+    func updateNSView(_ nsView: DraggableView, context: Context) {}
+}
+
+private final class DraggableView: NSView {
+    override func mouseDown(with event: NSEvent) {
+        window?.performDrag(with: event)
+    }
+}
+
 struct QuickPanelView: View {
     @EnvironmentObject var clipboardManager: ClipboardManager
     @Environment(\.modelContext) private var modelContext
@@ -54,6 +88,8 @@ struct QuickPanelView: View {
     @State private var bottomMode: QuickPanelBottomMode = .compact
     @State private var keepBottomDetailsMounted = false
     @State private var isBottomSearchExpanded = false
+    @State private var bottomClipCardFrames: [PersistentIdentifier: CGRect] = [:]
+    @State private var bottomClipViewport: CGRect = .zero
 
     private var filteredItems: [ClipItem] { store.items }
 
@@ -166,6 +202,57 @@ struct QuickPanelView: View {
             isSearchFocused = false
         } else {
             isSearchFocused = true
+        }
+    }
+
+    private func bottomClipScrollAnchor(
+        for id: PersistentIdentifier,
+        previousID: PersistentIdentifier?
+    ) -> UnitPoint? {
+        let visibilityTolerance: CGFloat = 1
+
+        if !bottomClipViewport.isEmpty, let frame = bottomClipCardFrames[id] {
+            let viewportMinX = bottomClipViewport.minX + visibilityTolerance
+            let viewportMaxX = bottomClipViewport.maxX - visibilityTolerance
+            let isFullyVisible = frame.minX >= viewportMinX && frame.maxX <= viewportMaxX
+
+            if isFullyVisible {
+                return nil
+            }
+
+            if frame.minX < viewportMinX {
+                return .leading
+            }
+
+            if frame.maxX > viewportMaxX {
+                return .trailing
+            }
+        }
+
+        let ids = displayOrderItems.map(\.persistentModelID)
+        guard let targetIndex = ids.firstIndex(of: id) else { return .leading }
+        guard let previousID, let previousIndex = ids.firstIndex(of: previousID) else { return .leading }
+
+        if targetIndex < previousIndex {
+            return .leading
+        }
+
+        if targetIndex > previousIndex {
+            return .trailing
+        }
+
+        return nil
+    }
+
+    private func ensureBottomClipVisible(
+        id: PersistentIdentifier,
+        previousID: PersistentIdentifier?,
+        proxy: ScrollViewProxy
+    ) {
+        guard let anchor = bottomClipScrollAnchor(for: id, previousID: previousID) else { return }
+
+        withAnimation(.easeOut(duration: 0.16)) {
+            proxy.scrollTo(id, anchor: anchor)
         }
     }
 
@@ -721,6 +808,11 @@ struct QuickPanelView: View {
             bottomHeaderSingleRow
             bottomHeaderCompactSingleRow
         }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 14)
+        .padding(.top, 8)
+        .padding(.bottom, 4)
+        .background(WindowDragArea())
     }
 
     private var bottomHeaderSingleRow: some View {
@@ -1192,6 +1284,14 @@ struct QuickPanelView: View {
                             cardWidth: metrics.cardWidth,
                             cardHeight: metrics.cardHeight
                         )
+                        .background(
+                            GeometryReader { cardProxy in
+                                Color.clear.preference(
+                                    key: BottomClipCardFramePreferenceKey.self,
+                                    value: [itemID: cardProxy.frame(in: .named(BottomClipRailCoordinateSpace.name))]
+                                )
+                            }
+                        )
                         .id(itemID)
                         .popover(
                             isPresented: Binding(
@@ -1224,17 +1324,26 @@ struct QuickPanelView: View {
                 .padding(.vertical, metrics.verticalPadding)
                 .background(HorizontalWheelScrollAdapter())
             }
+            .coordinateSpace(name: BottomClipRailCoordinateSpace.name)
+            .background(
+                GeometryReader { viewportProxy in
+                    Color.clear.preference(
+                        key: BottomClipViewportPreferenceKey.self,
+                        value: viewportProxy.frame(in: .named(BottomClipRailCoordinateSpace.name))
+                    )
+                }
+            )
             .scrollClipDisabled()
             .frame(
                 maxWidth: .infinity,
                 maxHeight: .infinity,
                 alignment: .top
             )
-            .onChange(of: lastNavigatedID) {
-                guard let id = lastNavigatedID else { return }
-                withAnimation(.easeOut(duration: 0.16)) {
-                    proxy.scrollTo(id, anchor: .center)
-                }
+            .onPreferenceChange(BottomClipCardFramePreferenceKey.self) { bottomClipCardFrames = $0 }
+            .onPreferenceChange(BottomClipViewportPreferenceKey.self) { bottomClipViewport = $0 }
+            .onChange(of: lastNavigatedID) { previousID, currentID in
+                guard let id = currentID else { return }
+                ensureBottomClipVisible(id: id, previousID: previousID, proxy: proxy)
             }
             .onChange(of: selectedFilter) {
                 guard let firstID = cachedDisplayOrder.first?.persistentModelID else { return }

@@ -481,7 +481,7 @@ final class QuickPanelWindowController {
         let bottomFloatingMask: NSWindow.StyleMask = [.nonactivatingPanel, .borderless, .resizable]
 
         panel.styleMask = isBottomFloating ? bottomFloatingMask : classicMask
-        panel.isMovableByWindowBackground = !isBottomFloating
+        panel.isMovableByWindowBackground = true
         panel.titlebarAppearsTransparent = !isBottomFloating
         panel.hasShadow = isBottomFloating
         dragCoverView?.isHidden = isBottomFloating
