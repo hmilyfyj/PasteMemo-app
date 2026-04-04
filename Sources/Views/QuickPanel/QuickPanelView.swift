@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import Quartz
+import AppKit
 
 private enum QuickFilter: Equatable {
     case all
@@ -19,6 +20,193 @@ private struct BottomCardLayoutMetrics {
     let horizontalPadding: CGFloat
     let verticalPadding: CGFloat
     let spacing: CGFloat
+}
+
+private struct LiveResizeCardSnapshot: Identifiable, Equatable {
+    let id: String
+    let isSelected: Bool
+}
+
+private struct LiveResizeRailRepresentable: NSViewRepresentable {
+    let cards: [LiveResizeCardSnapshot]
+    let metrics: BottomCardLayoutMetrics
+
+    func makeNSView(context: Context) -> LiveResizeRailNSView {
+        LiveResizeRailNSView()
+    }
+
+    func updateNSView(_ nsView: LiveResizeRailNSView, context: Context) {
+        nsView.update(cards: cards, metrics: metrics)
+    }
+}
+
+private final class LiveResizeRailNSView: NSView {
+    private var cards: [LiveResizeCardSnapshot] = []
+    private var metrics = BottomCardLayoutMetrics(
+        railHeight: 180,
+        cardWidth: 160,
+        cardHeight: 160,
+        horizontalPadding: 10,
+        verticalPadding: 10,
+        spacing: 12
+    )
+    private var cardLayers: [LiveResizeSkeletonCardLayer] = []
+
+    override var isFlipped: Bool { true }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer = CALayer()
+        layer?.masksToBounds = true
+        layer?.contentsScale = NSScreen.main?.backingScaleFactor ?? 2
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    func update(cards: [LiveResizeCardSnapshot], metrics: BottomCardLayoutMetrics) {
+        self.cards = cards
+        self.metrics = metrics
+        ensureCardLayers()
+        needsLayout = true
+    }
+
+    override func layout() {
+        super.layout()
+        layoutCardLayers()
+    }
+
+    private func ensureCardLayers() {
+        while cardLayers.count < cards.count {
+            let layer = LiveResizeSkeletonCardLayer()
+            self.layer?.addSublayer(layer)
+            cardLayers.append(layer)
+        }
+
+        if cardLayers.count > cards.count {
+            for layer in cardLayers[cards.count...] {
+                layer.removeFromSuperlayer()
+            }
+            cardLayers.removeLast(cardLayers.count - cards.count)
+        }
+    }
+
+    private func layoutCardLayers() {
+        guard !cardLayers.isEmpty else { return }
+
+        var x = metrics.horizontalPadding
+        let y = metrics.verticalPadding
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+
+        for (index, cardLayer) in cardLayers.enumerated() {
+            let frame = CGRect(
+                x: x,
+                y: y,
+                width: metrics.cardWidth,
+                height: metrics.cardHeight
+            ).integral
+            cardLayer.frame = frame
+            cardLayer.apply(snapshot: cards[index])
+            x += metrics.cardWidth + metrics.spacing
+        }
+
+        CATransaction.commit()
+    }
+}
+
+private final class LiveResizeSkeletonCardLayer: CALayer {
+    private let badgeLayer = CAShapeLayer()
+    private let pillLayer = CAShapeLayer()
+    private let titleLineLayer = CAShapeLayer()
+    private let bodyLineLayer = CAShapeLayer()
+    private let footerLineLayer = CAShapeLayer()
+
+    override init() {
+        super.init()
+        cornerRadius = QuickPanelBottomTheme.cardCornerRadius
+        borderWidth = 1
+        masksToBounds = true
+        shadowOpacity = 0
+
+        [badgeLayer, pillLayer, titleLineLayer, bodyLineLayer, footerLineLayer].forEach {
+            $0.contentsScale = NSScreen.main?.backingScaleFactor ?? 2
+            addSublayer($0)
+        }
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    func apply(snapshot: LiveResizeCardSnapshot) {
+        let normalFill = NSColor(calibratedRed: 0.10, green: 0.10, blue: 0.11, alpha: 1)
+        let selectedFill = NSColor(calibratedRed: 0.11, green: 0.15, blue: 0.22, alpha: 1)
+        let normalStroke = NSColor.white.withAlphaComponent(0.05)
+        let selectedStroke = NSColor(calibratedRed: 0.36, green: 0.61, blue: 0.99, alpha: 0.48)
+
+        backgroundColor = (snapshot.isSelected ? selectedFill : normalFill).cgColor
+        borderColor = (snapshot.isSelected ? selectedStroke : normalStroke).cgColor
+
+        let accentOpacity = snapshot.isSelected ? 0.16 : 0.08
+        badgeLayer.fillColor = NSColor.white.withAlphaComponent(accentOpacity).cgColor
+        pillLayer.fillColor = NSColor.white.withAlphaComponent(0.08).cgColor
+        titleLineLayer.fillColor = NSColor.white.withAlphaComponent(0.12).cgColor
+        bodyLineLayer.fillColor = NSColor.white.withAlphaComponent(0.07).cgColor
+        footerLineLayer.fillColor = NSColor.white.withAlphaComponent(0.05).cgColor
+        setNeedsLayout()
+    }
+
+    override func layoutSublayers() {
+        super.layoutSublayers()
+
+        let badgeRect = CGRect(x: 12, y: 12, width: 30, height: 30)
+        badgeLayer.path = CGPath(
+            roundedRect: badgeRect,
+            cornerWidth: 10,
+            cornerHeight: 10,
+            transform: nil
+        )
+
+        let pillRect = CGRect(x: bounds.width - 46, y: 22, width: 34, height: 10)
+        pillLayer.path = CGPath(
+            roundedRect: pillRect,
+            cornerWidth: 5,
+            cornerHeight: 5,
+            transform: nil
+        )
+
+        let titleWidth = min(bounds.width * 0.58, 104)
+        let titleRect = CGRect(x: 12, y: bounds.height - 42, width: titleWidth, height: 10)
+        titleLineLayer.path = CGPath(
+            roundedRect: titleRect,
+            cornerWidth: 7,
+            cornerHeight: 7,
+            transform: nil
+        )
+
+        let bodyRect = CGRect(x: 12, y: bounds.height - 24, width: max(bounds.width - 24, 40), height: 8)
+        bodyLineLayer.path = CGPath(
+            roundedRect: bodyRect,
+            cornerWidth: 7,
+            cornerHeight: 7,
+            transform: nil
+        )
+
+        let footerWidth = max(bounds.width * 0.46, 58)
+        let footerRect = CGRect(x: 12, y: bounds.height - 8, width: footerWidth, height: 8)
+        footerLineLayer.path = CGPath(
+            roundedRect: footerRect,
+            cornerWidth: 7,
+            cornerHeight: 7,
+            transform: nil
+        )
+    }
 }
 
 private struct WindowDragArea: NSViewRepresentable {
@@ -1419,24 +1607,15 @@ struct QuickPanelView: View {
     }
 
     private func bottomLiveResizeClipRail(metrics: BottomCardLayoutMetrics) -> some View {
-        HStack(alignment: .top, spacing: metrics.spacing) {
-            ForEach(liveResizeDisplayOrderItems) { item in
-                let itemID = item.persistentModelID
-                QuickClipCard(
-                    item: item,
-                    isSelected: selectedItemIDs.contains(itemID),
-                    isLiveResizing: true,
-                    shortcutIndex: nil,
-                    cardWidth: metrics.cardWidth,
-                    cardHeight: metrics.cardHeight
+        LiveResizeRailRepresentable(
+            cards: liveResizeDisplayOrderItems.map { item in
+                LiveResizeCardSnapshot(
+                    id: item.itemID,
+                    isSelected: selectedItemIDs.contains(item.persistentModelID)
                 )
-                .id(itemID)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .padding(.horizontal, metrics.horizontalPadding)
-        .padding(.vertical, metrics.verticalPadding)
-        .clipped()
+            },
+            metrics: metrics
+        )
         .frame(
             maxWidth: .infinity,
             maxHeight: .infinity,
