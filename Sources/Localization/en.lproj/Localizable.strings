@@ -383,6 +383,19 @@
 /* Text Editing */
 "action.edit" = "Edit";
 "action.save" = "Save";
+"action.preview" = "Preview";
+
+/* Edit Format */
+"edit.format" = "Format";
+"edit.uppercase" = "UPPERCASE";
+"edit.lowercase" = "lowercase";
+"edit.capitalize" = "Capitalize Words";
+"edit.trimWhitespace" = "Trim Whitespace";
+"edit.removeExtraSpaces" = "Remove Extra Spaces";
+"edit.removeLineBreaks" = "Remove Line Breaks";
+"edit.sortLines" = "Sort Lines";
+"edit.reverseLines" = "Reverse Lines";
+"edit.uniqueLines" = "Remove Duplicate Lines";
 
 /* Multi-select */
 "action.merge" = "Merge";

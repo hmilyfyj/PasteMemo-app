@@ -13,7 +13,11 @@ struct ClipDetailView: View {
     @AppStorage(OCRTaskCoordinator.enableOCRKey) private var ocrEnabled = true
 
     private var isEditableType: Bool {
-        item.contentType == .text || item.contentType == .code
+        item.contentType == .text || item.contentType == .code || item.contentType == .link
+    }
+
+    private var canQuickLook: Bool {
+        QuickLookHelper.shared.canOpenInPreview(item: item)
     }
 
     var body: some View {
@@ -117,6 +121,7 @@ struct ClipDetailView: View {
                 Spacer()
                 copyButton
                 if isEditableType { editButtons }
+                if canQuickLook { quickLookButton }
                 sensitiveButton
                 pinButton
                 if !item.content.isEmpty { relayButton }
@@ -196,6 +201,18 @@ struct ClipDetailView: View {
         .controlSize(.small)
     }
 
+    private var quickLookButton: some View {
+        Button {
+            QuickLookHelper.shared.toggle(item: item)
+        } label: {
+            Label(L10n.tr("action.preview"), systemImage: "eye")
+                .font(.system(size: 12))
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .help("Space")
+    }
+
     @ViewBuilder
     private var editButtons: some View {
         if isEditing {
@@ -212,6 +229,10 @@ struct ClipDetailView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+            
+            if item.contentType == .text || item.contentType == .code {
+                formatMenuButton
+            }
         } else {
             Button { enterEditMode() } label: {
                 Label(L10n.tr("action.edit"), systemImage: "pencil")
@@ -219,6 +240,82 @@ struct ClipDetailView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+        }
+    }
+    
+    private var formatMenuButton: some View {
+        Menu {
+            Button { formatText(.uppercase) } label: {
+                Label(L10n.tr("edit.uppercase"), systemImage: "textformat.alt")
+            }
+            Button { formatText(.lowercase) } label: {
+                Label(L10n.tr("edit.lowercase"), systemImage: "textformat")
+            }
+            Button { formatText(.capitalize) } label: {
+                Label(L10n.tr("edit.capitalize"), systemImage: "textformat.abc")
+            }
+            Divider()
+            Button { formatText(.trimWhitespace) } label: {
+                Label(L10n.tr("edit.trimWhitespace"), systemImage: "scissors")
+            }
+            Button { formatText(.removeExtraSpaces) } label: {
+                Label(L10n.tr("edit.removeExtraSpaces"), systemImage: "text.justify")
+            }
+            Button { formatText(.removeLineBreaks) } label: {
+                Label(L10n.tr("edit.removeLineBreaks"), systemImage: "arrow.right.to.line")
+            }
+            Divider()
+            Button { formatText(.sortLines) } label: {
+                Label(L10n.tr("edit.sortLines"), systemImage: "arrow.up.arrow.down")
+            }
+            Button { formatText(.reverseLines) } label: {
+                Label(L10n.tr("edit.reverseLines"), systemImage: "arrow.up.backward")
+            }
+            Button { formatText(.uniqueLines) } label: {
+                Label(L10n.tr("edit.uniqueLines"), systemImage: "selection.pin.in.out")
+            }
+        } label: {
+            Label(L10n.tr("edit.format"), systemImage: "textformat.abc.dottedunderline")
+                .font(.system(size: 12))
+        }
+        .menuStyle(.borderedButton)
+        .controlSize(.small)
+    }
+    
+    private enum TextFormatAction {
+        case uppercase, lowercase, capitalize
+        case trimWhitespace, removeExtraSpaces, removeLineBreaks
+        case sortLines, reverseLines, uniqueLines
+    }
+    
+    private func formatText(_ action: TextFormatAction) {
+        switch action {
+        case .uppercase:
+            editingContent = editingContent.uppercased()
+        case .lowercase:
+            editingContent = editingContent.lowercased()
+        case .capitalize:
+            editingContent = editingContent.capitalized
+        case .trimWhitespace:
+            editingContent = editingContent.trimmingCharacters(in: .whitespacesAndNewlines)
+        case .removeExtraSpaces:
+            let components = editingContent.components(separatedBy: .whitespacesAndNewlines)
+            editingContent = components.filter { !$0.isEmpty }.joined(separator: " ")
+        case .removeLineBreaks:
+            editingContent = editingContent.replacingOccurrences(of: "\n", with: " ")
+                .replacingOccurrences(of: "\r", with: "")
+        case .sortLines:
+            var lines = editingContent.components(separatedBy: "\n")
+            lines.sort()
+            editingContent = lines.joined(separator: "\n")
+        case .reverseLines:
+            var lines = editingContent.components(separatedBy: "\n")
+            lines.reverse()
+            editingContent = lines.joined(separator: "\n")
+        case .uniqueLines:
+            var seen = Set<String>()
+            let lines = editingContent.components(separatedBy: "\n")
+            editingContent = lines.filter { seen.insert($0).inserted }.joined(separator: "\n")
         }
     }
 

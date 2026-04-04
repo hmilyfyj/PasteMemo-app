@@ -26,9 +26,18 @@ final class GroupEditorPanel {
         panel.center()
         panel.isFloatingPanel = true
         panel.level = .modalPanel
+        panel.hidesOnDeactivate = false
 
         viewModel.onDismiss = { panel.close(); NSApp.stopModal(withCode: .cancel) }
         viewModel.onConfirm = { panel.close(); NSApp.stopModal(withCode: .OK) }
+
+        // Make panel key window before running modal
+        panel.makeKeyAndOrderFront(nil)
+        
+        // Force the panel to accept first responder
+        DispatchQueue.main.async {
+            panel.makeFirstResponder(hostingView)
+        }
 
         let response = NSApp.runModal(for: panel)
         guard response == .OK else { return nil }
@@ -172,6 +181,7 @@ private struct IconCategory: Identifiable, Hashable {
 
 private struct GroupEditorView: View {
     @Bindable var viewModel: GroupEditorViewModel
+    @FocusState private var isNameFieldFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -182,6 +192,12 @@ private struct GroupEditorView: View {
             footerSection
         }
         .frame(width: 380, height: 420)
+        .onAppear {
+            // Auto-focus on name field when view appears
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                isNameFieldFocused = true
+            }
+        }
     }
 
     private var headerSection: some View {
@@ -194,6 +210,7 @@ private struct GroupEditorView: View {
             TextField(L10n.tr("automation.action.assignGroup.placeholder"), text: $viewModel.name)
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: 14))
+                .focused($isNameFieldFocused)
         }
         .padding(16)
     }

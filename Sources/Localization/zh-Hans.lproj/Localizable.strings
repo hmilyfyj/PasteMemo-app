@@ -384,6 +384,19 @@
 /* Text Editing */
 "action.edit" = "编辑";
 "action.save" = "保存";
+"action.preview" = "预览";
+
+/* Edit Format */
+"edit.format" = "格式化";
+"edit.uppercase" = "转为大写";
+"edit.lowercase" = "转为小写";
+"edit.capitalize" = "首字母大写";
+"edit.trimWhitespace" = "去除首尾空白";
+"edit.removeExtraSpaces" = "去除多余空格";
+"edit.removeLineBreaks" = "去除换行";
+"edit.sortLines" = "排序行";
+"edit.reverseLines" = "反转行";
+"edit.uniqueLines" = "去除重复行";
 
 /* Multi-select */
 "action.merge" = "合并";

@@ -432,6 +432,8 @@ struct QuickPanelView: View {
     @State private var frozenBottomCardMetrics: BottomCardLayoutMetrics?
     @State private var bottomClipAllowsDirectionalFallback = true
     @State private var showBottomOverflowMenu = false
+    @State private var editingItem: ClipItem?
+    @State private var editingContent: String = ""
 
     private var filteredItems: [ClipItem] { store.items }
 
@@ -931,7 +933,59 @@ struct QuickPanelView: View {
             }
             relaySplitText = nil
         }
+        .onChange(of: editingItem) {
+            // 当编辑对话框显示/隐藏时，控制面板的关闭行为
+            QuickPanelWindowController.shared.suppressDismiss = editingItem != nil
+        }
         .localized()
+        .sheet(item: $editingItem) { item in
+            VStack(spacing: 0) {
+                HStack {
+                    Text(L10n.tr("action.edit"))
+                        .font(.system(size: 15, weight: .semibold))
+                    Spacer()
+                    Button {
+                        cancelEdit()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 18))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 12)
+
+                Divider()
+
+                NativeTextView(
+                    text: editingContent,
+                    isEditable: true,
+                    onTextChange: { editingContent = $0 }
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(16)
+
+                Divider()
+
+                HStack {
+                    Spacer()
+                    Button(L10n.tr("action.cancel")) {
+                        cancelEdit()
+                    }
+                    .keyboardShortcut(.escape, modifiers: [])
+                    
+                    Button(L10n.tr("action.save")) {
+                        saveEdit()
+                    }
+                    .keyboardShortcut(.defaultAction)
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+            }
+            .frame(width: 500, height: 400)
+        }
     }
 
     private var classicLayout: some View {
@@ -2338,6 +2392,13 @@ struct QuickPanelView: View {
             selectItem(itemID)
         }
 
+        if isEditableType(item) {
+            Button(L10n.tr("action.edit")) {
+                editingItem = item
+                editingContent = item.content
+            }
+        }
+
         Button(L10n.tr("action.mergeCopy")) {
             copyItemsToClipboard([item])
             selectItem(itemID)
@@ -2441,6 +2502,33 @@ struct QuickPanelView: View {
     }
 
     // MARK: - Actions
+
+    private func isEditableType(_ item: ClipItem) -> Bool {
+        item.contentType == .text || item.contentType == .code || item.contentType == .link
+    }
+
+    private func saveEdit() {
+        guard let item = editingItem else { return }
+        item.content = editingContent
+        item.displayTitle = ClipItem.buildTitle(
+            content: item.content,
+            contentType: item.contentType,
+            imageData: item.imageData
+        )
+        item.isSensitive = SensitiveDetector.isSensitive(
+            content: item.content,
+            sourceAppBundleID: nil,
+            contentType: item.contentType
+        )
+        ClipItemStore.saveAndNotify(modelContext)
+        editingItem = nil
+        editingContent = ""
+    }
+
+    private func cancelEdit() {
+        editingItem = nil
+        editingContent = ""
+    }
 
     private func moveSelection(_ delta: Int, extendSelection: Bool = false) {
         var items = displayOrderItems
@@ -2942,7 +3030,24 @@ struct QuickPanelView: View {
 
     @discardableResult
     private func showNewGroupAlert(for items: [ClipItem]) -> String? {
-        guard let result = GroupEditorPanel.show() else { return nil }
+        // Release search field focus before showing modal dialog
+        isSearchFocused = false
+        
+        // Remove keyboard monitor to allow modal dialog to receive keyboard input
+        removeKeyMonitor()
+        
+        // 临时阻止面板关闭，因为模态对话框会导致面板失去焦点
+        QuickPanelWindowController.shared.suppressDismiss = true
+        
+        let result = GroupEditorPanel.show()
+        
+        // 恢复正常的关闭行为
+        QuickPanelWindowController.shared.suppressDismiss = false
+        
+        // Re-install keyboard monitor after modal dialog closes
+        installKeyMonitor()
+        
+        guard let result else { return nil }
         let name = result.name
         let descriptor = FetchDescriptor<SmartGroup>(predicate: #Predicate { $0.name == name })
         if let existing = try? modelContext.fetch(descriptor).first {
