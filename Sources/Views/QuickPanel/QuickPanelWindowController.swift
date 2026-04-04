@@ -4,6 +4,8 @@ import SwiftData
 
 extension Notification.Name {
     static let quickPanelDidShow = Notification.Name("quickPanelDidShow")
+    static let quickPanelLiveResizeDidBegin = Notification.Name("quickPanelLiveResizeDidBegin")
+    static let quickPanelLiveResizeDidEnd = Notification.Name("quickPanelLiveResizeDidEnd")
 }
 
 private let DEFAULT_WIDTH: CGFloat = 750
@@ -59,6 +61,7 @@ private final class ResizeHandleOverlayView: NSView {
     private var activeEdges: ResizeEdges = []
     private var initialMouseLocation = NSPoint.zero
     private var initialFrame = NSRect.zero
+    private var isLiveResizing = false
 
     override var acceptsFirstResponder: Bool { false }
 
@@ -104,6 +107,7 @@ private final class ResizeHandleOverlayView: NSView {
         guard activeEdges != [] else { return }
         initialMouseLocation = NSEvent.mouseLocation
         initialFrame = panel.frame
+        beginLiveResizeIfNeeded()
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -179,7 +183,20 @@ private final class ResizeHandleOverlayView: NSView {
 
     override func mouseUp(with event: NSEvent) {
         activeEdges = []
+        endLiveResizeIfNeeded()
         super.mouseUp(with: event)
+    }
+
+    private func beginLiveResizeIfNeeded() {
+        guard !isLiveResizing else { return }
+        isLiveResizing = true
+        NotificationCenter.default.post(name: .quickPanelLiveResizeDidBegin, object: panel)
+    }
+
+    private func endLiveResizeIfNeeded() {
+        guard isLiveResizing else { return }
+        isLiveResizing = false
+        NotificationCenter.default.post(name: .quickPanelLiveResizeDidEnd, object: panel)
     }
 
     private func resizeEdges(at point: NSPoint) -> ResizeEdges {
@@ -199,6 +216,7 @@ final class QuickPanelWindowController {
     static let shared = QuickPanelWindowController()
 
     private var panel: NSPanel?
+    private var resizePersistenceWorkItem: DispatchWorkItem?
     private var clickOutsideMonitor: Any?
     private var deactivationObserver: Any?
     private var resignKeyObserver: Any?
@@ -260,6 +278,17 @@ final class QuickPanelWindowController {
             UserDefaults.standard.set(Double(size.width), forKey: "\(CLASSIC_SIZE_KEY).width")
             UserDefaults.standard.set(Double(size.height), forKey: "\(CLASSIC_SIZE_KEY).height")
         }
+    }
+
+    private func schedulePanelSizePersistence(for panel: NSPanel) {
+        resizePersistenceWorkItem?.cancel()
+        let size = panel.frame.size
+        let workItem = DispatchWorkItem { [weak self, weak panel] in
+            guard let self else { return }
+            self.persistCurrentPanelSize(size, panel: panel)
+        }
+        resizePersistenceWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18, execute: workItem)
     }
 
     /// Call once at app launch to pre-build the panel off-screen
@@ -468,7 +497,7 @@ final class QuickPanelWindowController {
         ) { [weak self, weak panel] _ in
             Task { @MainActor in
                 guard let panel else { return }
-                self?.persistCurrentPanelSize(panel.frame.size, panel: panel)
+                self?.schedulePanelSizePersistence(for: panel)
             }
         }
 

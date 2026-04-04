@@ -35,7 +35,8 @@ struct AsyncPreviewImageView: View {
     }
 
     private var taskID: String {
-        "\(cacheKey)_\(Int(maxPixelSize))_\(data?.count ?? 0)"
+        let normalizedSize = ImageCache.normalizedPreviewDimension(maxPixelSize)
+        return "\(cacheKey)_\(Int(normalizedSize))_\(data?.count ?? 0)"
     }
 
     @MainActor

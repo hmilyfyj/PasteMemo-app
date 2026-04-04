@@ -11,12 +11,21 @@ final class ImageCache: @unchecked Sendable {
         cache.totalCostLimit = 50 * 1024 * 1024 // 50MB
     }
 
+    static func normalizedThumbnailDimension(_ dimension: CGFloat) -> CGFloat {
+        quantizedDimension(dimension, step: dimension <= 120 ? 12 : 24, minimum: 24)
+    }
+
+    static func normalizedPreviewDimension(_ dimension: CGFloat) -> CGFloat {
+        quantizedDimension(dimension, step: dimension <= 240 ? 32 : 64, minimum: 64)
+    }
+
     func thumbnail(for data: Data, key: String, size: CGFloat = 36) -> NSImage? {
-        let cacheKey = "\(key)_\(Int(size))" as NSString
+        let normalizedSize = Self.normalizedThumbnailDimension(size)
+        let cacheKey = "\(key)_\(Int(normalizedSize))" as NSString
         if let cached = cache.object(forKey: cacheKey) { return cached }
 
-        guard let source = downsample(data: data, maxPixelSize: size * 2) ?? NSImage(data: data) else { return nil }
-        let thumb = resize(source, to: size)
+        guard let source = downsample(data: data, maxPixelSize: normalizedSize * 2) ?? NSImage(data: data) else { return nil }
+        let thumb = resize(source, to: normalizedSize)
         cache.setObject(thumb, forKey: cacheKey, cost: data.count)
         return thumb
     }
@@ -73,7 +82,8 @@ final class ImageCache: @unchecked Sendable {
     }
 
     private func previewCacheKey(for key: String, maxDimension: CGFloat) -> NSString {
-        "preview_\(key)_\(Int(maxDimension))" as NSString
+        let normalized = Self.normalizedPreviewDimension(maxDimension)
+        return "preview_\(key)_\(Int(normalized))" as NSString
     }
 
     private func downsample(data: Data, maxPixelSize: CGFloat) -> NSImage? {
@@ -110,5 +120,10 @@ final class ImageCache: @unchecked Sendable {
                    operation: .copy, fraction: 1.0)
         newImage.unlockFocus()
         return newImage
+    }
+
+    private static func quantizedDimension(_ dimension: CGFloat, step: CGFloat, minimum: CGFloat) -> CGFloat {
+        let clamped = max(dimension, minimum)
+        return max(minimum, (clamped / step).rounded() * step)
     }
 }

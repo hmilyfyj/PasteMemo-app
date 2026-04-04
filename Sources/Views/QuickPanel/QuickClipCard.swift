@@ -6,6 +6,7 @@ import AppKit
 struct QuickClipCard: View {
     let item: ClipItem
     let isSelected: Bool
+    let isLiveResizing: Bool
     let shortcutIndex: Int?
     let cardWidth: CGFloat
     let cardHeight: CGFloat
@@ -13,12 +14,14 @@ struct QuickClipCard: View {
     init(
         item: ClipItem,
         isSelected: Bool,
+        isLiveResizing: Bool = false,
         shortcutIndex: Int?,
         cardWidth: CGFloat = 188,
         cardHeight: CGFloat = 220
     ) {
         self.item = item
         self.isSelected = isSelected
+        self.isLiveResizing = isLiveResizing
         self.shortcutIndex = shortcutIndex
         self.cardWidth = cardWidth
         self.cardHeight = cardHeight
@@ -34,11 +37,13 @@ struct QuickClipCard: View {
         .overlay(cardBorder)
         .clipShape(RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous))
         .shadow(
-            color: isSelected ? QuickPanelBottomTheme.selectionBlue.opacity(0.22) : .black.opacity(0.20),
-            radius: isSelected ? 18 : 10,
-            y: isSelected ? 8 : 5
+            color: isLiveResizing
+                ? .clear
+                : (isSelected ? QuickPanelBottomTheme.selectionBlue.opacity(0.22) : .black.opacity(0.20)),
+            radius: isLiveResizing ? 0 : (isSelected ? 18 : 10),
+            y: isLiveResizing ? 0 : (isSelected ? 8 : 5)
         )
-        .offset(y: isSelected ? -1 : 0)
+        .offset(y: isLiveResizing ? 0 : (isSelected ? -1 : 0))
         .contentShape(RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous))
     }
 
@@ -118,11 +123,17 @@ struct QuickClipCard: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(
-            LinearGradient(
-                colors: [Color.clear, Color.black.opacity(0.10), Color.black.opacity(0.24)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
+            Group {
+                if isLiveResizing {
+                    Color.black.opacity(0.16)
+                } else {
+                    LinearGradient(
+                        colors: [Color.clear, Color.black.opacity(0.10), Color.black.opacity(0.24)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                }
+            }
         )
     }
 
@@ -130,7 +141,12 @@ struct QuickClipCard: View {
         RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous)
             .fill(
                 LinearGradient(
-                    colors: isSelected
+                    colors: isLiveResizing
+                        ? [
+                            Color(red: 0.11, green: 0.11, blue: 0.12),
+                            Color(red: 0.10, green: 0.10, blue: 0.11),
+                        ]
+                        : isSelected
                         ? [
                             Color(red: 0.12, green: 0.24, blue: 0.46),
                             Color(red: 0.09, green: 0.18, blue: 0.35),
@@ -148,7 +164,9 @@ struct QuickClipCard: View {
     private var cardBorder: some View {
         RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous)
             .strokeBorder(
-                isSelected
+                isLiveResizing
+                    ? AnyShapeStyle(Color.white.opacity(0.06))
+                    : isSelected
                     ? AnyShapeStyle(
                         LinearGradient(
                             colors: [
@@ -162,7 +180,7 @@ struct QuickClipCard: View {
                     : AnyShapeStyle(
                         Color.white.opacity(0.08)
                     ),
-                lineWidth: isSelected ? 1.6 : 1
+                lineWidth: isSelected && !isLiveResizing ? 1.6 : 1
             )
     }
 
@@ -326,9 +344,11 @@ struct QuickClipCard: View {
                 Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else if isLiveResizing {
+            resizingPlaceholder
         } else if item.contentType == .image,
                   let data = item.imageData,
-                  let image = ImageCache.shared.preview(for: data, key: item.itemID, maxDimension: imagePreviewMaxDimension) {
+                  let image = ImageCache.shared.thumbnail(for: data, key: item.itemID, size: imagePreviewMaxDimension) {
             Image(nsImage: image)
                 .resizable()
                 .interpolation(.high)
@@ -441,6 +461,27 @@ struct QuickClipCard: View {
         return max(min(availableWidth, availableHeight), 72)
     }
 
+    private var resizingPlaceholder: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Image(systemName: item.contentType == .image ? "photo" : item.contentType.icon)
+                .font(.system(size: item.contentType == .image ? 26 : 22, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.76))
+
+            Text(primaryText)
+                .font(.system(size: 12.5, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.9))
+                .lineLimit(3)
+
+            Spacer(minLength: 0)
+
+            Text(lightweightMetaText)
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundStyle(QuickPanelBottomTheme.tertiaryText)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
     private var primaryText: String {
         let title = item.displayTitle ?? item.content
         return title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -495,6 +536,22 @@ struct QuickClipCard: View {
             return "颜色样本"
         default:
             return "\(item.content.count) 字符"
+        }
+    }
+
+    private var lightweightMetaText: String {
+        switch item.contentType {
+        case .image:
+            return "图片"
+        case .link:
+            return linkHost
+        case .file, .document, .archive, .application, .video, .audio:
+            let count = item.content.split(separator: "\n").count
+            return count > 1 ? "\(count) 个项目" : formatTimeAgo(item.lastUsedAt)
+        case .color:
+            return "颜色样本"
+        default:
+            return formatTimeAgo(item.lastUsedAt)
         }
     }
 

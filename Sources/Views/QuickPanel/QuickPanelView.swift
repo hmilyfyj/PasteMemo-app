@@ -21,26 +21,6 @@ private struct BottomCardLayoutMetrics {
     let spacing: CGFloat
 }
 
-private enum BottomClipRailCoordinateSpace {
-    static let name = "bottomClipRailScroll"
-}
-
-private struct BottomClipCardFramePreferenceKey: PreferenceKey {
-    static let defaultValue: [PersistentIdentifier: CGRect] = [:]
-
-    static func reduce(value: inout [PersistentIdentifier: CGRect], nextValue: () -> [PersistentIdentifier: CGRect]) {
-        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
-    }
-}
-
-private struct BottomClipViewportPreferenceKey: PreferenceKey {
-    static let defaultValue: CGRect = .zero
-
-    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
-        value = nextValue()
-    }
-}
-
 private struct WindowDragArea: NSViewRepresentable {
     func makeNSView(context: Context) -> DraggableView {
         DraggableView()
@@ -88,8 +68,7 @@ struct QuickPanelView: View {
     @State private var bottomMode: QuickPanelBottomMode = .compact
     @State private var keepBottomDetailsMounted = false
     @State private var isBottomSearchExpanded = false
-    @State private var bottomClipCardFrames: [PersistentIdentifier: CGRect] = [:]
-    @State private var bottomClipViewport: CGRect = .zero
+    @State private var isLiveResizing = false
 
     private var filteredItems: [ClipItem] { store.items }
 
@@ -209,26 +188,6 @@ struct QuickPanelView: View {
         for id: PersistentIdentifier,
         previousID: PersistentIdentifier?
     ) -> UnitPoint? {
-        let visibilityTolerance: CGFloat = 1
-
-        if !bottomClipViewport.isEmpty, let frame = bottomClipCardFrames[id] {
-            let viewportMinX = bottomClipViewport.minX + visibilityTolerance
-            let viewportMaxX = bottomClipViewport.maxX - visibilityTolerance
-            let isFullyVisible = frame.minX >= viewportMinX && frame.maxX <= viewportMaxX
-
-            if isFullyVisible {
-                return nil
-            }
-
-            if frame.minX < viewportMinX {
-                return .leading
-            }
-
-            if frame.maxX > viewportMaxX {
-                return .trailing
-            }
-        }
-
         let ids = displayOrderItems.map(\.persistentModelID)
         guard let targetIndex = ids.firstIndex(of: id) else { return .leading }
         guard let previousID, let previousIndex = ids.firstIndex(of: previousID) else { return .leading }
@@ -380,6 +339,7 @@ struct QuickPanelView: View {
             isAppFilter = false
             selectedFilter = .all
             isPanelPinned = false
+            isLiveResizing = false
             bottomMode = isBottomFloatingStyle ? .compact : .expanded
             if isBottomFloatingStyle {
                 QuickPanelWindowController.shared.setBottomFloatingMode(.compact, animated: false)
@@ -401,6 +361,14 @@ struct QuickPanelView: View {
             targetApp = QuickPanelWindowController.shared.previousApp
             resetSearchFocusForPresentation()
             prewarmBottomDetailsIfNeeded()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .quickPanelLiveResizeDidBegin)) { _ in
+            guard isBottomFloatingStyle else { return }
+            isLiveResizing = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .quickPanelLiveResizeDidEnd)) { _ in
+            guard isBottomFloatingStyle else { return }
+            isLiveResizing = false
         }
         .onChange(of: searchText) {
             groupSuggestionIndex = -1
@@ -509,6 +477,11 @@ struct QuickPanelView: View {
             .padding(.top, 6)
             .padding(.bottom, 4)
         }
+        .transaction { transaction in
+            if isLiveResizing {
+                transaction.animation = nil
+            }
+        }
         .frame(
             minWidth: QuickPanelBottomGeometry.minimumWidth,
             idealWidth: QuickPanelBottomGeometry.minimumWidth,
@@ -544,8 +517,14 @@ struct QuickPanelView: View {
 
     private var bottomDetailsSection: some View {
         VStack(spacing: 8) {
-            previewPane
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            Group {
+                if isLiveResizing {
+                    bottomDetailsPlaceholder
+                } else {
+                    previewPane
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             compactFooterBar
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -1280,17 +1259,10 @@ struct QuickPanelView: View {
                         QuickClipCard(
                             item: item,
                             isSelected: selectedItemIDs.contains(itemID),
+                            isLiveResizing: isLiveResizing,
                             shortcutIndex: shortcutIndex(for: item),
                             cardWidth: metrics.cardWidth,
                             cardHeight: metrics.cardHeight
-                        )
-                        .background(
-                            GeometryReader { cardProxy in
-                                Color.clear.preference(
-                                    key: BottomClipCardFramePreferenceKey.self,
-                                    value: [itemID: cardProxy.frame(in: .named(BottomClipRailCoordinateSpace.name))]
-                                )
-                            }
                         )
                         .id(itemID)
                         .popover(
@@ -1324,23 +1296,12 @@ struct QuickPanelView: View {
                 .padding(.vertical, metrics.verticalPadding)
                 .background(HorizontalWheelScrollAdapter())
             }
-            .coordinateSpace(name: BottomClipRailCoordinateSpace.name)
-            .background(
-                GeometryReader { viewportProxy in
-                    Color.clear.preference(
-                        key: BottomClipViewportPreferenceKey.self,
-                        value: viewportProxy.frame(in: .named(BottomClipRailCoordinateSpace.name))
-                    )
-                }
-            )
             .scrollClipDisabled()
             .frame(
                 maxWidth: .infinity,
                 maxHeight: .infinity,
                 alignment: .top
             )
-            .onPreferenceChange(BottomClipCardFramePreferenceKey.self) { bottomClipCardFrames = $0 }
-            .onPreferenceChange(BottomClipViewportPreferenceKey.self) { bottomClipViewport = $0 }
             .onChange(of: lastNavigatedID) { previousID, currentID in
                 guard let id = currentID else { return }
                 ensureBottomClipVisible(id: id, previousID: previousID, proxy: proxy)
@@ -1428,6 +1389,52 @@ struct QuickPanelView: View {
                 .foregroundStyle(isBottomFloatingStyle ? Color.white.opacity(0.5) : Color.secondary.opacity(0.7))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var bottomDetailsPlaceholder: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.82))
+                    .frame(width: 36, height: 36)
+                    .background(
+                        QuickPanelBottomTheme.controlFill,
+                        in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    )
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("正在调整悬浮框大小")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.92))
+
+                    Text("详情预览已暂时降级，松开鼠标后会立即恢复。")
+                        .font(.system(size: 12))
+                        .foregroundStyle(QuickPanelBottomTheme.secondaryText)
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            RoundedRectangle(cornerRadius: QuickPanelBottomTheme.previewCornerRadius, style: .continuous)
+                .fill(Color.white.opacity(0.04))
+                .overlay(
+                    RoundedRectangle(cornerRadius: QuickPanelBottomTheme.previewCornerRadius, style: .continuous)
+                        .stroke(QuickPanelBottomTheme.thinStroke, lineWidth: 1)
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .overlay {
+                    VStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(.white.opacity(0.7))
+                        Text("预览恢复中")
+                            .font(.system(size: 11.5, weight: .medium))
+                            .foregroundStyle(QuickPanelBottomTheme.tertiaryText)
+                    }
+                }
+        }
+        .padding(12)
     }
 
     // MARK: - Footer
