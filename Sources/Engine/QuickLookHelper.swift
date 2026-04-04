@@ -195,17 +195,15 @@ final class QuickLookHelper: NSObject, QLPreviewPanelDataSource, QLPreviewPanelD
         if localMouseMonitor == nil {
             localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
                 guard let self, self.isVisible else { return event }
-                guard QuickPanelWindowController.shared.isVisible else { return event }
-                guard let panel = QLPreviewPanel.shared(), panel.isVisible else { return event }
+                guard let quickPanelFrame = QuickPanelWindowController.shared.currentPanelFrame else { return event }
 
-                let mouseLocation = NSEvent.mouseLocation
-                if let quickPanelFrame = QuickPanelWindowController.shared.currentPanelFrame,
-                   quickPanelFrame.contains(mouseLocation) {
-                    self.closePreview()
+                if quickPanelFrame.contains(NSEvent.mouseLocation) {
+                    QuickPanelWindowController.shared.keepPanelInteractiveDuringQuickLook()
                 }
                 return event
             }
         }
+
     }
 
     private func removeInteractionMonitors() {
