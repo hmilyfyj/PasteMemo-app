@@ -19,38 +19,23 @@ struct DataPorterSection: View {
     @State private var progressTitle = ""
     @State private var showClearMenu = false
 
-    @State private var showPasteAppMigrationConfirm = false
-    @State private var pasteAppItemCount = 0
-
     var body: some View {
         Section(L10n.tr("dataPorter.section")) {
             exportControls
         }
 
-        if PasteAppMigrator.checkPasteAppDatabaseExists() {
-            Section("Paste.app Migration") {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Import data from Paste.app")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                    Text("Found \(pasteAppItemCount) items in Paste.app database")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-                .onAppear { pasteAppItemCount = PasteAppMigrator.getPasteAppItemCount() }
-
-                Button("Migrate from Paste.app") {
-                    showPasteAppMigrationConfirm = true
-                }
-                .disabled(isProcessing || pasteAppItemCount == 0)
-                .pointerCursor()
-                .alert("Migrate from Paste.app", isPresented: $showPasteAppMigrationConfirm) {
-                    Button("Migrate") { performPasteAppMigration() }
-                    Button("Cancel", role: .cancel) {}
-                } message: {
-                    Text("This will import \(pasteAppItemCount) items from Paste.app. Duplicate items will be skipped.")
-                }
+        Section("Paste.app Migration") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Import data from Paste.app")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             }
+
+            Button("Migrate from Paste.app") {
+                startPasteAppMigration()
+            }
+            .disabled(isProcessing)
+            .pointerCursor()
         }
     }
 
@@ -347,8 +332,23 @@ struct DataPorterSection: View {
 
     // MARK: - Paste.app Migration
 
-    private func performPasteAppMigration() {
-        progressTitle = "Migrating from Paste.app"
+    private func startPasteAppMigration() {
+        guard PasteAppMigrator.checkPasteAppDatabaseExists() else {
+            showAlert("Paste.app database not found. Please make sure Paste.app is installed and has been used.")
+            return
+        }
+
+        let itemCount = PasteAppMigrator.getPasteAppItemCount()
+        guard itemCount > 0 else {
+            showAlert("No items found in Paste.app database.")
+            return
+        }
+
+        performPasteAppMigration(itemCount: itemCount)
+    }
+
+    private func performPasteAppMigration(itemCount: Int) {
+        progressTitle = "Migrating from Paste.app (\(itemCount) items)"
         isProcessing = true
         importProgress = ""
         progressValue = 0
@@ -377,7 +377,6 @@ struct DataPorterSection: View {
                 }
             }
             showAlert(message)
-            pasteAppItemCount = PasteAppMigrator.getPasteAppItemCount()
         }
     }
 }
