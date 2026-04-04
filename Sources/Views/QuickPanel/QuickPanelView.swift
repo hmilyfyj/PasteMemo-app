@@ -258,6 +258,7 @@ struct QuickPanelView: View {
     @State private var isBottomSearchExpanded = false
     @State private var isLiveResizing = false
     @State private var frozenBottomCardMetrics: BottomCardLayoutMetrics?
+    @State private var bottomClipAllowsDirectionalFallback = true
 
     private var filteredItems: [ClipItem] { store.items }
 
@@ -374,7 +375,8 @@ struct QuickPanelView: View {
         return cachedItemMap[id]
     }
 
-    private func selectItem(_ id: PersistentIdentifier) {
+    private func selectItem(_ id: PersistentIdentifier, allowsDirectionalFallback: Bool = true) {
+        bottomClipAllowsDirectionalFallback = allowsDirectionalFallback
         selectedItemIDs = [id]
         lastNavigatedID = id
     }
@@ -422,8 +424,11 @@ struct QuickPanelView: View {
 
     private func bottomClipScrollAnchor(
         for id: PersistentIdentifier,
-        previousID: PersistentIdentifier?
+        previousID: PersistentIdentifier?,
+        allowsDirectionalFallback: Bool
     ) -> UnitPoint? {
+        guard allowsDirectionalFallback else { return nil }
+
         let ids = displayOrderItems.map(\.persistentModelID)
         guard let targetIndex = ids.firstIndex(of: id) else { return .leading }
         guard let previousID, let previousIndex = ids.firstIndex(of: previousID) else { return .leading }
@@ -444,7 +449,14 @@ struct QuickPanelView: View {
         previousID: PersistentIdentifier?,
         proxy: ScrollViewProxy
     ) {
-        guard let anchor = bottomClipScrollAnchor(for: id, previousID: previousID) else { return }
+        let allowsDirectionalFallback = bottomClipAllowsDirectionalFallback
+        bottomClipAllowsDirectionalFallback = true
+
+        guard let anchor = bottomClipScrollAnchor(
+            for: id,
+            previousID: previousID,
+            allowsDirectionalFallback: allowsDirectionalFallback
+        ) else { return }
 
         withAnimation(.easeOut(duration: 0.16)) {
             proxy.scrollTo(id, anchor: anchor)
@@ -456,7 +468,7 @@ struct QuickPanelView: View {
         let isDoubleClick = lastClickedID == id && now.timeIntervalSince(lastClickTime) < 0.3
 
         if isDoubleClick {
-            selectItem(id)
+            selectItem(id, allowsDirectionalFallback: false)
             handlePaste()
             lastClickedID = nil
             lastClickTime = .distantPast
@@ -469,7 +481,7 @@ struct QuickPanelView: View {
         } else if flags.contains(.shift) {
             extendSelectionTo(id)
         } else {
-            selectItem(id)
+            selectItem(id, allowsDirectionalFallback: false)
         }
         moveFocusToSelectionIfNeeded()
         syncQuickLookPreviewForSelection()
