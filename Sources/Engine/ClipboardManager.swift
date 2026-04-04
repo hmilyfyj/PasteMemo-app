@@ -415,8 +415,9 @@ final class ClipboardManager: ObservableObject {
         }
         // Different image data means edited image, not a duplicate
         if existingItem.contentType == .image, existingItem.imageData != newItem.imageData { return false }
-        // Different rich text data means different format, not a duplicate
-        return existingItem.richTextData == newItem.richTextData
+        // For text-based content, ignore richTextData differences - only compare the text content
+        // This prevents duplicate entries when the same text is copied with different formatting
+        return true
     }
 
     private func refreshLinkMetadataIfNeeded(for item: ClipItem, in context: ModelContext) {

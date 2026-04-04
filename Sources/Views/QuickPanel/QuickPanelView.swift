@@ -2972,6 +2972,12 @@ struct QuickPanelView: View {
         let merged = items.map(\.content).joined(separator: "\n")
         pasteboard.setString(merged, forType: .string)
         clipboardManager.lastChangeCount = pasteboard.changeCount
+        
+        // 更新每条记录的最近使用时间
+        for item in items {
+            item.lastUsedAt = Date()
+        }
+        
         showCopiedToast = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { showCopiedToast = false }
     }
