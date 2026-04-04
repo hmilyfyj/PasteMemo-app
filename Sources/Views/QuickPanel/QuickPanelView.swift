@@ -2579,11 +2579,11 @@ struct QuickPanelView: View {
             }
 
             switch Int(event.keyCode) {
-                case 126: moveSelection(-1, extendSelection: hasShift); return nil
-            case 125: moveSelection(1, extendSelection: hasShift); return nil
-            case 123: switchType(-1); return nil
-            case 124: switchType(1); return nil
-            case 48: switchType(hasShift ? -1 : 1); return nil  // Tab / Shift+Tab
+                case 126 where !isSearchFocused: moveSelection(-1, extendSelection: hasShift); return nil
+            case 125 where !isSearchFocused: moveSelection(1, extendSelection: hasShift); return nil
+            case 123 where !isSearchFocused: switchType(-1); return nil
+            case 124 where !isSearchFocused: switchType(1); return nil
+            case 48 where !isSearchFocused: switchType(hasShift ? -1 : 1); return nil  // Tab / Shift+Tab
             case 13: // Cmd+W
                 if hasCmd { handleDismiss(); return nil }
                 return event

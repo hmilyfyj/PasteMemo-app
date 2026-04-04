@@ -54,13 +54,13 @@ enum QuickPanelKeyboardRouter {
         switch keyCode {
         case 49 where !hasCommand && !searchFocused:
             return .togglePreview
-        case 123:
+        case 123 where !searchFocused:
             return .moveSelection(-1)
-        case 124:
+        case 124 where !searchFocused:
             return .moveSelection(1)
-        case 126:
+        case 126 where !searchFocused:
             return .switchType(-1)
-        case 125:
+        case 125 where !searchFocused:
             return .switchType(1)
         default:
             return nil
