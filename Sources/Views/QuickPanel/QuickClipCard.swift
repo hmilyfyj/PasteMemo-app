@@ -13,7 +13,7 @@ struct QuickClipCard: View {
             preview
             footer
         }
-        .frame(width: 152, height: 118)
+        .frame(width: 184, height: 138)
         .background(cardBackground)
         .overlay(cardBorder)
         .shadow(color: isSelected ? Color.accentColor.opacity(0.28) : .black.opacity(0.12), radius: isSelected ? 14 : 8, y: 3)
@@ -59,8 +59,8 @@ struct QuickClipCard: View {
             previewContent
                 .padding(8)
         }
-        .padding(.horizontal, 8)
-        .padding(.top, 8)
+        .padding(.horizontal, 10)
+        .padding(.top, 10)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -76,8 +76,8 @@ struct QuickClipCard: View {
                 .foregroundStyle(.white.opacity(0.58))
                 .lineLimit(1)
         }
-        .padding(.horizontal, 10)
-        .padding(.bottom, 9)
+        .padding(.horizontal, 11)
+        .padding(.bottom, 10)
     }
 
     private var cardBackground: some ShapeStyle {

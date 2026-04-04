@@ -78,8 +78,23 @@ codesign --force --deep --sign - "$APP_DIR"
 echo "==> 关闭旧进程"
 pkill -f "$APP_EXECUTABLE" 2>/dev/null || true
 
+for _ in {1..20}; do
+  if ! pgrep -f "$APP_EXECUTABLE" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 0.2
+done
+
 echo "==> 打开新应用"
-open "$APP_DIR"
+if ! open -n "$APP_DIR"; then
+  echo "open 失败，1 秒后重试"
+  sleep 1
+  if ! open -n "$APP_DIR"; then
+    echo "LaunchServices 仍未响应，改为直接启动可执行文件"
+    "$APP_EXECUTABLE" >/tmp/pastememo-launch.log 2>&1 &
+    disown
+  fi
+fi
 
 echo
 echo "完成"

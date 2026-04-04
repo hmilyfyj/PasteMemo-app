@@ -65,12 +65,12 @@ enum QuickPanelKeyboardRouter {
 }
 
 enum QuickPanelBottomGeometry {
-    static let horizontalInset: CGFloat = 24
-    static let bottomInset: CGFloat = 24
-    static let compactHeight: CGFloat = 190
-    static let expandedHeight: CGFloat = 520
-    static let maxWidth: CGFloat = 1600
-    static let minimumWidth: CGFloat = 520
+    static let horizontalInset: CGFloat = 16
+    static let bottomInset: CGFloat = 20
+    static let compactHeight: CGFloat = 260
+    static let expandedHeight: CGFloat = 640
+    static let maxWidth: CGFloat = 2200
+    static let minimumWidth: CGFloat = 900
 
     static func panelWidth(for visibleFrame: CGRect) -> CGFloat {
         let available = max(visibleFrame.width - horizontalInset * 2, 0)
