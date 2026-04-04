@@ -246,6 +246,7 @@
 "quick.pasteImage" = "Paste Image";
 "quick.expandDetails" = "Expand Details";
 "quick.collapseDetails" = "Collapse Details";
+"quick.compactMode" = "Compact";
 "quick.expandHint" = "Press Cmd+O to expand";
 "quick.fileCount" = "%d files";
 "settings.showGuide" = "Show Welcome Guide";

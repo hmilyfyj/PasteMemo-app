@@ -28,23 +28,86 @@ struct QuickClipCard: View {
     }
 
     var body: some View {
+        Group {
+            if isLiveResizing {
+                liveResizeBody
+            } else {
+                regularBody
+            }
+        }
+        .frame(width: cardWidth, height: cardHeight)
+        .contentShape(RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous))
+    }
+
+    private var regularBody: some View {
         VStack(spacing: 0) {
             header
             preview
         }
-        .frame(width: cardWidth, height: cardHeight)
         .background(cardBackground)
         .overlay(cardBorder)
         .clipShape(RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous))
         .shadow(
-            color: isLiveResizing
-                ? .clear
-                : (isSelected ? QuickPanelBottomTheme.selectionBlue.opacity(0.22) : .black.opacity(0.20)),
-            radius: isLiveResizing ? 0 : (isSelected ? 18 : 10),
-            y: isLiveResizing ? 0 : (isSelected ? 8 : 5)
+            color: isSelected ? QuickPanelBottomTheme.selectionBlue.opacity(0.22) : .black.opacity(0.20),
+            radius: isSelected ? 18 : 10,
+            y: isSelected ? 8 : 5
         )
-        .offset(y: isLiveResizing ? 0 : (isSelected ? -1 : 0))
-        .contentShape(RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous))
+        .offset(y: isSelected ? -1 : 0)
+    }
+
+    private var liveResizeBody: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 10) {
+                Image(systemName: item.contentType.icon)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.82))
+                    .frame(width: 28, height: 28)
+                    .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.contentType.label)
+                        .font(.system(size: 11.5, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.88))
+                        .lineLimit(1)
+
+                    Text(lightweightMetaText)
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.58))
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 12)
+
+            Spacer(minLength: 10)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text(primaryText)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .lineLimit(3)
+
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(Color.white.opacity(0.07))
+                    .frame(height: 8)
+
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(Color.white.opacity(0.05))
+                    .frame(width: max(cardWidth * 0.42, 54), height: 8)
+            }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 14)
+        }
+        .background(
+            RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous)
+                .fill(Color(red: 0.10, green: 0.10, blue: 0.11))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous)
+                .stroke(isSelected ? QuickPanelBottomTheme.selectionBlue.opacity(0.35) : Color.white.opacity(0.05), lineWidth: 1)
+        )
     }
 
     private var header: some View {
@@ -118,6 +181,7 @@ struct QuickClipCard: View {
                         Capsule()
                             .stroke(Color.white.opacity(0.1), lineWidth: 1)
                     )
+                    .opacity(isLiveResizing ? 0.75 : 1)
             }
         }
         .padding(.horizontal, 14)
@@ -186,7 +250,12 @@ struct QuickClipCard: View {
 
     private var headerBackground: some View {
         LinearGradient(
-            colors: isSelected
+            colors: isLiveResizing
+                ? [
+                    Color.white.opacity(0.16),
+                    Color.white.opacity(0.08),
+                ]
+                : isSelected
                 ? [
                     QuickPanelBottomTheme.accentBlue.opacity(0.96),
                     QuickPanelBottomTheme.selectionBlue.opacity(0.88),
@@ -309,7 +378,11 @@ struct QuickClipCard: View {
 
     @ViewBuilder
     private var headerIconBadge: some View {
-        if let sourceAppIcon {
+        if isLiveResizing {
+            Image(systemName: item.contentType.icon)
+                .font(.system(size: 22, weight: .bold))
+                .foregroundStyle(.white.opacity(0.82))
+        } else if let sourceAppIcon {
             Image(nsImage: sourceAppIcon)
                 .resizable()
                 .interpolation(.high)

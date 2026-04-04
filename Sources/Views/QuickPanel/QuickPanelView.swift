@@ -69,6 +69,7 @@ struct QuickPanelView: View {
     @State private var keepBottomDetailsMounted = false
     @State private var isBottomSearchExpanded = false
     @State private var isLiveResizing = false
+    @State private var frozenBottomCardMetrics: BottomCardLayoutMetrics?
 
     private var filteredItems: [ClipItem] { store.items }
 
@@ -119,6 +120,53 @@ struct QuickPanelView: View {
         cachedDisplayOrder = cachedGroupedItems.flatMap(\.items)
         cachedItemMap = Dictionary(cachedDisplayOrder.map { ($0.persistentModelID, $0) }, uniquingKeysWith: { _, last in last })
         cachedIDSet = Set(cachedItemMap.keys)
+    }
+
+    private func bottomCardLayoutMetrics(for size: CGSize, freezeForLiveResize: Bool) -> BottomCardLayoutMetrics {
+        let horizontalPadding: CGFloat = 10
+        let verticalPadding: CGFloat = bottomMode == .compact ? 10 : 12
+        let spacing: CGFloat = 12
+
+        let railHeight: CGFloat
+        if bottomMode == .compact {
+            railHeight = max(size.height - 86, 150)
+        } else {
+            railHeight = min(max(size.height * 0.31, 228), 300)
+        }
+
+        let normalizedRailHeight = freezeForLiveResize
+            ? quantizedLiveResizeLength(railHeight, step: bottomMode == .compact ? 14 : 12)
+            : railHeight
+        let cardSide = max(normalizedRailHeight - verticalPadding * 2, 156)
+
+        return BottomCardLayoutMetrics(
+            railHeight: normalizedRailHeight,
+            cardWidth: cardSide,
+            cardHeight: cardSide,
+            horizontalPadding: horizontalPadding,
+            verticalPadding: verticalPadding,
+            spacing: spacing
+        )
+    }
+
+    private func bottomCardLayoutMetrics(for size: CGSize) -> BottomCardLayoutMetrics {
+        bottomCardLayoutMetrics(for: size, freezeForLiveResize: isLiveResizing)
+    }
+
+    private func resolvedBottomCardLayoutMetrics(for size: CGSize) -> BottomCardLayoutMetrics {
+        let liveMetrics = bottomCardLayoutMetrics(for: size)
+        guard isLiveResizing, let frozen = frozenBottomCardMetrics else {
+            return liveMetrics
+        }
+
+        return BottomCardLayoutMetrics(
+            railHeight: min(frozen.railHeight, liveMetrics.railHeight),
+            cardWidth: min(frozen.cardWidth, liveMetrics.cardWidth),
+            cardHeight: min(frozen.cardHeight, liveMetrics.cardHeight),
+            horizontalPadding: frozen.horizontalPadding,
+            verticalPadding: frozen.verticalPadding,
+            spacing: frozen.spacing
+        )
     }
 
     /// Single selected ID for backward compat
@@ -340,6 +388,7 @@ struct QuickPanelView: View {
             selectedFilter = .all
             isPanelPinned = false
             isLiveResizing = false
+            frozenBottomCardMetrics = nil
             bottomMode = isBottomFloatingStyle ? .compact : .expanded
             if isBottomFloatingStyle {
                 QuickPanelWindowController.shared.setBottomFloatingMode(.compact, animated: false)
@@ -362,13 +411,18 @@ struct QuickPanelView: View {
             resetSearchFocusForPresentation()
             prewarmBottomDetailsIfNeeded()
         }
-        .onReceive(NotificationCenter.default.publisher(for: .quickPanelLiveResizeDidBegin)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: .quickPanelLiveResizeDidBegin)) { notification in
             guard isBottomFloatingStyle else { return }
+            if let panel = notification.object as? NSPanel {
+                let contentSize = panel.contentView?.bounds.size ?? panel.frame.size
+                frozenBottomCardMetrics = bottomCardLayoutMetrics(for: contentSize, freezeForLiveResize: true)
+            }
             isLiveResizing = true
         }
         .onReceive(NotificationCenter.default.publisher(for: .quickPanelLiveResizeDidEnd)) { _ in
             guard isBottomFloatingStyle else { return }
             isLiveResizing = false
+            frozenBottomCardMetrics = nil
         }
         .onChange(of: searchText) {
             groupSuggestionIndex = -1
@@ -444,7 +498,7 @@ struct QuickPanelView: View {
 
     private var bottomFloatingLayout: some View {
         GeometryReader { proxy in
-            let metrics = bottomCardLayoutMetrics(for: proxy.size)
+            let metrics = resolvedBottomCardLayoutMetrics(for: proxy.size)
 
             VStack(spacing: 12) {
                 bottomHeader
@@ -491,28 +545,9 @@ struct QuickPanelView: View {
         )
     }
 
-    private func bottomCardLayoutMetrics(for size: CGSize) -> BottomCardLayoutMetrics {
-        let horizontalPadding: CGFloat = 10
-        let verticalPadding: CGFloat = bottomMode == .compact ? 10 : 12
-        let spacing: CGFloat = 12
-
-        let railHeight: CGFloat
-        if bottomMode == .compact {
-            railHeight = max(size.height - 86, 150)
-        } else {
-            railHeight = min(max(size.height * 0.31, 228), 300)
-        }
-
-        let cardSide = max(railHeight - verticalPadding * 2, 156)
-
-        return BottomCardLayoutMetrics(
-            railHeight: railHeight,
-            cardWidth: cardSide,
-            cardHeight: cardSide,
-            horizontalPadding: horizontalPadding,
-            verticalPadding: verticalPadding,
-            spacing: spacing
-        )
+    private func quantizedLiveResizeLength(_ value: CGFloat, step: CGFloat) -> CGFloat {
+        let scaled = (value / step).rounded()
+        return max(step, scaled * step)
     }
 
     private var bottomDetailsSection: some View {
@@ -783,15 +818,77 @@ struct QuickPanelView: View {
     }
 
     private var bottomHeader: some View {
-        ViewThatFits(in: .horizontal) {
-            bottomHeaderSingleRow
-            bottomHeaderCompactSingleRow
+        Group {
+            if isLiveResizing {
+                bottomHeaderLiveResize
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    bottomHeaderSingleRow
+                    bottomHeaderCompactSingleRow
+                }
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 14)
         .padding(.top, 8)
         .padding(.bottom, 4)
         .background(WindowDragArea())
+    }
+
+    private var bottomHeaderLiveResize: some View {
+        HStack(spacing: 10) {
+            bottomHeaderLiveResizeSummary
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: 8) {
+                bottomHeaderLiveResizeModeBadge
+                bottomPinButton
+                bottomCountBadge
+            }
+            .fixedSize(horizontal: true, vertical: false)
+        }
+    }
+
+    private var bottomHeaderLiveResizeSummary: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "rectangle.3.group")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.72))
+
+            Text(bottomHeaderLiveResizeText)
+                .font(.system(size: 12.5, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.78))
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 30)
+        .background(QuickPanelBottomTheme.mutedFill, in: Capsule())
+    }
+
+    private var bottomHeaderLiveResizeModeBadge: some View {
+        HStack(spacing: 6) {
+            Image(systemName: bottomMode == .compact ? "rectangle.compress.vertical" : "rectangle.expand.vertical")
+                .font(.system(size: 11, weight: .semibold))
+            Text(bottomMode == .compact ? L10n.tr("quick.compactMode") : L10n.tr("quick.expandDetails"))
+                .font(.system(size: 11, weight: .semibold))
+        }
+        .foregroundStyle(.white.opacity(0.72))
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(QuickPanelBottomTheme.mutedFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private var bottomHeaderLiveResizeText: String {
+        if let filterName = selectedGroupFilter, !filterName.isEmpty {
+            return filterName
+        }
+        if !searchText.isEmpty {
+            return searchText
+        }
+        if let app = targetApp?.localizedName, !app.isEmpty {
+            return L10n.tr("quick.pasteToApp", app)
+        }
+        return L10n.tr("filter.all")
     }
 
     private var bottomHeaderSingleRow: some View {
@@ -1251,68 +1348,124 @@ struct QuickPanelView: View {
     }
 
     private func bottomClipRail(metrics: BottomCardLayoutMetrics) -> some View {
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(alignment: .top, spacing: metrics.spacing) {
-                    ForEach(displayOrderItems) { item in
-                        let itemID = item.persistentModelID
-                        QuickClipCard(
-                            item: item,
-                            isSelected: selectedItemIDs.contains(itemID),
-                            isLiveResizing: isLiveResizing,
-                            shortcutIndex: shortcutIndex(for: item),
-                            cardWidth: metrics.cardWidth,
-                            cardHeight: metrics.cardHeight
-                        )
-                        .id(itemID)
-                        .popover(
-                            isPresented: Binding(
-                                get: { showCommandPalette && selectedItemIDs.contains(itemID) && (lastNavigatedID ?? selectedItemIDs.first) == itemID },
-                                set: { if !$0 { showCommandPalette = false; restoreSearchFocusIfNeeded() } }
-                            ),
-                            attachmentAnchor: .point(.top),
-                            arrowEdge: .top
-                        ) {
-                            CommandPaletteContent(
-                                item: item,
-                                isMultiSelected: isMultiSelected,
-                                onAction: { handleCommandAction($0) },
-                                onDismiss: { showCommandPalette = false; restoreSearchFocusIfNeeded() }
-                            )
+        Group {
+            if isLiveResizing {
+                bottomLiveResizeClipRail(metrics: metrics)
+            } else {
+                ScrollViewReader { proxy in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        LazyHStack(alignment: .top, spacing: metrics.spacing) {
+                            ForEach(displayOrderItems) { item in
+                                let itemID = item.persistentModelID
+                                QuickClipCard(
+                                    item: item,
+                                    isSelected: selectedItemIDs.contains(itemID),
+                                    isLiveResizing: false,
+                                    shortcutIndex: shortcutIndex(for: item),
+                                    cardWidth: metrics.cardWidth,
+                                    cardHeight: metrics.cardHeight
+                                )
+                                .id(itemID)
+                                .popover(
+                                    isPresented: Binding(
+                                        get: { showCommandPalette && selectedItemIDs.contains(itemID) && (lastNavigatedID ?? selectedItemIDs.first) == itemID },
+                                        set: { if !$0 { showCommandPalette = false; restoreSearchFocusIfNeeded() } }
+                                    ),
+                                    attachmentAnchor: .point(.top),
+                                    arrowEdge: .top
+                                ) {
+                                    CommandPaletteContent(
+                                        item: item,
+                                        isMultiSelected: isMultiSelected,
+                                        onAction: { handleCommandAction($0) },
+                                        onDismiss: { showCommandPalette = false; restoreSearchFocusIfNeeded() }
+                                    )
+                                }
+                                .onTapGesture {
+                                    handleItemClick(itemID)
+                                }
+                                .contextMenu {
+                                    quickPanelItemContextMenu(for: item, itemID: itemID)
+                                }
+                                .onAppear {
+                                    if item.id == filteredItems.last?.id { store.loadMore() }
+                                }
+                            }
                         }
-                        .onTapGesture {
-                            handleItemClick(itemID)
-                        }
-                        .contextMenu {
-                            quickPanelItemContextMenu(for: item, itemID: itemID)
-                        }
-                        .onAppear {
-                            if item.id == filteredItems.last?.id { store.loadMore() }
+                        .frame(maxHeight: .infinity, alignment: .top)
+                        .padding(.horizontal, metrics.horizontalPadding)
+                        .padding(.vertical, metrics.verticalPadding)
+                        .background(HorizontalWheelScrollAdapter())
+                    }
+                    .scrollClipDisabled()
+                    .frame(
+                        maxWidth: .infinity,
+                        maxHeight: .infinity,
+                        alignment: .top
+                    )
+                    .onChange(of: lastNavigatedID) { previousID, currentID in
+                        guard let id = currentID else { return }
+                        ensureBottomClipVisible(id: id, previousID: previousID, proxy: proxy)
+                    }
+                    .onChange(of: selectedFilter) {
+                        guard let firstID = cachedDisplayOrder.first?.persistentModelID else { return }
+                        withAnimation(.easeOut(duration: 0.16)) {
+                            proxy.scrollTo(firstID, anchor: .leading)
                         }
                     }
                 }
-                .frame(maxHeight: .infinity, alignment: .top)
-                .padding(.horizontal, metrics.horizontalPadding)
-                .padding(.vertical, metrics.verticalPadding)
-                .background(HorizontalWheelScrollAdapter())
-            }
-            .scrollClipDisabled()
-            .frame(
-                maxWidth: .infinity,
-                maxHeight: .infinity,
-                alignment: .top
-            )
-            .onChange(of: lastNavigatedID) { previousID, currentID in
-                guard let id = currentID else { return }
-                ensureBottomClipVisible(id: id, previousID: previousID, proxy: proxy)
-            }
-            .onChange(of: selectedFilter) {
-                guard let firstID = cachedDisplayOrder.first?.persistentModelID else { return }
-                withAnimation(.easeOut(duration: 0.16)) {
-                    proxy.scrollTo(firstID, anchor: .leading)
-                }
             }
         }
+    }
+
+    private func bottomLiveResizeClipRail(metrics: BottomCardLayoutMetrics) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(alignment: .top, spacing: metrics.spacing) {
+                ForEach(liveResizeDisplayOrderItems) { item in
+                    let itemID = item.persistentModelID
+                    QuickClipCard(
+                        item: item,
+                        isSelected: selectedItemIDs.contains(itemID),
+                        isLiveResizing: true,
+                        shortcutIndex: shortcutIndex(for: item),
+                        cardWidth: metrics.cardWidth,
+                        cardHeight: metrics.cardHeight
+                    )
+                    .id(itemID)
+                }
+            }
+            .frame(maxHeight: .infinity, alignment: .top)
+            .padding(.horizontal, metrics.horizontalPadding)
+            .padding(.vertical, metrics.verticalPadding)
+        }
+        .scrollDisabled(true)
+        .scrollClipDisabled()
+        .frame(
+            maxWidth: .infinity,
+            maxHeight: .infinity,
+            alignment: .top
+        )
+    }
+
+    private var liveResizeDisplayOrderItems: [ClipItem] {
+        let maxVisibleItems = 16
+        guard displayOrderItems.count > maxVisibleItems else {
+            return displayOrderItems
+        }
+
+        let focusID = lastNavigatedID ?? selectedItemIDs.first ?? defaultItem?.persistentModelID
+        guard let focusID,
+              let focusIndex = displayOrderItems.firstIndex(where: { $0.persistentModelID == focusID }) else {
+            return Array(displayOrderItems.prefix(maxVisibleItems))
+        }
+
+        let leadingCount = maxVisibleItems / 2
+        let unclampedStart = focusIndex - leadingCount
+        let maxStart = max(displayOrderItems.count - maxVisibleItems, 0)
+        let start = min(max(unclampedStart, 0), maxStart)
+        let end = min(start + maxVisibleItems, displayOrderItems.count)
+
+        return Array(displayOrderItems[start..<end])
     }
 
     // MARK: - Empty State
@@ -1425,9 +1578,9 @@ struct QuickPanelView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .overlay {
                     VStack(spacing: 8) {
-                        ProgressView()
-                            .controlSize(.small)
-                            .tint(.white.opacity(0.7))
+                        Image(systemName: "rectangle.3.group")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.45))
                         Text("预览恢复中")
                             .font(.system(size: 11.5, weight: .medium))
                             .foregroundStyle(QuickPanelBottomTheme.tertiaryText)

@@ -4,13 +4,19 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="$ROOT_DIR/.build/arm64-apple-macosx/debug"
-APP_DIR="$ROOT_DIR/.dist/PasteMemo.app"
+DEFAULT_APP_DIR="$ROOT_DIR/.dist/PasteMemo.app"
+APP_DIR="${PASTEMEMO_APP_DIR:-$DEFAULT_APP_DIR}"
 APP_CONTENTS_DIR="$APP_DIR/Contents"
 APP_BINARY="$BUILD_DIR/PasteMemo"
 APP_BUNDLE="$BUILD_DIR/PasteMemo_PasteMemo.bundle"
 APP_EXECUTABLE="$APP_CONTENTS_DIR/MacOS/PasteMemo"
 APP_ICON="$APP_BUNDLE/Resources/AppIcon.icns"
 BUNDLE_ID="${PASTEMEMO_BUNDLE_ID:-com.lifedever.PasteMemo.dev}"
+SIGNING_IDENTITY="${PASTEMEMO_SIGNING_IDENTITY:-}"
+
+if [[ -z "$SIGNING_IDENTITY" ]]; then
+  SIGNING_IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(.*\)"/\1/p' | head -n 1 || true)"
+fi
 
 echo "==> 切换到项目目录"
 cd "$ROOT_DIR"
@@ -73,7 +79,13 @@ if [[ -f "$APP_ICON" ]]; then
 fi
 
 echo "==> 重新签名"
-codesign --force --deep --sign - "$APP_DIR"
+if [[ -n "$SIGNING_IDENTITY" ]]; then
+  codesign --force --deep --sign "$SIGNING_IDENTITY" "$APP_DIR"
+else
+  echo "未找到可用代码签名证书，回退到 adhoc 签名"
+  echo "提示: adhoc 签名会导致辅助功能权限在重建后经常失效"
+  codesign --force --deep --sign - "$APP_DIR"
+fi
 
 echo "==> 关闭旧进程"
 pkill -f "$APP_EXECUTABLE" 2>/dev/null || true
@@ -100,3 +112,8 @@ echo
 echo "完成"
 echo "应用路径: $APP_DIR"
 echo "Bundle ID: $BUNDLE_ID"
+if [[ -n "$SIGNING_IDENTITY" ]]; then
+  echo "Signing Identity: $SIGNING_IDENTITY"
+else
+  echo "Signing Identity: adhoc"
+fi

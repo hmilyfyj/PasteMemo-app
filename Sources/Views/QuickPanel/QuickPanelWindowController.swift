@@ -62,6 +62,9 @@ private final class ResizeHandleOverlayView: NSView {
     private var initialMouseLocation = NSPoint.zero
     private var initialFrame = NSRect.zero
     private var isLiveResizing = false
+    private var pendingFrame: NSRect?
+    private var framePump: DispatchSourceTimer?
+    private var lastAppliedFrame = NSRect.zero
 
     override var acceptsFirstResponder: Bool { false }
 
@@ -107,6 +110,8 @@ private final class ResizeHandleOverlayView: NSView {
         guard activeEdges != [] else { return }
         initialMouseLocation = NSEvent.mouseLocation
         initialFrame = panel.frame
+        lastAppliedFrame = panel.frame.integral
+        startFramePumpIfNeeded()
         beginLiveResizeIfNeeded()
     }
 
@@ -136,7 +141,7 @@ private final class ResizeHandleOverlayView: NSView {
                 ?? panel.screen
                 ?? NSScreen.screenWithMouse
                 ?? NSScreen.main else {
-            panel.setFrame(frame.integral, display: true)
+            queueFrameUpdate(frame.integral)
             return
         }
 
@@ -178,11 +183,13 @@ private final class ResizeHandleOverlayView: NSView {
 
         frame.origin.x = min(max(frame.origin.x, allowedMinX), allowedMaxX - frame.width)
         frame.origin.y = min(max(frame.origin.y, allowedMinY), allowedMaxY - frame.height)
-        panel.setFrame(frame.integral, display: true)
+        queueFrameUpdate(frame.integral)
     }
 
     override func mouseUp(with event: NSEvent) {
         activeEdges = []
+        flushPendingFrameIfNeeded()
+        stopFramePump()
         endLiveResizeIfNeeded()
         super.mouseUp(with: event)
     }
@@ -190,13 +197,43 @@ private final class ResizeHandleOverlayView: NSView {
     private func beginLiveResizeIfNeeded() {
         guard !isLiveResizing else { return }
         isLiveResizing = true
-        NotificationCenter.default.post(name: .quickPanelLiveResizeDidBegin, object: panel)
+        QuickPanelWindowController.shared.beginLiveResize(for: panel)
     }
 
     private func endLiveResizeIfNeeded() {
         guard isLiveResizing else { return }
         isLiveResizing = false
-        NotificationCenter.default.post(name: .quickPanelLiveResizeDidEnd, object: panel)
+        QuickPanelWindowController.shared.endLiveResize(for: panel)
+    }
+
+    private func startFramePumpIfNeeded() {
+        guard framePump == nil else { return }
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now(), repeating: .milliseconds(8), leeway: .milliseconds(1))
+        timer.setEventHandler { [weak self] in
+            self?.flushPendingFrameIfNeeded()
+        }
+        framePump = timer
+        timer.resume()
+    }
+
+    private func stopFramePump() {
+        framePump?.setEventHandler {}
+        framePump?.cancel()
+        framePump = nil
+        pendingFrame = nil
+    }
+
+    private func queueFrameUpdate(_ frame: NSRect) {
+        pendingFrame = frame
+    }
+
+    private func flushPendingFrameIfNeeded() {
+        guard let panel, let frame = pendingFrame else { return }
+        guard frame != lastAppliedFrame else { return }
+        pendingFrame = nil
+        lastAppliedFrame = frame
+        panel.setFrame(frame, display: true)
     }
 
     private func resizeEdges(at point: NSPoint) -> ResizeEdges {
@@ -217,6 +254,7 @@ final class QuickPanelWindowController {
 
     private var panel: NSPanel?
     private var resizePersistenceWorkItem: DispatchWorkItem?
+    private var isPanelLiveResizing = false
     private var clickOutsideMonitor: Any?
     private var deactivationObserver: Any?
     private var resignKeyObserver: Any?
@@ -289,6 +327,21 @@ final class QuickPanelWindowController {
         }
         resizePersistenceWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18, execute: workItem)
+    }
+
+    fileprivate func beginLiveResize(for panel: NSPanel?) {
+        guard !isPanelLiveResizing else { return }
+        isPanelLiveResizing = true
+        NotificationCenter.default.post(name: .quickPanelLiveResizeDidBegin, object: panel)
+    }
+
+    fileprivate func endLiveResize(for panel: NSPanel?) {
+        guard isPanelLiveResizing else { return }
+        isPanelLiveResizing = false
+        NotificationCenter.default.post(name: .quickPanelLiveResizeDidEnd, object: panel)
+        if let panel {
+            schedulePanelSizePersistence(for: panel)
+        }
     }
 
     /// Call once at app launch to pre-build the panel off-screen
@@ -496,8 +549,28 @@ final class QuickPanelWindowController {
             queue: .main
         ) { [weak self, weak panel] _ in
             Task { @MainActor in
-                guard let panel else { return }
-                self?.schedulePanelSizePersistence(for: panel)
+                guard let self, let panel, !self.isPanelLiveResizing else { return }
+                self.schedulePanelSizePersistence(for: panel)
+            }
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.willStartLiveResizeNotification,
+            object: panel,
+            queue: .main
+        ) { [weak self, weak panel] _ in
+            Task { @MainActor in
+                self?.beginLiveResize(for: panel)
+            }
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.didEndLiveResizeNotification,
+            object: panel,
+            queue: .main
+        ) { [weak self, weak panel] _ in
+            Task { @MainActor in
+                self?.endLiveResize(for: panel)
             }
         }
 

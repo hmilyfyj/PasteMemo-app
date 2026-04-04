@@ -7,3 +7,4 @@
 DerivedData/
 .DS_Store
 .dist/
+.tmp-signing
