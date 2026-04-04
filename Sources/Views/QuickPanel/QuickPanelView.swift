@@ -53,6 +53,7 @@ struct QuickPanelView: View {
     @State private var cachedIDSet: Set<PersistentIdentifier> = []
     @State private var bottomMode: QuickPanelBottomMode = .compact
     @State private var keepBottomDetailsMounted = false
+    @State private var isBottomSearchExpanded = false
 
     private var filteredItems: [ClipItem] { store.items }
 
@@ -80,6 +81,18 @@ struct QuickPanelView: View {
     private var currentCustomGroupFilterName: String? {
         guard !isAppFilter, let name = selectedGroupFilter else { return nil }
         return store.sidebarCounts.byGroup.contains(where: { $0.name == name }) ? name : nil
+    }
+
+    private var isBottomSearchCollapsed: Bool {
+        isBottomFloatingStyle
+        && !isBottomSearchExpanded
+        && !isSearchFocused
+        && searchText.isEmpty
+        && selectedGroupFilter == nil
+    }
+
+    private var bottomSearchFieldWidth: CGFloat {
+        isBottomSearchCollapsed ? QuickPanelBottomTheme.searchHeight : QuickPanelBottomTheme.searchWidth
     }
 
     private var shouldRenderBottomDetails: Bool {
@@ -117,12 +130,35 @@ struct QuickPanelView: View {
 
     private func resetSearchFocusForPresentation() {
         isSearchFocused = !isBottomFloatingStyle
+        isBottomSearchExpanded = false
     }
 
     private func restoreSearchFocusIfNeeded() {
         if !isBottomFloatingStyle {
             isSearchFocused = true
         }
+    }
+
+    private func activateSearchField() {
+        guard isBottomFloatingStyle else {
+            isSearchFocused = true
+            return
+        }
+
+        isBottomSearchExpanded = true
+        Task { @MainActor in
+            await Task.yield()
+            isSearchFocused = true
+        }
+    }
+
+    private func syncBottomSearchExpansion() {
+        guard isBottomFloatingStyle else {
+            isBottomSearchExpanded = false
+            return
+        }
+
+        isBottomSearchExpanded = isSearchFocused || !searchText.isEmpty || selectedGroupFilter != nil
     }
 
     private func moveFocusToSelectionIfNeeded() {
@@ -292,6 +328,13 @@ struct QuickPanelView: View {
                 store.groupName = nil
                 store.searchText = searchText
             }
+            syncBottomSearchExpansion()
+        }
+        .onChange(of: isSearchFocused) {
+            syncBottomSearchExpansion()
+        }
+        .onChange(of: selectedGroupFilter) {
+            syncBottomSearchExpansion()
         }
         .onChange(of: selectedFilter) {
             store.pinnedOnly = false
@@ -705,10 +748,10 @@ struct QuickPanelView: View {
 
             bottomSearchField
                 .frame(
-                    minWidth: QuickPanelBottomTheme.searchMinWidth,
-                    idealWidth: QuickPanelBottomTheme.searchWidth,
-                    maxWidth: QuickPanelBottomTheme.searchWidth,
-                    alignment: .leading
+                    minWidth: bottomSearchFieldWidth,
+                    idealWidth: bottomSearchFieldWidth,
+                    maxWidth: bottomSearchFieldWidth,
+                    alignment: .center
                 )
                 .layoutPriority(1)
 
@@ -736,10 +779,10 @@ struct QuickPanelView: View {
         HStack(spacing: 10) {
             bottomSearchField
                 .frame(
-                    minWidth: QuickPanelBottomTheme.searchMinWidth,
-                    idealWidth: QuickPanelBottomTheme.searchWidth,
-                    maxWidth: QuickPanelBottomTheme.searchWidth,
-                    alignment: .leading
+                    minWidth: bottomSearchFieldWidth,
+                    idealWidth: bottomSearchFieldWidth,
+                    maxWidth: bottomSearchFieldWidth,
+                    alignment: .center
                 )
 
             bottomCustomGroupToolbar
@@ -749,57 +792,73 @@ struct QuickPanelView: View {
     }
 
     private var bottomSearchField: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(QuickPanelBottomTheme.tertiaryText)
-
-            if let filterName = selectedGroupFilter, currentCustomGroupFilterName == nil {
-                HStack(spacing: 4) {
-                    Text(filterName)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white)
-                    Button {
-                        clearGroupFilter()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundStyle(.white.opacity(0.9))
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
-                .background(QuickPanelBottomTheme.accentBlue, in: Capsule())
-            }
-
-            TextField(L10n.tr("quick.search"), text: $searchText)
-                .textFieldStyle(.plain)
-                .font(.system(size: 13.5, weight: .medium))
-                .focused($isSearchFocused)
-                .foregroundStyle(.white.opacity(0.95))
-
-            if !searchText.isEmpty || selectedGroupFilter != nil {
+        Group {
+            if isBottomSearchCollapsed {
                 Button {
-                    searchText = ""
-                    clearGroupFilter()
-                    if let id = defaultItem?.persistentModelID { selectedItemIDs = [id] }
+                    activateSearchField()
                 } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.tertiary)
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 26, weight: .regular))
+                        .foregroundStyle(.white.opacity(0.88))
+                        .frame(width: QuickPanelBottomTheme.searchHeight, height: QuickPanelBottomTheme.searchHeight)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .help(L10n.tr("quick.search"))
+            } else {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(QuickPanelBottomTheme.tertiaryText)
+
+                    if let filterName = selectedGroupFilter, currentCustomGroupFilterName == nil {
+                        HStack(spacing: 4) {
+                            Text(filterName)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.white)
+                            Button {
+                                clearGroupFilter()
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 8, weight: .bold))
+                                    .foregroundStyle(.white.opacity(0.9))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(QuickPanelBottomTheme.accentBlue, in: Capsule())
+                    }
+
+                    TextField(L10n.tr("quick.search"), text: $searchText)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 13.5, weight: .medium))
+                        .focused($isSearchFocused)
+                        .foregroundStyle(.white.opacity(0.95))
+
+                    if !searchText.isEmpty || selectedGroupFilter != nil {
+                        Button {
+                            searchText = ""
+                            clearGroupFilter()
+                            if let id = defaultItem?.persistentModelID { selectedItemIDs = [id] }
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 13))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .frame(height: QuickPanelBottomTheme.searchHeight)
+                .background(QuickPanelBottomTheme.controlFill, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(QuickPanelBottomTheme.thinStroke, lineWidth: 1)
+                )
             }
         }
-        .padding(.horizontal, 12)
-        .frame(height: QuickPanelBottomTheme.searchHeight)
-        .background(QuickPanelBottomTheme.controlFill, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(QuickPanelBottomTheme.thinStroke, lineWidth: 1)
-        )
-        .frame(maxWidth: .infinity)
+        .animation(.easeInOut(duration: 0.16), value: isBottomSearchCollapsed)
     }
 
     // MARK: - Tabs
@@ -1668,7 +1727,7 @@ struct QuickPanelView: View {
                 case .collapseOrDismiss:
                     setBottomMode(.compact)
                 case .focusSearch:
-                    isSearchFocused = true
+                    activateSearchField()
                 case .togglePreview:
                     togglePreview()
                 }
@@ -1711,7 +1770,7 @@ struct QuickPanelView: View {
                 return event
             case 3: // Cmd+F
                 if hasCmd {
-                    isSearchFocused = true
+                    activateSearchField()
                     return nil
                 }
                 return event
