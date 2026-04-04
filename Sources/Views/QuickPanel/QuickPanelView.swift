@@ -360,6 +360,38 @@ private final class DraggableView: NSView {
     }
 }
 
+private struct RightClickSelector: NSViewRepresentable {
+    let onSelect: () -> Void
+
+    func makeNSView(context: Context) -> RightClickSelectorView {
+        let view = RightClickSelectorView()
+        view.onSelect = onSelect
+        return view
+    }
+
+    func updateNSView(_ nsView: RightClickSelectorView, context: Context) {
+        nsView.onSelect = onSelect
+    }
+}
+
+private final class RightClickSelectorView: NSView {
+    var onSelect: (() -> Void)?
+    
+    override var isOpaque: Bool { false }
+    
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard let event = NSApp.currentEvent, event.type == .rightMouseDown else {
+            return nil
+        }
+        return super.hitTest(point)
+    }
+    
+    override func rightMouseDown(with event: NSEvent) {
+        onSelect?()
+        super.rightMouseDown(with: event)
+    }
+}
+
 struct QuickPanelView: View {
     @EnvironmentObject var clipboardManager: ClipboardManager
     @Environment(\.modelContext) private var modelContext
@@ -1762,6 +1794,13 @@ struct QuickPanelView: View {
                                     .onTapGesture {
                                         handleItemClick(itemID)
                                     }
+                                    .overlay(
+                                        RightClickSelector {
+                                            if !selectedItemIDs.contains(itemID) {
+                                                selectItem(itemID, allowsDirectionalFallback: false)
+                                            }
+                                        }
+                                    )
                                     .contextMenu {
                                         quickPanelItemContextMenu(for: item, itemID: itemID)
                                     }
@@ -1832,6 +1871,13 @@ struct QuickPanelView: View {
                                 .onTapGesture {
                                     handleItemClick(itemID)
                                 }
+                                .overlay(
+                                    RightClickSelector {
+                                        if !selectedItemIDs.contains(itemID) {
+                                            selectItem(itemID, allowsDirectionalFallback: false)
+                                        }
+                                    }
+                                )
                                 .contextMenu {
                                     quickPanelItemContextMenu(for: item, itemID: itemID)
                                 }
