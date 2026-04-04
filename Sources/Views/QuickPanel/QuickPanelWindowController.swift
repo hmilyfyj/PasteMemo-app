@@ -13,6 +13,7 @@ private let MIN_HEIGHT: CGFloat = 350
 private let VERTICAL_OFFSET: CGFloat = 100
 private let CLASSIC_SIZE_KEY = "quickPanelSize"
 private let BOTTOM_SIZE_KEY = "quickPanelBottomSize"
+private let BOTTOM_WIDTH_IS_CUSTOM_KEY = "quickPanelBottomWidthIsCustom"
 private let POSITION_KEY = "quickPanelPosition"
 
 private class KeyablePanel: NSPanel {
@@ -223,9 +224,12 @@ final class QuickPanelWindowController {
     private init() {}
 
     private func bottomPanelWidth(for screenFrame: CGRect) -> CGFloat {
+        let widthIsCustom = UserDefaults.standard.bool(forKey: BOTTOM_WIDTH_IS_CUSTOM_KEY)
         let saved = UserDefaults.standard.double(forKey: "\(BOTTOM_SIZE_KEY).width")
-        let preferred = saved > 0 ? saved : QuickPanelBottomGeometry.panelWidth(for: screenFrame)
-        return QuickPanelBottomGeometry.clampedWidth(preferred, screenFrame: screenFrame)
+        guard widthIsCustom, saved > 0 else {
+            return QuickPanelBottomGeometry.panelWidth(for: screenFrame)
+        }
+        return QuickPanelBottomGeometry.clampedWidth(saved, screenFrame: screenFrame)
     }
 
     private func bottomPanelHeight(for mode: QuickPanelBottomMode, visibleFrame: CGRect) -> CGFloat {
@@ -234,8 +238,16 @@ final class QuickPanelWindowController {
         return QuickPanelBottomGeometry.clampedHeight(preferred, visibleFrame: visibleFrame, mode: mode)
     }
 
-    private func persistCurrentPanelSize(_ size: CGSize) {
+    private func persistCurrentPanelSize(_ size: CGSize, panel: NSPanel?) {
         if panelStyle == .bottomFloating {
+            let screenFrame = (panel?.screen?.frame)
+                ?? NSScreen.screens.first(where: { $0.frame.intersects(panel?.frame ?? .zero) })?.frame
+                ?? NSScreen.screenWithMouse?.frame
+                ?? NSScreen.main?.frame
+                ?? .zero
+            let defaultWidth = QuickPanelBottomGeometry.panelWidth(for: screenFrame)
+            let widthIsCustom = abs(size.width - defaultWidth) > 1
+            UserDefaults.standard.set(widthIsCustom, forKey: BOTTOM_WIDTH_IS_CUSTOM_KEY)
             UserDefaults.standard.set(Double(size.width), forKey: "\(BOTTOM_SIZE_KEY).width")
             UserDefaults.standard.set(Double(size.height), forKey: "\(BOTTOM_SIZE_KEY).\(bottomMode.rawValue).height")
         } else {
@@ -284,7 +296,6 @@ final class QuickPanelWindowController {
         installDeactivationObserver()
         installMoveObserver()
         NotificationCenter.default.post(name: .quickPanelDidShow, object: nil)
-        UsageTracker.pingIfNeeded(source: .quick)
 
         // Bouncy scale-in effect
         guard let contentView = panel.contentView else { return }
@@ -441,8 +452,8 @@ final class QuickPanelWindowController {
             queue: .main
         ) { [weak self, weak panel] _ in
             Task { @MainActor in
-                guard let size = panel?.frame.size else { return }
-                self?.persistCurrentPanelSize(size)
+                guard let panel else { return }
+                self?.persistCurrentPanelSize(panel.frame.size, panel: panel)
             }
         }
 

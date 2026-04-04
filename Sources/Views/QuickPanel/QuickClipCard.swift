@@ -29,12 +29,12 @@ struct QuickClipCard: View {
         }
         .frame(width: cardWidth, height: cardHeight)
         .background(cardBackground)
-        .overlay(cardBorder)
         .shadow(
-            color: isSelected ? QuickPanelBottomTheme.selectionBlue.opacity(0.32) : .black.opacity(0.22),
-            radius: isSelected ? 18 : 10,
-            y: isSelected ? 8 : 4
+            color: isSelected ? QuickPanelBottomTheme.selectionBlue.opacity(0.22) : .black.opacity(0.24),
+            radius: isSelected ? 22 : 12,
+            y: isSelected ? 12 : 6
         )
+        .offset(y: isSelected ? -2 : 0)
         .contentShape(RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous))
     }
 
@@ -137,18 +137,6 @@ struct QuickClipCard: View {
                     startPoint: .top,
                     endPoint: .bottom
                 )
-            )
-    }
-
-    private var cardBorder: some View {
-        RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous)
-            .stroke(
-                isSelected ? QuickPanelBottomTheme.selectionBlue : Color.white.opacity(0.06),
-                lineWidth: isSelected ? 2 : 1
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous)
-                    .stroke(Color.white.opacity(isSelected ? 0.14 : 0.025), lineWidth: 1)
             )
     }
 

@@ -276,7 +276,6 @@ struct MainWindowView: View {
                     NSApp.setActivationPolicy(.regular)
                 }
                 NSApp.activate(ignoringOtherApps: true)
-                UsageTracker.pingIfNeeded(source: .main)
             }
         }
         .onChange(of: relaySplitText) {

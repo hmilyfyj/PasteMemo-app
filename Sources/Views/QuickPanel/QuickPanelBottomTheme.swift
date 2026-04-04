@@ -6,7 +6,7 @@ enum QuickPanelBottomTheme {
     static let sectionCornerRadius: CGFloat = 18
     static let cardCornerRadius: CGFloat = 18
     static let previewCornerRadius: CGFloat = 20
-    static let shellInset: CGFloat = 10
+    static let shellInset: CGFloat = 0
     static let contentInset: CGFloat = 12
     static let thinStroke = Color.white.opacity(0.08)
     static let faintStroke = Color.white.opacity(0.05)
@@ -129,16 +129,20 @@ private struct QuickPanelBottomShellModifier: ViewModifier {
 }
 
 private struct QuickPanelBottomSectionModifier: ViewModifier {
+    var showBorder: Bool
+
     func body(content: Content) -> some View {
         content
             .background(
                 RoundedRectangle(cornerRadius: QuickPanelBottomTheme.sectionCornerRadius, style: .continuous)
                     .fill(QuickPanelBottomTheme.sectionBackground)
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: QuickPanelBottomTheme.sectionCornerRadius, style: .continuous)
-                    .stroke(QuickPanelBottomTheme.faintStroke, lineWidth: 1)
-            )
+            .overlay {
+                if showBorder {
+                    RoundedRectangle(cornerRadius: QuickPanelBottomTheme.sectionCornerRadius, style: .continuous)
+                        .stroke(QuickPanelBottomTheme.faintStroke, lineWidth: 1)
+                }
+            }
     }
 }
 
@@ -147,7 +151,7 @@ extension View {
         modifier(QuickPanelBottomShellModifier())
     }
 
-    func quickPanelBottomSection() -> some View {
-        modifier(QuickPanelBottomSectionModifier())
+    func quickPanelBottomSection(showBorder: Bool = true) -> some View {
+        modifier(QuickPanelBottomSectionModifier(showBorder: showBorder))
     }
 }

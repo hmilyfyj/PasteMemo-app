@@ -38,7 +38,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             BuiltInRules.seedIfNeeded(context: PasteMemoApp.sharedModelContainer.mainContext)
         }
         ClipboardManager.shared.startMonitoring()
-        UsageTracker.pingIfNeeded()
 
         // Hide SwiftUI auto-created windows
         hideAllMainWindows(NSApp)

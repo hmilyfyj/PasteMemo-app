@@ -313,7 +313,7 @@ struct QuickPanelView: View {
                 } else {
                     bottomClipRail(metrics: metrics)
                         .frame(height: metrics.railHeight)
-                        .quickPanelBottomSection()
+                        .quickPanelBottomSection(showBorder: false)
 
                     if bottomMode == .expanded {
                         previewPane

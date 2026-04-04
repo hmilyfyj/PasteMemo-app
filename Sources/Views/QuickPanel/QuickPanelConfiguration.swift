@@ -65,7 +65,8 @@ enum QuickPanelKeyboardRouter {
 }
 
 enum QuickPanelBottomGeometry {
-    static let horizontalInset: CGFloat = 10
+    static let horizontalInset: CGFloat = 0
+    static let legacyDefaultHorizontalInset: CGFloat = 10
     static let bottomInset: CGFloat = 10
     static let compactHeight: CGFloat = 252
     static let expandedHeight: CGFloat = 760
@@ -87,12 +88,21 @@ enum QuickPanelBottomGeometry {
         return min(maxWidth, max(minimumWidth, available))
     }
 
+    static func legacyDefaultWidth(for screenFrame: CGRect) -> CGFloat {
+        let available = max(screenFrame.width - legacyDefaultHorizontalInset * 2, 0)
+        return min(maxWidth, max(minimumWidth, available))
+    }
+
     static func clampedWidth(_ width: CGFloat, screenFrame: CGRect) -> CGFloat {
         let available = max(screenFrame.width - horizontalInset * 2, 0)
         let lowerBound = min(minimumWidth, available)
         let upperBound = min(maxWidth, available)
         guard upperBound > 0 else { return 0 }
         return min(max(width, lowerBound), upperBound)
+    }
+
+    static func shouldUpgradeSavedWidthToCurrentDefault(_ width: CGFloat, screenFrame: CGRect) -> Bool {
+        abs(width - legacyDefaultWidth(for: screenFrame)) <= 1
     }
 
     static func clampedHeight(_ height: CGFloat, visibleFrame: CGRect, mode: QuickPanelBottomMode) -> CGFloat {

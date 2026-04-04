@@ -76,6 +76,49 @@ struct QuickPanelConfigurationTests {
         #expect(frame.maxY <= visibleFrame.maxY)
     }
 
+    @Test("Bottom floating default width now reaches screen edges")
+    func defaultWidthUsesFullScreenWidth() {
+        let screenFrame = CGRect(x: 0, y: 0, width: 1512, height: 982)
+
+        #expect(QuickPanelBottomGeometry.panelWidth(for: screenFrame) == screenFrame.width)
+        #expect(QuickPanelBottomGeometry.legacyDefaultWidth(for: screenFrame) == screenFrame.width - 20)
+        #expect(QuickPanelBottomGeometry.shouldUpgradeSavedWidthToCurrentDefault(screenFrame.width - 20, screenFrame: screenFrame))
+        #expect(!QuickPanelBottomGeometry.shouldUpgradeSavedWidthToCurrentDefault(1200, screenFrame: screenFrame))
+    }
+
+    @Test("Bottom floating width remains current default when legacy custom flag is absent")
+    func bottomWidthDefaultsToCurrentScreenWidthWithoutCustomFlag() {
+        let defaults = UserDefaults.standard
+        let widthKey = "quickPanelBottomSize.width"
+        let customKey = "quickPanelBottomWidthIsCustom"
+        let originalWidth = defaults.object(forKey: widthKey)
+        let originalCustom = defaults.object(forKey: customKey)
+        let screenFrame = CGRect(x: 0, y: 0, width: 3360, height: 1859)
+
+        defaults.set(1512, forKey: widthKey)
+        defaults.removeObject(forKey: customKey)
+
+        let widthIsCustom = defaults.bool(forKey: customKey)
+        let resolvedWidth = widthIsCustom
+            ? QuickPanelBottomGeometry.clampedWidth(CGFloat(defaults.double(forKey: widthKey)), screenFrame: screenFrame)
+            : QuickPanelBottomGeometry.panelWidth(for: screenFrame)
+
+        #expect(!widthIsCustom)
+        #expect(resolvedWidth == screenFrame.width)
+
+        if let originalWidth {
+            defaults.set(originalWidth, forKey: widthKey)
+        } else {
+            defaults.removeObject(forKey: widthKey)
+        }
+
+        if let originalCustom {
+            defaults.set(originalCustom, forKey: customKey)
+        } else {
+            defaults.removeObject(forKey: customKey)
+        }
+    }
+
     @Test("Bottom floating keyboard routing matches design")
     func keyboardRouting() {
         #expect(
