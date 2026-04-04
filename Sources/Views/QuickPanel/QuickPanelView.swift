@@ -22,6 +22,143 @@ private struct BottomCardLayoutMetrics {
     let spacing: CGFloat
 }
 
+private struct BottomClipEnsureVisibleProbe: NSViewRepresentable {
+    let itemID: PersistentIdentifier
+    let activeID: PersistentIdentifier?
+    let edgePadding: CGFloat
+    let animationDuration: TimeInterval
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeNSView(context: Context) -> ProbeView {
+        let view = ProbeView()
+        view.coordinator = context.coordinator
+        context.coordinator.attach(to: view)
+        return view
+    }
+
+    func updateNSView(_ nsView: ProbeView, context: Context) {
+        nsView.coordinator = context.coordinator
+        context.coordinator.attach(to: nsView)
+        context.coordinator.update(
+            itemID: itemID,
+            activeID: activeID,
+            edgePadding: edgePadding,
+            animationDuration: animationDuration
+        )
+    }
+
+    static func dismantleNSView(_ nsView: ProbeView, coordinator: Coordinator) {
+        coordinator.detach()
+    }
+
+    final class Coordinator {
+        private weak var probeView: ProbeView?
+        private var lastHandledSelectionID: PersistentIdentifier?
+
+        @MainActor
+        func attach(to view: ProbeView) {
+            probeView = view
+        }
+
+        @MainActor
+        func detach() {
+            probeView = nil
+            lastHandledSelectionID = nil
+        }
+
+        @MainActor
+        func update(
+            itemID: PersistentIdentifier,
+            activeID: PersistentIdentifier?,
+            edgePadding: CGFloat,
+            animationDuration: TimeInterval
+        ) {
+            guard activeID == itemID else { return }
+            guard lastHandledSelectionID != activeID else { return }
+
+            lastHandledSelectionID = activeID
+
+            DispatchQueue.main.async { [weak self] in
+                self?.ensureVisible(edgePadding: edgePadding, animationDuration: animationDuration)
+            }
+        }
+
+        @MainActor
+        private func ensureVisible(edgePadding: CGFloat, animationDuration: TimeInterval) {
+            guard let probeView,
+                  let scrollView = findEnclosingScrollView(from: probeView),
+                  let documentView = scrollView.documentView else { return }
+
+            let clipView = scrollView.contentView
+            let visibleRect = clipView.bounds
+            let cardFrame = probeView.convert(probeView.bounds, to: documentView)
+            let minVisibleX = visibleRect.minX + edgePadding
+            let maxVisibleX = visibleRect.maxX - edgePadding
+            let tolerance: CGFloat = 0.5
+
+            var targetOriginX = visibleRect.origin.x
+
+            if cardFrame.minX < minVisibleX - tolerance {
+                targetOriginX -= (minVisibleX - cardFrame.minX)
+            } else if cardFrame.maxX > maxVisibleX + tolerance {
+                targetOriginX += (cardFrame.maxX - maxVisibleX)
+            } else {
+                return
+            }
+
+            let maxOffsetX = max(documentView.bounds.width - visibleRect.width, 0)
+            targetOriginX = min(max(targetOriginX, 0), maxOffsetX)
+
+            guard abs(targetOriginX - visibleRect.origin.x) > tolerance else { return }
+
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = animationDuration
+                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                clipView.animator().setBoundsOrigin(
+                    NSPoint(x: targetOriginX, y: visibleRect.origin.y)
+                )
+            } completionHandler: {
+                Task { @MainActor in
+                    scrollView.reflectScrolledClipView(clipView)
+                }
+            }
+        }
+
+        @MainActor
+        private func findEnclosingScrollView(from view: NSView) -> NSScrollView? {
+            var current: NSView? = view
+            while let candidate = current {
+                if let scrollView = candidate as? NSScrollView {
+                    return scrollView
+                }
+                current = candidate.superview
+            }
+            return nil
+        }
+    }
+}
+
+private final class ProbeView: NSView {
+    weak var coordinator: BottomClipEnsureVisibleProbe.Coordinator?
+
+    override var isOpaque: Bool { false }
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        coordinator?.attach(to: self)
+    }
+
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        coordinator?.attach(to: self)
+    }
+}
+
 private struct LiveResizeCardSnapshot: Identifiable, Equatable {
     let id: String
     let isSelected: Bool
@@ -1564,6 +1701,14 @@ struct QuickPanelView: View {
                                     shortcutIndex: shortcutIndex(for: item),
                                     cardWidth: metrics.cardWidth,
                                     cardHeight: metrics.cardHeight
+                                )
+                                .background(
+                                    BottomClipEnsureVisibleProbe(
+                                        itemID: itemID,
+                                        activeID: lastNavigatedID,
+                                        edgePadding: 8,
+                                        animationDuration: 0.16
+                                    )
                                 )
                                 .id(itemID)
                                 .popover(
