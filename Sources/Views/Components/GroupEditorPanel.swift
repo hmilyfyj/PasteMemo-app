@@ -28,8 +28,18 @@ final class GroupEditorPanel {
         panel.level = .modalPanel
         panel.hidesOnDeactivate = false
 
-        viewModel.onDismiss = { panel.close(); NSApp.stopModal(withCode: .cancel) }
-        viewModel.onConfirm = { panel.close(); NSApp.stopModal(withCode: .OK) }
+        viewModel.onDismiss = { 
+            DispatchQueue.main.async {
+                panel.close()
+                NSApp.stopModal(withCode: .cancel)
+            }
+        }
+        viewModel.onConfirm = { 
+            DispatchQueue.main.async {
+                panel.close()
+                NSApp.stopModal(withCode: .OK)
+            }
+        }
 
         // Make panel key window before running modal
         panel.makeKeyAndOrderFront(nil)

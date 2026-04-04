@@ -1405,19 +1405,18 @@ struct QuickPanelView: View {
     }
 
     private var bottomHeaderSingleRow: some View {
-        ZStack {
-            HStack(spacing: 10) {
-                bottomInlineFilterBar
-                    .frame(minWidth: 280, idealWidth: 360, maxWidth: .infinity, alignment: .leading)
-                    .layoutPriority(2)
+        HStack(spacing: 10) {
+            bottomInlineFilterBar
+                .frame(minWidth: 280, idealWidth: 360, maxWidth: 460, alignment: .leading)
 
-                bottomHeaderTrailingControls
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-            }
+            Spacer(minLength: 0)
 
             bottomHeaderCenterCluster
                 .fixedSize(horizontal: true, vertical: false)
-                .frame(maxWidth: .infinity, alignment: .center)
+
+            Spacer(minLength: 0)
+
+            bottomHeaderTrailingControls
         }
     }
 
@@ -1437,7 +1436,7 @@ struct QuickPanelView: View {
                 .layoutPriority(1)
 
             bottomCustomGroupToolbar
-                .frame(minWidth: 140, idealWidth: 220, maxWidth: 320, alignment: .leading)
+                .frame(minWidth: 140, idealWidth: 220, maxWidth: .infinity, alignment: .leading)
                 .layoutPriority(1)
 
             bottomModeToggleIconButton
@@ -1471,9 +1470,7 @@ struct QuickPanelView: View {
                 )
 
             bottomCustomGroupToolbar
-                .frame(minWidth: 220, idealWidth: 340, maxWidth: 520, alignment: .leading)
         }
-        .fixedSize(horizontal: true, vertical: false)
     }
 
     private var bottomSearchField: some View {
@@ -1624,7 +1621,9 @@ struct QuickPanelView: View {
                     if let name = showNewGroupAlert(for: []) {
                         applyCustomGroupFilter(name)
                     }
-                    restoreSearchFocusIfNeeded()
+                    DispatchQueue.main.async {
+                        restoreSearchFocusIfNeeded()
+                    }
                 } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 16, weight: .medium))
@@ -1641,7 +1640,7 @@ struct QuickPanelView: View {
             }
             .padding(.horizontal, 4)
         }
-        .frame(maxWidth: .infinity, minHeight: 28, maxHeight: 28, alignment: .leading)
+        .frame(minWidth: 220, maxWidth: 600, minHeight: 28, maxHeight: 28)
     }
 
     private func bottomGroupToolbarChip(
