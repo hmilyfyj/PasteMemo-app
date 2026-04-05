@@ -1005,16 +1005,7 @@ struct MainWindowView: View {
 
     private func showNewGroupAlert(for items: [ClipItem]) {
         guard let result = GroupEditorPanel.show() else { return }
-        // Ensure group exists (upsert)
-        let name = result.name
-        let descriptor = FetchDescriptor<SmartGroup>(predicate: #Predicate { $0.name == name })
-        if let existing = try? modelContext.fetch(descriptor).first {
-            existing.icon = result.icon
-        } else {
-            let maxOrder = (try? modelContext.fetch(FetchDescriptor<SmartGroup>()))?.map(\.sortOrder).max() ?? -1
-            let group = SmartGroup(name: result.name, icon: result.icon, sortOrder: maxOrder + 1)
-            modelContext.insert(group)
-        }
+        AppMenuActions.upsertGroup(name: result.name, icon: result.icon, context: modelContext)
         try? modelContext.save()
         assignToGroup(items: items, name: result.name)
     }

@@ -91,11 +91,9 @@ enum AppMenuActions {
         let resultName = result.name
         let descriptor = FetchDescriptor<SmartGroup>(predicate: #Predicate { $0.name == resultName })
         if (try? context.fetch(descriptor).first) != nil { return }
-        let maxOrder = (try? context.fetch(FetchDescriptor<SmartGroup>()))?.map(\.sortOrder).max() ?? -1
-        let group = SmartGroup(name: result.name, icon: result.icon, sortOrder: maxOrder + 1)
-        context.insert(group)
+        upsertGroup(name: result.name, icon: result.icon, context: context)
         try? context.save()
-        NotificationCenter.default.post(name: ClipItemStore.itemDidUpdateNotification, object: nil)
+        notifyGroupStoreDidChange()
     }
 
     static func showEditGroupAlert(group: SmartGroup, context: ModelContext) {
@@ -103,7 +101,7 @@ enum AppMenuActions {
         group.name = result.name
         group.icon = result.icon
         try? context.save()
-        NotificationCenter.default.post(name: ClipItemStore.itemDidUpdateNotification, object: nil)
+        notifyGroupStoreDidChange()
     }
 
     static func deleteGroup(name: String, context: ModelContext) {
@@ -115,6 +113,27 @@ enum AppMenuActions {
         }
         context.delete(group)
         try? context.save()
+        notifyGroupStoreDidChange()
+    }
+
+    @discardableResult
+    static func upsertGroup(name: String, icon: String, context: ModelContext) -> SmartGroup? {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return nil }
+
+        let descriptor = FetchDescriptor<SmartGroup>(predicate: #Predicate { $0.name == trimmedName })
+        if let existing = try? context.fetch(descriptor).first {
+            existing.icon = icon
+            return existing
+        }
+
+        let maxOrder = (try? context.fetch(FetchDescriptor<SmartGroup>()))?.map(\.sortOrder).max() ?? -1
+        let group = SmartGroup(name: trimmedName, icon: icon, sortOrder: maxOrder + 1)
+        context.insert(group)
+        return group
+    }
+
+    static func notifyGroupStoreDidChange() {
         NotificationCenter.default.post(name: ClipItemStore.itemDidUpdateNotification, object: nil)
     }
 

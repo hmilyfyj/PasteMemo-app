@@ -1690,16 +1690,9 @@ struct QuickPanelView: View {
 
                 let context = PasteMemoApp.sharedModelContainer.mainContext
                 let resultName = result.name
-                let descriptor = FetchDescriptor<SmartGroup>(predicate: #Predicate { $0.name == resultName })
-                if let existing = try? context.fetch(descriptor).first {
-                    existing.icon = result.icon
-                } else {
-                    let maxOrder = (try? context.fetch(FetchDescriptor<SmartGroup>()))?.map(\.sortOrder).max() ?? -1
-                    let group = SmartGroup(name: resultName, icon: result.icon, sortOrder: maxOrder + 1)
-                    context.insert(group)
-                }
+                AppMenuActions.upsertGroup(name: resultName, icon: result.icon, context: context)
                 try? context.save()
-                NotificationCenter.default.post(name: ClipItemStore.itemDidUpdateNotification, object: nil)
+                AppMenuActions.notifyGroupStoreDidChange()
                 store.refreshSidebarCounts()
                 applyCustomGroupFilter(resultName)
                 restoreSearchFocusIfNeeded()
@@ -3224,34 +3217,18 @@ struct QuickPanelView: View {
         installKeyMonitor()
         
         guard let result else { return nil }
-        let name = result.name
-
         // Quick Panel 工具栏的“新建分组”会创建空分组，此时不要依赖当前视图上下文，
         // 直接走共享主上下文，和菜单栏入口保持一致，避免悬浮窗上下文不同步导致看起来“未提交”。
         if items.isEmpty {
             let context = PasteMemoApp.sharedModelContainer.mainContext
-            let descriptor = FetchDescriptor<SmartGroup>(predicate: #Predicate { $0.name == name })
-            if let existing = try? context.fetch(descriptor).first {
-                existing.icon = result.icon
-            } else {
-                let maxOrder = (try? context.fetch(FetchDescriptor<SmartGroup>()))?.map(\.sortOrder).max() ?? -1
-                let group = SmartGroup(name: result.name, icon: result.icon, sortOrder: maxOrder + 1)
-                context.insert(group)
-            }
+            AppMenuActions.upsertGroup(name: result.name, icon: result.icon, context: context)
             try? context.save()
-            NotificationCenter.default.post(name: ClipItemStore.itemDidUpdateNotification, object: nil)
+            AppMenuActions.notifyGroupStoreDidChange()
             store.refreshSidebarCounts()
             return result.name
         }
 
-        let descriptor = FetchDescriptor<SmartGroup>(predicate: #Predicate { $0.name == name })
-        if let existing = try? modelContext.fetch(descriptor).first {
-            existing.icon = result.icon
-        } else {
-            let maxOrder = (try? modelContext.fetch(FetchDescriptor<SmartGroup>()))?.map(\.sortOrder).max() ?? -1
-            let group = SmartGroup(name: result.name, icon: result.icon, sortOrder: maxOrder + 1)
-            modelContext.insert(group)
-        }
+        AppMenuActions.upsertGroup(name: result.name, icon: result.icon, context: modelContext)
         try? modelContext.save()
         assignToGroup(items: items, name: result.name)
         return result.name
