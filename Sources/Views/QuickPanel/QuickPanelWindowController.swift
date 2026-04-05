@@ -18,6 +18,13 @@ private let BOTTOM_SIZE_KEY = "quickPanelBottomSize"
 private let BOTTOM_WIDTH_IS_CUSTOM_KEY = "quickPanelBottomWidthIsCustom"
 private let POSITION_KEY = "quickPanelPosition"
 
+private enum BottomFloatingAnimationState {
+    case hidden
+    case opening
+    case visible
+    case closing
+}
+
 private class KeyablePanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
@@ -26,7 +33,6 @@ private class KeyablePanel: NSPanel {
         var frame = frameRect
         guard let screen = screen ?? NSScreen.main else { return frame }
         
-        let screenFrame = screen.frame
         let visibleFrame = screen.visibleFrame
         
         let minVisibleX = visibleFrame.minX
@@ -285,8 +291,11 @@ final class QuickPanelWindowController {
     private weak var dragCoverView: NSView?
     private weak var resizeHandleOverlayView: ResizeHandleOverlayView?
     private weak var panelContainerView: NSView?
+    private weak var animatedShellView: NSView?
     private weak var panelVisualEffectView: NSVisualEffectView?
     private(set) var bottomMode: QuickPanelBottomMode = .compact
+    private var bottomFloatingAnimationState: BottomFloatingAnimationState = .hidden
+    private var pendingDismissCompletions: [() -> Void] = []
 
     private var panelStyle: QuickPanelStyle {
         QuickPanelStyle.stored
@@ -303,6 +312,10 @@ final class QuickPanelWindowController {
     }
 
     private init() {}
+
+    var isTransitioning: Bool {
+        bottomFloatingAnimationState == .opening || bottomFloatingAnimationState == .closing
+    }
 
     private func bottomPanelWidth(for screenFrame: CGRect) -> CGFloat {
         let widthIsCustom = UserDefaults.standard.bool(forKey: BOTTOM_WIDTH_IS_CUSTOM_KEY)
@@ -373,10 +386,12 @@ final class QuickPanelWindowController {
         panel.displayIfNeeded()
         panel.orderOut(nil)
         self.panel = panel
+        bottomFloatingAnimationState = .hidden
         isWarmedUp = true
     }
 
     func show(clipboardManager: ClipboardManager, modelContainer: ModelContainer) {
+        guard !isTransitioning else { return }
         if let existing = panel, existing.isVisible {
             dismiss()
             return
@@ -392,33 +407,69 @@ final class QuickPanelWindowController {
 
         if panelStyle == .bottomFloating {
             bottomMode = .compact
+            bottomFloatingAnimationState = .opening
+            pendingDismissCompletions.removeAll()
         }
 
+        AnimationLogger.shared.log("🚀 [QuickPanel] show() called, panelStyle: \(panelStyle)")
+        
         applyPanelBehavior(panel)
-        positionPanel(panel)
-        panel.alphaValue = 1
-        panel.orderFrontRegardless()
-        panel.makeKey()
+        
+        if panelStyle == .bottomFloating {
+            AnimationLogger.shared.log("🚀 [QuickPanel] Calling positionPanelWithAnimation")
+            positionPanelWithAnimation(panel)
+        } else {
+            AnimationLogger.shared.log("🚀 [QuickPanel] Calling positionPanel (classic)")
+            positionPanel(panel)
+            panel.alphaValue = 1
+            panel.orderFrontRegardless()
+            panel.makeKey()
+        }
+        
         installClickOutsideMonitor()
         installDeactivationObserver()
         installMoveObserver()
         NotificationCenter.default.post(name: .quickPanelDidShow, object: nil)
     }
 
-    func dismiss() {
+    func dismiss(animated: Bool = true, completion: (() -> Void)? = nil) {
         isPinned = false
         suppressDismiss = false
         removeClickOutsideMonitor()
         removeDeactivationObserver()
         guard let panel else {
+            bottomFloatingAnimationState = .hidden
             HotkeyManager.shared.isQuickPanelVisible = false
+            completion?()
             return
         }
         removeMoveObserver()
         snapGuide?.orderOut(nil)
         savePosition(panel)
-        panel.orderOut(nil)
-        HotkeyManager.shared.isQuickPanelVisible = false
+
+        if let completion {
+            pendingDismissCompletions.append(completion)
+        }
+
+        guard panel.isVisible else {
+            finalizeDismiss(panel)
+            return
+        }
+
+        guard panelStyle == .bottomFloating, animated else {
+            panel.orderOut(nil)
+            bottomFloatingAnimationState = .hidden
+            HotkeyManager.shared.isQuickPanelVisible = false
+            flushPendingDismissCompletions()
+            return
+        }
+
+        if bottomFloatingAnimationState == .closing {
+            return
+        }
+
+        bottomFloatingAnimationState = .closing
+        animateBottomFloatingDismiss(panel)
     }
 
     func dismissAndPaste(_ item: ClipItem, clipboardManager: ClipboardManager, addNewLine: Bool = false) {
@@ -427,12 +478,13 @@ final class QuickPanelWindowController {
         item.lastUsedAt = Date()
         SoundManager.playPaste()
 
-        dismiss()
-        previousApp = nil
+        dismiss { [weak self] in
+            self?.previousApp = nil
 
-        if let app = appToRestore {
-            app.activate()
-            clipboardManager.simulatePaste(forceNewLine: addNewLine)
+            if let app = appToRestore {
+                app.activate()
+                clipboardManager.simulatePaste(forceNewLine: addNewLine)
+            }
         }
     }
 
@@ -536,33 +588,39 @@ final class QuickPanelWindowController {
         container.layer?.masksToBounds = true
         panelContainerView = container
 
-        let visualEffect = NSVisualEffectView(frame: container.bounds)
+        let animatedShell = NSView(frame: container.bounds)
+        animatedShell.wantsLayer = true
+        animatedShell.autoresizingMask = [.width, .height]
+        container.addSubview(animatedShell)
+        animatedShellView = animatedShell
+
+        let visualEffect = NSVisualEffectView(frame: animatedShell.bounds)
         visualEffect.material = .headerView
         visualEffect.blendingMode = .behindWindow
         visualEffect.state = .active
         visualEffect.autoresizingMask = [.width, .height]
-        container.addSubview(visualEffect)
+        animatedShell.addSubview(visualEffect)
         panelVisualEffectView = visualEffect
 
         let hostingView = FirstMouseHostingView(rootView: content.ignoresSafeArea())
         hostingView.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(hostingView)
+        animatedShell.addSubview(hostingView)
         NSLayoutConstraint.activate([
-            hostingView.topAnchor.constraint(equalTo: container.topAnchor),
-            hostingView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-            hostingView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            hostingView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            hostingView.topAnchor.constraint(equalTo: animatedShell.topAnchor),
+            hostingView.bottomAnchor.constraint(equalTo: animatedShell.bottomAnchor),
+            hostingView.leadingAnchor.constraint(equalTo: animatedShell.leadingAnchor),
+            hostingView.trailingAnchor.constraint(equalTo: animatedShell.trailingAnchor),
         ])
 
-        let resizeOverlay = ResizeHandleOverlayView(frame: container.bounds)
+        let resizeOverlay = ResizeHandleOverlayView(frame: animatedShell.bounds)
         resizeOverlay.translatesAutoresizingMaskIntoConstraints = false
         resizeOverlay.panel = panel
-        container.addSubview(resizeOverlay)
+        animatedShell.addSubview(resizeOverlay)
         NSLayoutConstraint.activate([
-            resizeOverlay.topAnchor.constraint(equalTo: container.topAnchor),
-            resizeOverlay.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-            resizeOverlay.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            resizeOverlay.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            resizeOverlay.topAnchor.constraint(equalTo: animatedShell.topAnchor),
+            resizeOverlay.bottomAnchor.constraint(equalTo: animatedShell.bottomAnchor),
+            resizeOverlay.leadingAnchor.constraint(equalTo: animatedShell.leadingAnchor),
+            resizeOverlay.trailingAnchor.constraint(equalTo: animatedShell.trailingAnchor),
         ])
         resizeHandleOverlayView = resizeOverlay
         container.layoutSubtreeIfNeeded()
@@ -627,6 +685,10 @@ final class QuickPanelWindowController {
         panel.maxSize = isBottomFloating
             ? NSSize(width: QuickPanelBottomGeometry.maxWidth, height: CGFloat.greatestFiniteMagnitude)
             : NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        if !isBottomFloating {
+            resetAnimatedShellPresentation()
+            bottomFloatingAnimationState = .hidden
+        }
     }
 
     private func updateBottomSizeConstraints(for panel: NSPanel, on screen: NSScreen) {
@@ -673,6 +735,146 @@ final class QuickPanelWindowController {
         } else {
             centerOnScreen(panel, screen: screen)
         }
+    }
+    
+    /// Position panel at its final frame and animate the shell within the clipped container.
+    private func positionPanelWithAnimation(_ panel: NSPanel) {
+        let screen = NSScreen.screenWithMouse ?? NSScreen.main ?? NSScreen.screens.first
+        guard let screen else { return }
+        let visibleFrame = screen.visibleFrame
+        
+        updateBottomSizeConstraints(for: panel, on: screen)
+        
+        let finalFrame = QuickPanelBottomGeometry.frame(
+            screenFrame: screen.frame,
+            visibleFrame: visibleFrame,
+            mode: bottomMode,
+            preferredWidth: bottomPanelWidth(for: screen.frame),
+            preferredHeight: bottomPanelHeight(for: bottomMode, visibleFrame: visibleFrame)
+        )
+
+        AnimationLogger.shared.log("🔍 [Animation Debug]")
+        AnimationLogger.shared.log("  screen.frame: \(screen.frame)")
+        AnimationLogger.shared.log("  finalFrame: \(finalFrame)")
+
+        let emergeOffset = QuickPanelBottomAnimation.emergeFinalOffset
+        var initialFrame = finalFrame
+        initialFrame.origin.y = visibleFrame.minY - finalFrame.height
+        panel.setFrame(initialFrame, display: true)
+        panel.contentView?.layoutSubtreeIfNeeded()
+        panel.alphaValue = 1
+        prepareBottomFloatingShellForOpen()
+        panel.orderFrontRegardless()
+        AnimationLogger.shared.log("  After orderFrontRegardless, panel.frame: \(panel.frame)")
+        panel.makeKey()
+        animateBottomFloatingOpen(panel, finalFrame: finalFrame, emergeOffset: emergeOffset)
+    }
+
+    private func prepareBottomFloatingShellForOpen() {
+        guard let container = panelContainerView, let shell = animatedShellView else { return }
+        let height = container.bounds.height
+        let initialOffset = QuickPanelBottomAnimation.openingInitialOffset(for: height)
+        shell.frame = container.bounds.offsetBy(dx: 0, dy: initialOffset)
+        shell.alphaValue = QuickPanelBottomAnimation.closedAlpha
+        container.alphaValue = QuickPanelBottomAnimation.closedAlpha
+        container.layer?.borderWidth = 0
+    }
+
+    private func resetAnimatedShellPresentation() {
+        guard let container = panelContainerView, let shell = animatedShellView else { return }
+        shell.frame = container.bounds
+        shell.alphaValue = QuickPanelBottomAnimation.openAlpha
+        container.alphaValue = QuickPanelBottomAnimation.openAlpha
+        container.layer?.borderWidth = 1
+    }
+
+    private func setAnimatedShellPresentation(offsetY: CGFloat, alpha: CGFloat) {
+        guard let container = panelContainerView, let shell = animatedShellView else { return }
+        shell.frame = container.bounds.offsetBy(dx: 0, dy: offsetY)
+        shell.alphaValue = alpha
+    }
+
+    private func animateBottomFloatingOpen(_ panel: NSPanel, finalFrame: CGRect, emergeOffset: CGFloat) {
+        guard let container = panelContainerView, let shell = animatedShellView else {
+            bottomFloatingAnimationState = .visible
+            return
+        }
+
+        AnimationLogger.shared.log("  Starting open shell animation...")
+
+        var emergeFrame = finalFrame
+        emergeFrame.origin.y = finalFrame.origin.y - QuickPanelBottomGeometry.bottomInset
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = QuickPanelBottomAnimation.emergeDuration
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            context.allowsImplicitAnimation = true
+            shell.animator().setFrameOrigin(.zero)
+            shell.animator().alphaValue = QuickPanelBottomAnimation.openAlpha
+            container.animator().alphaValue = QuickPanelBottomAnimation.openAlpha
+            panel.animator().setFrame(emergeFrame, display: true)
+        } completionHandler: { [weak self, weak panel] in
+            Task { @MainActor [weak self, weak panel] in
+                guard let self else { return }
+                guard self.bottomFloatingAnimationState == .opening else { return }
+                
+                AnimationLogger.shared.log("  Starting settle animation...")
+                
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = QuickPanelBottomAnimation.emergeSettleDuration
+                    context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                    context.allowsImplicitAnimation = true
+                    panel?.animator().setFrame(finalFrame, display: true)
+                } completionHandler: { [weak self, weak panel] in
+                    Task { @MainActor [weak self, weak panel] in
+                        guard let self else { return }
+                        self.resetAnimatedShellPresentation()
+                        self.bottomFloatingAnimationState = .visible
+                        panel?.makeKey()
+                        AnimationLogger.shared.log("  Open shell animation completed")
+                    }
+                }
+            }
+        }
+    }
+
+    private func animateBottomFloatingDismiss(_ panel: NSPanel) {
+        guard let container = panelContainerView, let shell = animatedShellView else {
+            finalizeDismiss(panel)
+            return
+        }
+
+        container.layer?.borderWidth = 0
+        let targetOffset = QuickPanelBottomAnimation.closingTargetOffset(for: container.bounds.height)
+        AnimationLogger.shared.log("  Starting close shell animation...")
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = QuickPanelBottomAnimation.closeDuration
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            context.allowsImplicitAnimation = true
+            shell.animator().setFrameOrigin(NSPoint(x: 0, y: targetOffset))
+            shell.animator().alphaValue = QuickPanelBottomAnimation.closedAlpha
+            container.animator().alphaValue = QuickPanelBottomAnimation.closedAlpha
+        } completionHandler: { [weak self, weak panel] in
+            Task { @MainActor [weak self, weak panel] in
+                guard let self else { return }
+                self.finalizeDismiss(panel)
+                AnimationLogger.shared.log("  Close shell animation completed")
+            }
+        }
+    }
+
+    private func finalizeDismiss(_ panel: NSPanel?) {
+        panel?.orderOut(nil)
+        bottomFloatingAnimationState = .hidden
+        HotkeyManager.shared.isQuickPanelVisible = false
+        flushPendingDismissCompletions()
+    }
+
+    private func flushPendingDismissCompletions() {
+        let completions = pendingDismissCompletions
+        pendingDismissCompletions.removeAll()
+        completions.forEach { $0() }
     }
 
     private func centerOnScreen(_ panel: NSPanel, screen: NSScreen) {

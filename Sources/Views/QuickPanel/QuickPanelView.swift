@@ -2976,17 +2976,17 @@ struct QuickPanelView: View {
 
     private func dismissAndRestoreApp(action: @escaping (NSRunningApplication) -> Void) {
         let appToRestore = QuickPanelWindowController.shared.previousApp
-        QuickPanelWindowController.shared.dismiss()
-
-        guard let app = appToRestore else { return }
-        app.activate()
-        Task { @MainActor in
-            for _ in 0..<20 {
+        QuickPanelWindowController.shared.dismiss {
+            guard let app = appToRestore else { return }
+            app.activate()
+            Task { @MainActor in
+                for _ in 0..<20 {
+                    try? await Task.sleep(for: .milliseconds(50))
+                    if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier { break }
+                }
                 try? await Task.sleep(for: .milliseconds(50))
-                if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier { break }
+                action(app)
             }
-            try? await Task.sleep(for: .milliseconds(50))
-            action(app)
         }
     }
 
@@ -3313,8 +3313,9 @@ struct QuickPanelView: View {
         // Link → open in browser
         if item.contentType == .link,
            let url = URL(string: item.content.trimmingCharacters(in: .whitespacesAndNewlines)) {
-            QuickPanelWindowController.shared.dismiss()
-            NSWorkspace.shared.open(url)
+            QuickPanelWindowController.shared.dismiss {
+                NSWorkspace.shared.open(url)
+            }
         }
         // File-based (including file images) → paste path
         else if isFileBasedItem(item) {
@@ -3331,17 +3332,8 @@ struct QuickPanelView: View {
     }
 
     private func handlePlainTextPaste(_ item: ClipItem) {
-        let appToRestore = QuickPanelWindowController.shared.previousApp
-        QuickPanelWindowController.shared.dismiss()
-
-        if let app = appToRestore {
-            app.activate()
+        dismissAndRestoreApp { _ in
             Task { @MainActor in
-                for _ in 0..<20 {
-                    try? await Task.sleep(for: .milliseconds(50))
-                    if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier { break }
-                }
-                try? await Task.sleep(for: .milliseconds(50))
                 clipboardManager.pasteAsPlainText(item)
             }
         }
@@ -3355,17 +3347,9 @@ struct QuickPanelView: View {
         let ext = item.resolvedFileExtension
         guard let savedURL = clipboardManager.saveTextToFolder(item.content, folder: folder, fileExtension: ext) else { return }
 
-        let appToRestore = QuickPanelWindowController.shared.previousApp
-        QuickPanelWindowController.shared.dismiss()
-
-        if let app = appToRestore {
-            app.activate()
+        dismissAndRestoreApp { _ in
             Task { @MainActor in
-                for _ in 0..<20 {
-                    try? await Task.sleep(for: .milliseconds(50))
-                    if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier { break }
-                }
-                try? await Task.sleep(for: .milliseconds(100))
+                try? await Task.sleep(for: .milliseconds(50))
                 NSWorkspace.shared.selectFile(savedURL.path, inFileViewerRootedAtPath: savedURL.deletingLastPathComponent().path)
             }
         }
@@ -3379,17 +3363,8 @@ struct QuickPanelView: View {
         clipboardManager.lastChangeCount = pasteboard.changeCount
         SoundManager.playPaste()
 
-        let appToRestore = QuickPanelWindowController.shared.previousApp
-        QuickPanelWindowController.shared.dismiss()
-
-        if let app = appToRestore {
-            app.activate()
+        dismissAndRestoreApp { _ in
             Task { @MainActor in
-                for _ in 0..<20 {
-                    try? await Task.sleep(for: .milliseconds(50))
-                    if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier { break }
-                }
-                try? await Task.sleep(for: .milliseconds(50))
                 clipboardManager.simulatePaste()
             }
         }
@@ -3403,17 +3378,8 @@ struct QuickPanelView: View {
         clipboardManager.lastChangeCount = pasteboard.changeCount
         SoundManager.playPaste()
 
-        let appToRestore = QuickPanelWindowController.shared.previousApp
-        QuickPanelWindowController.shared.dismiss()
-
-        if let app = appToRestore {
-            app.activate()
+        dismissAndRestoreApp { _ in
             Task { @MainActor in
-                for _ in 0..<20 {
-                    try? await Task.sleep(for: .milliseconds(50))
-                    if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier { break }
-                }
-                try? await Task.sleep(for: .milliseconds(50))
                 clipboardManager.simulatePaste()
             }
         }
@@ -3455,17 +3421,9 @@ struct QuickPanelView: View {
             return
         }
 
-        let appToRestore = QuickPanelWindowController.shared.previousApp
-        QuickPanelWindowController.shared.dismiss()
-
-        if let app = appToRestore {
-            app.activate()
+        dismissAndRestoreApp { _ in
             Task { @MainActor in
-                for _ in 0..<20 {
-                    try? await Task.sleep(for: .milliseconds(50))
-                    if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier { break }
-                }
-                try? await Task.sleep(for: .milliseconds(100))
+                try? await Task.sleep(for: .milliseconds(50))
                 NSWorkspace.shared.selectFile(savedURL.path, inFileViewerRootedAtPath: savedURL.deletingLastPathComponent().path)
             }
         }

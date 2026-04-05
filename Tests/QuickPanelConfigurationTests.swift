@@ -76,11 +76,11 @@ struct QuickPanelConfigurationTests {
         #expect(frame.maxY <= visibleFrame.maxY)
     }
 
-    @Test("Bottom floating default width now reaches screen edges")
+    @Test("Bottom floating default width respects horizontal insets")
     func defaultWidthUsesFullScreenWidth() {
         let screenFrame = CGRect(x: 0, y: 0, width: 1512, height: 982)
 
-        #expect(QuickPanelBottomGeometry.panelWidth(for: screenFrame) == screenFrame.width)
+        #expect(QuickPanelBottomGeometry.panelWidth(for: screenFrame) == screenFrame.width - QuickPanelBottomGeometry.horizontalInset * 2)
         #expect(QuickPanelBottomGeometry.legacyDefaultWidth(for: screenFrame) == screenFrame.width - 20)
         #expect(QuickPanelBottomGeometry.shouldUpgradeSavedWidthToCurrentDefault(screenFrame.width - 20, screenFrame: screenFrame))
         #expect(!QuickPanelBottomGeometry.shouldUpgradeSavedWidthToCurrentDefault(1200, screenFrame: screenFrame))
@@ -104,7 +104,7 @@ struct QuickPanelConfigurationTests {
             : QuickPanelBottomGeometry.panelWidth(for: screenFrame)
 
         #expect(!widthIsCustom)
-        #expect(resolvedWidth == screenFrame.width)
+        #expect(resolvedWidth == screenFrame.width - QuickPanelBottomGeometry.horizontalInset * 2)
 
         if let originalWidth {
             defaults.set(originalWidth, forKey: widthKey)
@@ -181,6 +181,40 @@ struct QuickPanelConfigurationTests {
                 searchFocused: true
             ) == nil
         )
+    }
+
+    @Test("Bottom floating opening animation reveals only the header strip")
+    func bottomOpeningAnimationUsesRevealHeight() {
+        let compactOffset = QuickPanelBottomAnimation.openingInitialOffset(for: QuickPanelBottomGeometry.compactHeight)
+        let expandedOffset = QuickPanelBottomAnimation.openingInitialOffset(for: QuickPanelBottomGeometry.expandedHeight)
+
+        #expect(compactOffset == -(QuickPanelBottomGeometry.compactHeight - QuickPanelBottomAnimation.revealHeight))
+        #expect(expandedOffset == -(QuickPanelBottomGeometry.expandedHeight - QuickPanelBottomAnimation.revealHeight))
+        #expect(compactOffset < 0)
+        #expect(expandedOffset < compactOffset)
+    }
+
+    @Test("Bottom floating closing animation retreats below the shell while leaving a small lip")
+    func bottomClosingAnimationUsesCloseRevealHeight() {
+        let compactOffset = QuickPanelBottomAnimation.closingTargetOffset(for: QuickPanelBottomGeometry.compactHeight)
+        let expandedOffset = QuickPanelBottomAnimation.closingTargetOffset(for: QuickPanelBottomGeometry.expandedHeight)
+
+        #expect(compactOffset == -(QuickPanelBottomGeometry.compactHeight - QuickPanelBottomAnimation.closeRevealHeight))
+        #expect(expandedOffset == -(QuickPanelBottomGeometry.expandedHeight - QuickPanelBottomAnimation.closeRevealHeight))
+        #expect(compactOffset < 0)
+        #expect(expandedOffset < compactOffset)
+    }
+
+    @Test("Bottom floating animation constants preserve a valid reveal window")
+    func bottomAnimationConstantsStayInRange() {
+        #expect(QuickPanelBottomAnimation.revealHeight > 0)
+        #expect(QuickPanelBottomAnimation.closeRevealHeight > 0)
+        #expect(QuickPanelBottomAnimation.revealHeight < QuickPanelBottomGeometry.minimumCompactHeight)
+        #expect(QuickPanelBottomAnimation.closeRevealHeight < QuickPanelBottomGeometry.minimumCompactHeight)
+        #expect(QuickPanelBottomAnimation.openOvershoot >= 0)
+        #expect(QuickPanelBottomAnimation.openDuration > 0)
+        #expect(QuickPanelBottomAnimation.settleDuration > 0)
+        #expect(QuickPanelBottomAnimation.closeDuration > 0)
     }
 
     @Test("Quick panel style defaults to classic and persists selection")

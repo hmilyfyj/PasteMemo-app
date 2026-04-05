@@ -130,3 +130,26 @@ enum QuickPanelBottomGeometry {
         return CGRect(x: originX, y: originY, width: width, height: height)
     }
 }
+
+enum QuickPanelBottomAnimation {
+    static let revealHeight: CGFloat = 28
+    static let openOvershoot: CGFloat = 0
+    static let openDuration: TimeInterval = 0.22
+    static let settleDuration: TimeInterval = 0
+    static let closeRevealHeight: CGFloat = 20
+    static let closeDuration: TimeInterval = 0.18
+    static let closedAlpha: CGFloat = 0.94
+    static let openAlpha: CGFloat = 1
+
+    static let emergeDuration: TimeInterval = 0.18
+    static let emergeSettleDuration: TimeInterval = 0.12
+    static let emergeFinalOffset: CGFloat = 10
+
+    static func openingInitialOffset(for panelHeight: CGFloat) -> CGFloat {
+        panelHeight
+    }
+
+    static func closingTargetOffset(for panelHeight: CGFloat) -> CGFloat {
+        -(max(panelHeight - closeRevealHeight, 0))
+    }
+}

@@ -199,6 +199,7 @@ final class HotkeyManager: ObservableObject {
     }
 
     func toggleQuickPanel() {
+        guard !QuickPanelWindowController.shared.isTransitioning else { return }
         if QuickPanelWindowController.shared.isVisible {
             hideQuickPanel()
         } else {
@@ -207,6 +208,7 @@ final class HotkeyManager: ObservableObject {
     }
 
     func showQuickPanel() {
+        AnimationLogger.shared.log("🎯 [HotkeyManager] showQuickPanel() called")
         isQuickPanelVisible = true
         QuickPanelWindowController.shared.show(
             clipboardManager: ClipboardManager.shared,

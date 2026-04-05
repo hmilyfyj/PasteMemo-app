@@ -83,6 +83,7 @@ struct MenuBarContent: View {
     }
 
     private func handleOpenQuickPanel() {
+        print("🎯 [MenuBarView] handleOpenQuickPanel() called")
         QuickPanelWindowController.shared.show(
             clipboardManager: ClipboardManager.shared,
             modelContainer: PasteMemoApp.sharedModelContainer
