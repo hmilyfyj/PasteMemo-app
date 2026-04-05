@@ -403,22 +403,6 @@ final class QuickPanelWindowController {
         installDeactivationObserver()
         installMoveObserver()
         NotificationCenter.default.post(name: .quickPanelDidShow, object: nil)
-
-        // Bouncy scale-in effect
-        guard let contentView = panel.contentView else { return }
-        contentView.wantsLayer = true
-        let center = CGPoint(x: contentView.bounds.midX, y: contentView.bounds.midY)
-        contentView.layer?.anchorPoint = CGPoint(x: 0.5, y: 0.5)
-        contentView.layer?.position = center
-
-        let anim = CASpringAnimation(keyPath: "transform.scale")
-        anim.fromValue = 0.95
-        anim.toValue = 1.0
-        anim.damping = 28
-        anim.stiffness = 600
-        anim.mass = 0.6
-        anim.duration = anim.settlingDuration
-        contentView.layer?.add(anim, forKey: "bounceIn")
     }
 
     func dismiss() {

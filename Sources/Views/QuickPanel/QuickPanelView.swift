@@ -1611,20 +1611,19 @@ struct QuickPanelView: View {
                         systemImage: group.icon,
                         tint: QuickPanelBottomTheme.groupTintColor(name: group.name, preferredHex: group.color),
                         isSelected: currentCustomGroupFilterName == group.name,
-                        groupName: group.name
-                    ) {
-                        applyCustomGroupFilter(group.name)
-                        restoreSearchFocusIfNeeded()
-                    }
+                        groupName: group.name,
+                        action: {
+                            applyCustomGroupFilter(group.name)
+                            restoreSearchFocusIfNeeded()
+                        }
+                    )
                 }
 
                 Button {
                     if let name = showNewGroupAlert(for: []) {
                         applyCustomGroupFilter(name)
                     }
-                    DispatchQueue.main.async {
-                        restoreSearchFocusIfNeeded()
-                    }
+                    restoreSearchFocusIfNeeded()
                 } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 16, weight: .medium))
@@ -2997,27 +2996,6 @@ struct QuickPanelView: View {
         let merged = items.map(\.content).joined(separator: "\n")
         pasteboard.setString(merged, forType: .string)
         clipboardManager.lastChangeCount = pasteboard.changeCount
-        
-        // 更新每条记录的最近使用时间
-        for item in items {
-            item.lastUsedAt = Date()
-        }
-        try? modelContext.save()
-        
-        // 直接更新缓存：将复制的 items 移动到列表开头
-        let idsToMove = Set(items.map(\.persistentModelID))
-        var newOrder = items
-        for item in cachedDisplayOrder where !idsToMove.contains(item.persistentModelID) {
-            newOrder.append(item)
-        }
-        cachedDisplayOrder = newOrder
-        cachedGroupedItems = groupItemsByTime(cachedDisplayOrder, separatePinned: false)
-        cachedItemMap = Dictionary(cachedDisplayOrder.map { ($0.persistentModelID, $0) }, uniquingKeysWith: { _, last in last })
-        cachedIDSet = Set(cachedItemMap.keys)
-        
-        // 同步更新 store.items
-        store.moveItemsToFront(items)
-        
         showCopiedToast = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { showCopiedToast = false }
     }

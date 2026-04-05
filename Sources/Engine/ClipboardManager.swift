@@ -191,8 +191,20 @@ final class ClipboardManager: ObservableObject {
         } else {
             appInfo = frontmostAppInfo()
         }
-        if let bundleID = appInfo.bundleID, IgnoredAppsManager.shared.isIgnored(bundleID) { return }
-        guard let newItem = captureCurrentClipboard(sourceApp: appInfo.name) else { return }
+        
+        // Debug: Log clipboard content
+        let pasteboard = NSPasteboard.general
+        let debugContent = pasteboard.string(forType: .string) ?? "[non-text]"
+        print("📋 [ClipboardManager] Capturing: '\(debugContent)' from app: \(appInfo.bundleID ?? "unknown")")
+        
+        if let bundleID = appInfo.bundleID, IgnoredAppsManager.shared.isIgnored(bundleID) {
+            print("⚠️ [ClipboardManager] App is ignored: \(bundleID)")
+            return
+        }
+        guard let newItem = captureCurrentClipboard(sourceApp: appInfo.name) else {
+            print("❌ [ClipboardManager] Failed to capture clipboard content")
+            return
+        }
         newItem.sourceAppBundleID = appInfo.bundleID
 
         newItem.isSensitive = SensitiveDetector.isSensitive(
@@ -213,20 +225,31 @@ final class ClipboardManager: ObservableObject {
             case .unchanged:
                 break
             case .applied(let processed, _, let actions):
-                if actions.contains(.skipCapture) { return }
+                print("🤖 [ClipboardManager] Automation applied: \(actions)")
+                if actions.contains(.skipCapture) {
+                    print("⏭️ [ClipboardManager] Skipping capture due to automation rule")
+                    return
+                }
                 applyAutomationActions(actions, processed: processed, to: newItem, context: context)
             case .pendingConfirmation(let processed, let ruleName, _, let actions):
                 let accepted = showAutomationConfirmation(
                     ruleName: ruleName, original: newItem.content, processed: processed
                 )
                 if accepted {
-                    if actions.contains(.skipCapture) { return }
+                    print("🤖 [ClipboardManager] Automation confirmed: \(ruleName)")
+                    if actions.contains(.skipCapture) {
+                        print("⏭️ [ClipboardManager] Skipping capture due to automation rule")
+                        return
+                    }
                     applyAutomationActions(actions, processed: processed, to: newItem, context: context)
                 }
             }
         }
 
-        if isLatestDuplicate(newItem, in: context) { return }
+        if isLatestDuplicate(newItem, in: context) {
+            print("🔄 [ClipboardManager] Content is latest duplicate, skipping")
+            return
+        }
 
         if let existingItem = findExistingDuplicate(for: newItem, in: context) {
             reuseExistingDuplicate(existingItem, with: newItem, in: context)
@@ -238,6 +261,7 @@ final class ClipboardManager: ObservableObject {
             return
         }
 
+        print("✅ [ClipboardManager] Inserting new item: '\(newItem.content)'")
         context.insert(newItem)
         cleanExpiredItems(in: context)
         try? context.save()
