@@ -1653,10 +1653,7 @@ struct QuickPanelView: View {
                 }
 
                 Button {
-                    if let name = showNewGroupAlert(for: []) {
-                        applyCustomGroupFilter(name)
-                    }
-                    restoreSearchFocusIfNeeded()
+                    showNewGroupPanelFromToolbar()
                 } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 16, weight: .medium))
@@ -1674,6 +1671,40 @@ struct QuickPanelView: View {
             .padding(.horizontal, 4)
         }
         .frame(minWidth: 220, maxWidth: 600, minHeight: 28, maxHeight: 28)
+    }
+
+    private func showNewGroupPanelFromToolbar() {
+        isSearchFocused = false
+        removeKeyMonitor()
+        QuickPanelWindowController.shared.suppressDismiss = true
+
+        DispatchQueue.main.async {
+            GroupEditorPanel.showAsync() { result in
+                QuickPanelWindowController.shared.suppressDismiss = false
+                installKeyMonitor()
+
+                guard let result else {
+                    restoreSearchFocusIfNeeded()
+                    return
+                }
+
+                let context = PasteMemoApp.sharedModelContainer.mainContext
+                let resultName = result.name
+                let descriptor = FetchDescriptor<SmartGroup>(predicate: #Predicate { $0.name == resultName })
+                if let existing = try? context.fetch(descriptor).first {
+                    existing.icon = result.icon
+                } else {
+                    let maxOrder = (try? context.fetch(FetchDescriptor<SmartGroup>()))?.map(\.sortOrder).max() ?? -1
+                    let group = SmartGroup(name: resultName, icon: result.icon, sortOrder: maxOrder + 1)
+                    context.insert(group)
+                }
+                try? context.save()
+                NotificationCenter.default.post(name: ClipItemStore.itemDidUpdateNotification, object: nil)
+                store.refreshSidebarCounts()
+                applyCustomGroupFilter(resultName)
+                restoreSearchFocusIfNeeded()
+            }
+        }
     }
 
     private func bottomGroupToolbarChip(
@@ -3194,6 +3225,25 @@ struct QuickPanelView: View {
         
         guard let result else { return nil }
         let name = result.name
+
+        // Quick Panel 工具栏的“新建分组”会创建空分组，此时不要依赖当前视图上下文，
+        // 直接走共享主上下文，和菜单栏入口保持一致，避免悬浮窗上下文不同步导致看起来“未提交”。
+        if items.isEmpty {
+            let context = PasteMemoApp.sharedModelContainer.mainContext
+            let descriptor = FetchDescriptor<SmartGroup>(predicate: #Predicate { $0.name == name })
+            if let existing = try? context.fetch(descriptor).first {
+                existing.icon = result.icon
+            } else {
+                let maxOrder = (try? context.fetch(FetchDescriptor<SmartGroup>()))?.map(\.sortOrder).max() ?? -1
+                let group = SmartGroup(name: result.name, icon: result.icon, sortOrder: maxOrder + 1)
+                context.insert(group)
+            }
+            try? context.save()
+            NotificationCenter.default.post(name: ClipItemStore.itemDidUpdateNotification, object: nil)
+            store.refreshSidebarCounts()
+            return result.name
+        }
+
         let descriptor = FetchDescriptor<SmartGroup>(predicate: #Predicate { $0.name == name })
         if let existing = try? modelContext.fetch(descriptor).first {
             existing.icon = result.icon

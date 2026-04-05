@@ -4,6 +4,7 @@ import SwiftUI
 /// Modal panel for creating/editing a group (name + categorized icon picker)
 @MainActor
 final class GroupEditorPanel {
+    private static var activePanels: [NSPanel] = []
 
     struct Result {
         let name: String
@@ -11,6 +12,66 @@ final class GroupEditorPanel {
     }
 
     static func show(name: String = "", icon: String = "folder") -> Result? {
+        let viewModel = GroupEditorViewModel(name: name, icon: icon)
+        let hostingView = NSHostingView(rootView: GroupEditorView(viewModel: viewModel))
+        hostingView.frame = NSRect(x: 0, y: 0, width: 380, height: 420)
+        var submittedResult: Result?
+
+        let panel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 380, height: 420),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: true
+        )
+        panel.title = name.isEmpty ? L10n.tr("action.newGroup") : L10n.tr("action.editGroup")
+        panel.contentView = hostingView
+        panel.center()
+        panel.isReleasedWhenClosed = false
+        panel.isFloatingPanel = true
+        panel.level = .modalPanel
+        panel.hidesOnDeactivate = false
+        panel.becomesKeyOnlyIfNeeded = false
+
+        viewModel.onDismiss = {
+            DispatchQueue.main.async {
+                panel.makeFirstResponder(nil)
+                panel.endEditing(for: nil)
+                NSApp.stopModal(withCode: .cancel)
+                panel.orderOut(nil)
+                panel.close()
+            }
+        }
+
+        viewModel.onConfirm = {
+            DispatchQueue.main.async {
+                panel.makeFirstResponder(nil)
+                panel.endEditing(for: nil)
+                let resultName = viewModel.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !resultName.isEmpty else { return }
+                submittedResult = Result(name: resultName, icon: viewModel.selectedIcon)
+                NSApp.stopModal(withCode: .OK)
+                panel.orderOut(nil)
+                panel.close()
+            }
+        }
+
+        NSApp.activate(ignoringOtherApps: true)
+        panel.orderFrontRegardless()
+        panel.makeKey()
+
+        DispatchQueue.main.async {
+            panel.makeFirstResponder(hostingView)
+        }
+
+        _ = NSApp.runModal(for: panel)
+        return submittedResult
+    }
+
+    static func showAsync(
+        name: String = "",
+        icon: String = "folder",
+        onComplete: @escaping (Result?) -> Void
+    ) {
         let viewModel = GroupEditorViewModel(name: name, icon: icon)
         let hostingView = NSHostingView(rootView: GroupEditorView(viewModel: viewModel))
         hostingView.frame = NSRect(x: 0, y: 0, width: 380, height: 420)
@@ -24,36 +85,43 @@ final class GroupEditorPanel {
         panel.title = name.isEmpty ? L10n.tr("action.newGroup") : L10n.tr("action.editGroup")
         panel.contentView = hostingView
         panel.center()
+        panel.isReleasedWhenClosed = false
         panel.isFloatingPanel = true
         panel.level = .modalPanel
         panel.hidesOnDeactivate = false
+        panel.becomesKeyOnlyIfNeeded = false
 
-        viewModel.onDismiss = { 
-            DispatchQueue.main.async {
-                panel.close()
-                NSApp.stopModal(withCode: .cancel)
-            }
-        }
-        viewModel.onConfirm = { 
-            DispatchQueue.main.async {
-                panel.close()
-                NSApp.stopModal(withCode: .OK)
-            }
+        func cleanupPanel() {
+            panel.orderOut(nil)
+            panel.close()
+            activePanels.removeAll { $0 === panel }
         }
 
-        // Make panel key window before running modal
-        panel.makeKeyAndOrderFront(nil)
-        
-        // Force the panel to accept first responder
+        viewModel.onDismiss = {
+            panel.makeFirstResponder(nil)
+            panel.endEditing(for: nil)
+            cleanupPanel()
+            onComplete(nil)
+        }
+
+        viewModel.onConfirm = {
+            panel.makeFirstResponder(nil)
+            panel.endEditing(for: nil)
+            let resultName = viewModel.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !resultName.isEmpty else { return }
+            let result = Result(name: resultName, icon: viewModel.selectedIcon)
+            cleanupPanel()
+            onComplete(result)
+        }
+
+        activePanels.append(panel)
+        NSApp.activate(ignoringOtherApps: true)
+        panel.orderFrontRegardless()
+        panel.makeKey()
+
         DispatchQueue.main.async {
             panel.makeFirstResponder(hostingView)
         }
-
-        let response = NSApp.runModal(for: panel)
-        guard response == .OK else { return nil }
-        let resultName = viewModel.name.trimmingCharacters(in: .whitespaces)
-        guard !resultName.isEmpty else { return nil }
-        return Result(name: resultName, icon: viewModel.selectedIcon)
     }
 }
 
