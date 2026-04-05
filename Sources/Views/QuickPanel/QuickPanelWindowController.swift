@@ -292,7 +292,6 @@ final class QuickPanelWindowController {
     private weak var resizeHandleOverlayView: ResizeHandleOverlayView?
     private weak var panelContainerView: NSView?
     private weak var animatedShellView: NSView?
-    private weak var panelVisualEffectView: NSVisualEffectView?
     private(set) var bottomMode: QuickPanelBottomMode = .compact
     private var bottomFloatingAnimationState: BottomFloatingAnimationState = .hidden
     private var pendingDismissCompletions: [() -> Void] = []
@@ -591,16 +590,9 @@ final class QuickPanelWindowController {
         let animatedShell = NSView(frame: container.bounds)
         animatedShell.wantsLayer = true
         animatedShell.autoresizingMask = [.width, .height]
+        animatedShell.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.95).cgColor
         container.addSubview(animatedShell)
         animatedShellView = animatedShell
-
-        let visualEffect = NSVisualEffectView(frame: animatedShell.bounds)
-        visualEffect.material = .headerView
-        visualEffect.blendingMode = .behindWindow
-        visualEffect.state = .active
-        visualEffect.autoresizingMask = [.width, .height]
-        animatedShell.addSubview(visualEffect)
-        panelVisualEffectView = visualEffect
 
         let hostingView = FirstMouseHostingView(rootView: content.ignoresSafeArea())
         hostingView.translatesAutoresizingMaskIntoConstraints = false
@@ -678,7 +670,9 @@ final class QuickPanelWindowController {
         panelContainerView?.layer?.cornerRadius = isBottomFloating ? QuickPanelBottomTheme.windowCornerRadius : 16
         panelContainerView?.layer?.borderWidth = isBottomFloating ? 1 : 0
         panelContainerView?.layer?.borderColor = NSColor.white.withAlphaComponent(isBottomFloating ? 0.06 : 0).cgColor
-        panelVisualEffectView?.material = isBottomFloating ? .hudWindow : .headerView
+        animatedShellView?.layer?.backgroundColor = isBottomFloating 
+            ? NSColor.controlBackgroundColor.withAlphaComponent(0.95).cgColor
+            : NSColor.windowBackgroundColor.withAlphaComponent(0.95).cgColor
         panel.minSize = isBottomFloating
             ? NSSize(width: QuickPanelBottomGeometry.minimumWidth, height: QuickPanelBottomGeometry.minimumHeight(for: bottomMode))
             : NSSize(width: MIN_WIDTH, height: MIN_HEIGHT)
@@ -775,16 +769,12 @@ final class QuickPanelWindowController {
         let height = container.bounds.height
         let initialOffset = QuickPanelBottomAnimation.openingInitialOffset(for: height)
         shell.frame = container.bounds.offsetBy(dx: 0, dy: initialOffset)
-        shell.alphaValue = QuickPanelBottomAnimation.closedAlpha
-        container.alphaValue = QuickPanelBottomAnimation.closedAlpha
         container.layer?.borderWidth = 0
     }
 
     private func resetAnimatedShellPresentation() {
         guard let container = panelContainerView, let shell = animatedShellView else { return }
         shell.frame = container.bounds
-        shell.alphaValue = QuickPanelBottomAnimation.openAlpha
-        container.alphaValue = QuickPanelBottomAnimation.openAlpha
         container.layer?.borderWidth = 1
     }
 
@@ -795,7 +785,7 @@ final class QuickPanelWindowController {
     }
 
     private func animateBottomFloatingOpen(_ panel: NSPanel, finalFrame: CGRect, emergeOffset: CGFloat) {
-        guard let container = panelContainerView, let shell = animatedShellView else {
+        guard let shell = animatedShellView else {
             bottomFloatingAnimationState = .visible
             return
         }
@@ -810,8 +800,6 @@ final class QuickPanelWindowController {
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
             context.allowsImplicitAnimation = true
             shell.animator().setFrameOrigin(.zero)
-            shell.animator().alphaValue = QuickPanelBottomAnimation.openAlpha
-            container.animator().alphaValue = QuickPanelBottomAnimation.openAlpha
             panel.animator().setFrame(emergeFrame, display: true)
         } completionHandler: { [weak self, weak panel] in
             Task { @MainActor [weak self, weak panel] in
@@ -853,8 +841,6 @@ final class QuickPanelWindowController {
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             context.allowsImplicitAnimation = true
             shell.animator().setFrameOrigin(NSPoint(x: 0, y: targetOffset))
-            shell.animator().alphaValue = QuickPanelBottomAnimation.closedAlpha
-            container.animator().alphaValue = QuickPanelBottomAnimation.closedAlpha
         } completionHandler: { [weak self, weak panel] in
             Task { @MainActor [weak self, weak panel] in
                 guard let self else { return }
