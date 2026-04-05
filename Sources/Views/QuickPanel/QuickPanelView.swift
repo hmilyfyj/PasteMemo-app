@@ -1610,7 +1610,8 @@ struct QuickPanelView: View {
                         title: group.name,
                         systemImage: group.icon,
                         tint: QuickPanelBottomTheme.groupTintColor(name: group.name, preferredHex: group.color),
-                        isSelected: currentCustomGroupFilterName == group.name
+                        isSelected: currentCustomGroupFilterName == group.name,
+                        groupName: group.name
                     ) {
                         applyCustomGroupFilter(group.name)
                         restoreSearchFocusIfNeeded()
@@ -1648,6 +1649,7 @@ struct QuickPanelView: View {
         systemImage: String,
         tint: Color,
         isSelected: Bool,
+        groupName: String? = nil,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
@@ -1677,6 +1679,29 @@ struct QuickPanelView: View {
             )
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            if let groupName = groupName {
+                Button {
+                    editGroupInQuickPanel(name: groupName)
+                } label: {
+                    Label(L10n.tr("action.editGroup"), systemImage: "pencil")
+                }
+                
+                Button {
+                    changeGroupIconInQuickPanel(name: groupName)
+                } label: {
+                    Label(L10n.tr("action.changeIcon"), systemImage: "paintbrush")
+                }
+                
+                Divider()
+                
+                Button(role: .destructive) {
+                    confirmDeleteGroup(name: groupName)
+                } label: {
+                    Label(L10n.tr("action.deleteGroup"), systemImage: "trash")
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -2977,6 +3002,21 @@ struct QuickPanelView: View {
         for item in items {
             item.lastUsedAt = Date()
         }
+        try? modelContext.save()
+        
+        // 直接更新缓存：将复制的 items 移动到列表开头
+        let idsToMove = Set(items.map(\.persistentModelID))
+        var newOrder = items
+        for item in cachedDisplayOrder where !idsToMove.contains(item.persistentModelID) {
+            newOrder.append(item)
+        }
+        cachedDisplayOrder = newOrder
+        cachedGroupedItems = groupItemsByTime(cachedDisplayOrder, separatePinned: false)
+        cachedItemMap = Dictionary(cachedDisplayOrder.map { ($0.persistentModelID, $0) }, uniquingKeysWith: { _, last in last })
+        cachedIDSet = Set(cachedItemMap.keys)
+        
+        // 同步更新 store.items
+        store.moveItemsToFront(items)
         
         showCopiedToast = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { showCopiedToast = false }
@@ -3030,6 +3070,95 @@ struct QuickPanelView: View {
             ClipboardManager.shared.decrementSmartGroup(name: name, context: modelContext)
         }
         try? modelContext.save()
+        store.refreshSidebarCounts()
+    }
+    
+    private func editGroupInQuickPanel(name: String) {
+        isSearchFocused = false
+        removeKeyMonitor()
+        QuickPanelWindowController.shared.suppressDismiss = true
+        
+        let descriptor = FetchDescriptor<SmartGroup>(predicate: #Predicate { $0.name == name })
+        guard let group = try? modelContext.fetch(descriptor).first else {
+            QuickPanelWindowController.shared.suppressDismiss = false
+            installKeyMonitor()
+            return
+        }
+        
+        let oldName = group.name
+        let result = GroupEditorPanel.show(name: group.name, icon: group.icon)
+        
+        QuickPanelWindowController.shared.suppressDismiss = false
+        installKeyMonitor()
+        
+        guard let result else { return }
+        
+        group.name = result.name
+        group.icon = result.icon
+        
+        if group.name != oldName {
+            let itemDescriptor = FetchDescriptor<ClipItem>(predicate: #Predicate { $0.groupName == oldName })
+            if let items = try? modelContext.fetch(itemDescriptor) {
+                for item in items { item.groupName = group.name }
+            }
+            
+            if selectedGroupFilter == oldName {
+                selectedGroupFilter = group.name
+            }
+        }
+        
+        try? modelContext.save()
+        store.refreshSidebarCounts()
+    }
+    
+    private func changeGroupIconInQuickPanel(name: String) {
+        isSearchFocused = false
+        removeKeyMonitor()
+        QuickPanelWindowController.shared.suppressDismiss = true
+        
+        let descriptor = FetchDescriptor<SmartGroup>(predicate: #Predicate { $0.name == name })
+        guard let group = try? modelContext.fetch(descriptor).first else {
+            QuickPanelWindowController.shared.suppressDismiss = false
+            installKeyMonitor()
+            return
+        }
+        
+        let result = GroupEditorPanel.show(name: group.name, icon: group.icon)
+        
+        QuickPanelWindowController.shared.suppressDismiss = false
+        installKeyMonitor()
+        
+        guard let result else { return }
+        
+        group.icon = result.icon
+        try? modelContext.save()
+        store.refreshSidebarCounts()
+    }
+    
+    private func confirmDeleteGroup(name: String) {
+        isSearchFocused = false
+        removeKeyMonitor()
+        QuickPanelWindowController.shared.suppressDismiss = true
+        
+        let alert = NSAlert()
+        alert.messageText = L10n.tr("action.deleteGroup")
+        alert.informativeText = L10n.tr("action.deleteGroupConfirm", name)
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: L10n.tr("action.delete"))
+        alert.addButton(withTitle: L10n.tr("action.cancel"))
+        
+        let shouldDelete = alert.runModal() == .alertFirstButtonReturn
+        
+        QuickPanelWindowController.shared.suppressDismiss = false
+        installKeyMonitor()
+        
+        guard shouldDelete else { return }
+        
+        if selectedGroupFilter == name {
+            selectedGroupFilter = nil
+        }
+        
+        AppMenuActions.deleteGroup(name: name, context: modelContext)
         store.refreshSidebarCounts()
     }
 

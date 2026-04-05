@@ -109,6 +109,16 @@ final class ClipItemStore {
         items.removeAll { ids.contains($0.persistentModelID) }
     }
 
+    /// 将指定的 items 移动到列表开头（用于复制后立即更新排序）
+    func moveItemsToFront(_ itemsToMove: [ClipItem]) {
+        let idsToMove = Set(itemsToMove.map(\.itemID))
+        var newItems = itemsToMove
+        for item in items where !idsToMove.contains(item.itemID) {
+            newItems.append(item)
+        }
+        items = newItems
+    }
+
     func resetFilters() {
         filterType = nil
         pinnedOnly = false
