@@ -790,40 +790,35 @@ final class QuickPanelWindowController {
             return
         }
 
-        AnimationLogger.shared.log("  Starting open shell animation...")
+        AnimationLogger.shared.log("  Starting open shell animation with Core Animation + Spring...")
 
         var emergeFrame = finalFrame
         emergeFrame.origin.y = finalFrame.origin.y - QuickPanelBottomGeometry.bottomInset
 
-        NSAnimationContext.runAnimationGroup { context in
+        NSAnimationContext.runAnimationGroup({ context in
             context.duration = QuickPanelBottomAnimation.emergeDuration
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            context.timingFunction = PanelAnimationTiming.smoothEaseOut
             context.allowsImplicitAnimation = true
             shell.animator().setFrameOrigin(.zero)
-            panel.animator().setFrame(emergeFrame, display: true)
-        } completionHandler: { [weak self, weak panel] in
-            Task { @MainActor [weak self, weak panel] in
+            panel.animator().setFrame(emergeFrame, display: false)
+        }, completionHandler: { [weak self, weak panel] in
+            guard let self, self.bottomFloatingAnimationState == .opening else { return }
+
+            AnimationLogger.shared.log("  Starting settle animation with Spring...")
+
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = QuickPanelBottomAnimation.emergeSettleDuration
+                context.timingFunction = PanelAnimationTiming.anticipateOvershoot
+                context.allowsImplicitAnimation = true
+                panel?.animator().setFrame(finalFrame, display: false)
+            }, completionHandler: { [weak self, weak panel] in
                 guard let self else { return }
-                guard self.bottomFloatingAnimationState == .opening else { return }
-                
-                AnimationLogger.shared.log("  Starting settle animation...")
-                
-                NSAnimationContext.runAnimationGroup { context in
-                    context.duration = QuickPanelBottomAnimation.emergeSettleDuration
-                    context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                    context.allowsImplicitAnimation = true
-                    panel?.animator().setFrame(finalFrame, display: true)
-                } completionHandler: { [weak self, weak panel] in
-                    Task { @MainActor [weak self, weak panel] in
-                        guard let self else { return }
-                        self.resetAnimatedShellPresentation()
-                        self.bottomFloatingAnimationState = .visible
-                        panel?.makeKey()
-                        AnimationLogger.shared.log("  Open shell animation completed")
-                    }
-                }
-            }
-        }
+                self.resetAnimatedShellPresentation()
+                self.bottomFloatingAnimationState = .visible
+                panel?.makeKey()
+                AnimationLogger.shared.log("  Open shell animation completed")
+            })
+        })
     }
 
     private func animateBottomFloatingDismiss(_ panel: NSPanel) {
@@ -834,20 +829,18 @@ final class QuickPanelWindowController {
 
         container.layer?.borderWidth = 0
         let targetOffset = QuickPanelBottomAnimation.closingTargetOffset(for: container.bounds.height)
-        AnimationLogger.shared.log("  Starting close shell animation...")
+        AnimationLogger.shared.log("  Starting close shell animation with Core Animation + Spring...")
 
-        NSAnimationContext.runAnimationGroup { context in
+        NSAnimationContext.runAnimationGroup({ context in
             context.duration = QuickPanelBottomAnimation.closeDuration
-            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            context.timingFunction = PanelAnimationTiming.quickEaseOut
             context.allowsImplicitAnimation = true
             shell.animator().setFrameOrigin(NSPoint(x: 0, y: targetOffset))
-        } completionHandler: { [weak self, weak panel] in
-            Task { @MainActor [weak self, weak panel] in
-                guard let self else { return }
-                self.finalizeDismiss(panel)
-                AnimationLogger.shared.log("  Close shell animation completed")
-            }
-        }
+        }, completionHandler: { [weak self, weak panel] in
+            guard let self else { return }
+            self.finalizeDismiss(panel)
+            AnimationLogger.shared.log("  Close shell animation completed")
+        })
     }
 
     private func finalizeDismiss(_ panel: NSPanel?) {

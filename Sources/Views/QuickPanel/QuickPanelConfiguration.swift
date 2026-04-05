@@ -141,8 +141,8 @@ enum QuickPanelBottomAnimation {
     static let closedAlpha: CGFloat = 0.94
     static let openAlpha: CGFloat = 1
 
-    static let emergeDuration: TimeInterval = 0.18
-    static let emergeSettleDuration: TimeInterval = 0.12
+    static let emergeDuration: TimeInterval = 0.25
+    static let emergeSettleDuration: TimeInterval = 0.15
     static let emergeFinalOffset: CGFloat = 10
 
     static func openingInitialOffset(for panelHeight: CGFloat) -> CGFloat {
