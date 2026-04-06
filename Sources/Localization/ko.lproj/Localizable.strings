@@ -92,7 +92,7 @@
 "detail.type" = "유형";
 "detail.source" = "원본 앱";
 "detail.created" = "생성일";
-"detail.group" = "그룹";
+"detail.group" = "컬렉션";
 "detail.lastUsed" = "마지막 사용";
 "detail.chars" = "글자 수";
 "detail.lines" = "줄 수";
@@ -107,12 +107,12 @@
 "action.paste" = "붙여넣기";
 "action.cancel" = "취소";
 "action.confirm" = "확인";
-"action.assignGroup" = "그룹에 할당";
-"action.newGroup" = "새 그룹…";
-"action.editGroup" = "그룹 편집…";
-"action.deleteGroup" = "그룹 삭제";
-"action.deleteGroupConfirm" = "그룹 \"%@\"을(를) 삭제하시겠습니까? 그룹 내 항목은 삭제되지 않습니다.";
-"action.removeFromGroup" = "그룹에서 제거";
+"action.assignGroup" = "컬렉션에 추가";
+"action.newGroup" = "새 컬렉션…";
+"action.editGroup" = "컬렉션 편집…";
+"action.deleteGroup" = "컬렉션 삭제";
+"action.deleteGroupConfirm" = "컬렉션 \"%@\"을(를) 삭제하시겠습니까? 컬렉션 내 항목은 삭제되지 않습니다.";
+"action.removeFromGroup" = "컬렉션에서 제거";
 "action.changeIcon" = "아이콘 변경…";
 "action.clearConfirm" = "즐겨찾기와 고정된 항목을 제외한 모든 항목이 삭제됩니다.";
 
@@ -142,7 +142,7 @@
 "pro.beta.desc" = "PasteMemo는 현재 베타 테스트 중입니다. Pro 기능은 향후 릴리스에서 제공될 예정입니다.";
 "pro.feature.rules" = "클립보드 규칙";
 "pro.feature.relay" = "릴레이 모드";
-"pro.feature.customCategory" = "맞춤 카테고리";
+"pro.feature.customCategory" = "사용자 컬렉션";
 "pro.feature.ignoreApps" = "특정 앱 제외";
 "pro.feature.automation" = "클립보드 자동화";
 
@@ -481,7 +481,7 @@
 
 /* Filter - Additional */
 "filter.apps" = "앱별";
-"filter.groups" = "그룹";
+"filter.groups" = "컬렉션";
 "filter.other" = "기타";
 
 /* Empty State - Additional */
@@ -615,8 +615,8 @@
 "automation.action.trimWhitespace" = "공백 제거";
 "automation.action.removeBlankLines" = "빈 줄 제거";
 "automation.action.stripRichText" = "서식 제거";
-"automation.action.assignGroup" = "그룹에 할당";
-"automation.action.assignGroup.placeholder" = "그룹 이름 입력";
+"automation.action.assignGroup" = "컬렉션에 추가";
+"automation.action.assignGroup.placeholder" = "컬렉션 이름 입력";
 "automation.action.urlEncode" = "URL 인코딩";
 "automation.action.urlDecode" = "URL 디코딩";
 "automation.action.removeQueryParams" = "URL 매개변수 제거";

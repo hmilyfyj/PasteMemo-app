@@ -92,7 +92,7 @@
 "detail.type" = "Typ";
 "detail.source" = "Quell-App";
 "detail.created" = "Erstellt";
-"detail.group" = "Gruppe";
+"detail.group" = "Sammlung";
 "detail.lastUsed" = "Zuletzt verwendet";
 "detail.chars" = "Zeichen";
 "detail.lines" = "Zeilen";
@@ -107,12 +107,12 @@
 "action.paste" = "Einsetzen";
 "action.cancel" = "Abbrechen";
 "action.confirm" = "OK";
-"action.assignGroup" = "Gruppe zuweisen";
-"action.newGroup" = "Neue Gruppe…";
-"action.editGroup" = "Gruppe bearbeiten…";
-"action.deleteGroup" = "Gruppe löschen";
-"action.deleteGroupConfirm" = "Möchten Sie die Gruppe „%@" wirklich löschen? Die Elemente in der Gruppe werden nicht gelöscht.";
-"action.removeFromGroup" = "Aus Gruppe entfernen";
+"action.assignGroup" = "Zur Sammlung hinzufügen";
+"action.newGroup" = "Neue Sammlung…";
+"action.editGroup" = "Sammlung bearbeiten…";
+"action.deleteGroup" = "Sammlung löschen";
+"action.deleteGroupConfirm" = "Möchten Sie die Sammlung „%@" wirklich löschen? Die Elemente in der Sammlung werden nicht gelöscht.";
+"action.removeFromGroup" = "Aus Sammlung entfernen";
 "action.changeIcon" = "Symbol ändern…";
 "action.clearConfirm" = "Alle Elemente außer Favoriten und angehefteten Elementen werden gelöscht.";
 
@@ -142,7 +142,7 @@
 "pro.beta.desc" = "PasteMemo befindet sich derzeit im Betatest. Pro-Funktionen sind für eine zukünftige Version geplant.";
 "pro.feature.rules" = "Zwischenablage-Regeln";
 "pro.feature.relay" = "Relay-Modus";
-"pro.feature.customCategory" = "Eigene Kategorien";
+"pro.feature.customCategory" = "Eigene Sammlungen";
 "pro.feature.ignoreApps" = "Bestimmte Apps ignorieren";
 "pro.feature.automation" = "Zwischenablage-Automatisierung";
 
@@ -477,7 +477,7 @@ Verwenden Sie %@ zum Einfügen.";
 
 /* Filter (additional) */
 "filter.apps" = "Nach App";
-"filter.groups" = "Gruppen";
+"filter.groups" = "Sammlungen";
 "filter.other" = "Sonstiges";
 
 /* Empty State (additional) */
@@ -601,8 +601,8 @@ Verwenden Sie %@ zum Einfügen.";
 "automation.action.trimWhitespace" = "Leerzeichen entfernen";
 "automation.action.removeBlankLines" = "Leerzeilen entfernen";
 "automation.action.stripRichText" = "Formatierung entfernen";
-"automation.action.assignGroup" = "Gruppe zuweisen";
-"automation.action.assignGroup.placeholder" = "Gruppenname eingeben";
+"automation.action.assignGroup" = "Zur Sammlung hinzufügen";
+"automation.action.assignGroup.placeholder" = "Sammlungsnamen eingeben";
 "automation.action.urlEncode" = "URL-Kodierung";
 "automation.action.urlDecode" = "URL-Dekodierung";
 "automation.action.removeQueryParams" = "URL-Parameter entfernen";

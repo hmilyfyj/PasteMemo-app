@@ -147,7 +147,7 @@
 "pro.feature.themes" = "自定义主题";
 "pro.feature.rules" = "剪贴板规则";
 "pro.feature.relay" = "接力模式";
-"pro.feature.customCategory" = "自定义分组";
+"pro.feature.customCategory" = "自定义收藏";
 "pro.feature.ignoreApps" = "忽略特定应用";
 "pro.feature.automation" = "剪贴板自动化";
 
@@ -161,7 +161,7 @@
 "detail.type" = "类型";
 "detail.source" = "来源应用";
 "detail.created" = "创建时间";
-"detail.group" = "分组";
+"detail.group" = "收藏";
 "detail.lastUsed" = "最近使用";
 "detail.chars" = "字符数";
 "detail.lines" = "行数";
@@ -194,19 +194,19 @@
 /* Filter */
 "filter.types" = "按类型";
 "filter.apps" = "按应用";
-"filter.groups" = "分组";
+"filter.groups" = "收藏";
 "filter.other" = "其他";
 
 /* Actions */
 "action.paste" = "粘贴";
 "action.cancel" = "取消";
 "action.confirm" = "确定";
-"action.assignGroup" = "移入分组";
-"action.newGroup" = "新建分组…";
-"action.editGroup" = "编辑分组…";
-"action.deleteGroup" = "删除分组";
-"action.deleteGroupConfirm" = "确定要删除分组「%@」吗？分组内的条目不会被删除。";
-"action.removeFromGroup" = "移出分组";
+"action.assignGroup" = "收藏";
+"action.newGroup" = "新建收藏…";
+"action.editGroup" = "编辑收藏…";
+"action.deleteGroup" = "删除收藏";
+"action.deleteGroupConfirm" = "确定要删除收藏「%@」吗？收藏内的条目不会被删除。";
+"action.removeFromGroup" = "移出收藏";
 "action.changeIcon" = "修改图标…";
 "action.clearConfirm" = "将删除所有未置顶的条目。";
 "action.copy" = "复制";
@@ -278,7 +278,7 @@
 
 /* About */
 /* Help */
-"menu.newGroup" = "新建分组…";
+"menu.newGroup" = "新建收藏…";
 "menu.newSmartGroup" = "新建智能分组…";
 "menu.help" = "PasteMemo 帮助";
 "help.title" = "PasteMemo 帮助";
@@ -457,8 +457,8 @@
 "automation.action.trimWhitespace" = "去首尾空白";
 "automation.action.removeBlankLines" = "去除多余空行";
 "automation.action.stripRichText" = "转纯文本";
-"automation.action.assignGroup" = "移入分组";
-"automation.action.assignGroup.placeholder" = "请输入分组名";
+"automation.action.assignGroup" = "收藏";
+"automation.action.assignGroup.placeholder" = "请输入收藏名";
 "automation.action.urlEncode" = "URL 编码";
 "automation.action.urlDecode" = "URL 解码";
 "automation.action.removeQueryParams" = "删除 URL 参数";

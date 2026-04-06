@@ -92,7 +92,7 @@
 "detail.type" = "Tipo";
 "detail.source" = "App de origen";
 "detail.created" = "Creado";
-"detail.group" = "Grupo";
+"detail.group" = "Colección";
 "detail.lastUsed" = "Último uso";
 "detail.chars" = "Caracteres";
 "detail.lines" = "Líneas";
@@ -107,12 +107,12 @@
 "action.paste" = "Pegar";
 "action.cancel" = "Cancelar";
 "action.confirm" = "Aceptar";
-"action.assignGroup" = "Asignar a grupo";
-"action.newGroup" = "Nuevo grupo…";
-"action.editGroup" = "Editar grupo…";
-"action.deleteGroup" = "Eliminar grupo";
-"action.deleteGroupConfirm" = "¿Seguro que deseas eliminar el grupo \"%@\"? Los elementos del grupo no se eliminarán.";
-"action.removeFromGroup" = "Quitar del grupo";
+"action.assignGroup" = "Añadir a colección";
+"action.newGroup" = "Nueva colección…";
+"action.editGroup" = "Editar colección…";
+"action.deleteGroup" = "Eliminar colección";
+"action.deleteGroupConfirm" = "¿Seguro que deseas eliminar la colección \"%@\"? Los elementos de la colección no se eliminarán.";
+"action.removeFromGroup" = "Quitar de la colección";
 "action.changeIcon" = "Cambiar icono…";
 "action.clearConfirm" = "Se eliminarán todos los elementos excepto los favoritos y los fijados.";
 
@@ -142,7 +142,7 @@
 "pro.beta.desc" = "PasteMemo está actualmente en fase beta. Las funciones Pro se lanzarán en futuras versiones.";
 "pro.feature.rules" = "Reglas del portapapeles";
 "pro.feature.relay" = "Modo relevo";
-"pro.feature.customCategory" = "Categorías personalizadas";
+"pro.feature.customCategory" = "Colecciones personalizadas";
 "pro.feature.ignoreApps" = "Ignorar apps específicas";
 "pro.feature.automation" = "Automatización del portapapeles";
 
@@ -481,7 +481,7 @@ Usa %@ para pegar uno por uno.";
 
 /* Filter - Additional */
 "filter.apps" = "Por app";
-"filter.groups" = "Grupos";
+"filter.groups" = "Colecciones";
 "filter.other" = "Otros";
 
 /* Empty State - Additional */

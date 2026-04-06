@@ -130,7 +130,7 @@
 "pro.feature.themes" = "自訂主題";
 "pro.feature.rules" = "剪貼簿規則";
 "pro.feature.relay" = "接力模式";
-"pro.feature.customCategory" = "自訂分類";
+"pro.feature.customCategory" = "自訂收藏";
 "pro.feature.ignoreApps" = "忽略特定應用程式";
 "pro.feature.automation" = "剪貼簿自動化";
 
@@ -144,7 +144,7 @@
 "detail.type" = "類型";
 "detail.source" = "來源應用";
 "detail.created" = "建立時間";
-"detail.group" = "分組";
+"detail.group" = "收藏";
 "detail.lastUsed" = "最近使用";
 "detail.chars" = "字元數";
 "detail.lines" = "行數";
@@ -169,19 +169,19 @@
 /* Filter */
 "filter.types" = "依類型";
 "filter.apps" = "依應用";
-"filter.groups" = "分組";
+"filter.groups" = "收藏";
 "filter.other" = "其他";
 
 /* Actions */
 "action.paste" = "貼上";
 "action.cancel" = "取消";
 "action.confirm" = "確定";
-"action.assignGroup" = "歸入分組";
-"action.newGroup" = "新建分組…";
-"action.editGroup" = "編輯分組…";
-"action.deleteGroup" = "刪除分組";
-"action.deleteGroupConfirm" = "確定要刪除分組「%@」嗎？分組內的條目不會被刪除。";
-"action.removeFromGroup" = "移出分組";
+"action.assignGroup" = "收藏";
+"action.newGroup" = "新建收藏…";
+"action.editGroup" = "編輯收藏…";
+"action.deleteGroup" = "刪除收藏";
+"action.deleteGroupConfirm" = "確定要刪除收藏「%@」嗎？收藏內的條目不會被刪除。";
+"action.removeFromGroup" = "移出收藏";
 "action.changeIcon" = "修改圖示…";
 "action.clearConfirm" = "將刪除所有未置頂的條目。";
 "action.copy" = "複製";
@@ -240,7 +240,7 @@
 
 /* About */
 /* Help */
-"menu.newGroup" = "新建分組…";
+"menu.newGroup" = "新建收藏…";
 "menu.newSmartGroup" = "新建智慧分組…";
 "menu.help" = "PasteMemo 說明";
 "help.title" = "PasteMemo 說明";
@@ -565,8 +565,8 @@
 "automation.action.trimWhitespace" = "去除首尾空白";
 "automation.action.removeBlankLines" = "去除多餘空行";
 "automation.action.stripRichText" = "轉純文字";
-"automation.action.assignGroup" = "歸入分組";
-"automation.action.assignGroup.placeholder" = "請輸入分組名";
+"automation.action.assignGroup" = "收藏";
+"automation.action.assignGroup.placeholder" = "請輸入收藏名";
 "automation.action.urlEncode" = "URL 編碼";
 "automation.action.urlDecode" = "URL 解碼";
 "automation.action.removeQueryParams" = "刪除 URL 參數";

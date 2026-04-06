@@ -92,7 +92,7 @@
 "detail.type" = "Type";
 "detail.source" = "Application source";
 "detail.created" = "Créé le";
-"detail.group" = "Groupe";
+"detail.group" = "Collection";
 "detail.lastUsed" = "Dernière utilisation";
 "detail.chars" = "Caractères";
 "detail.lines" = "Lignes";
@@ -107,12 +107,12 @@
 "action.paste" = "Coller";
 "action.cancel" = "Annuler";
 "action.confirm" = "OK";
-"action.assignGroup" = "Attribuer au groupe";
-"action.newGroup" = "Nouveau groupe…";
-"action.editGroup" = "Modifier le groupe…";
-"action.deleteGroup" = "Supprimer le groupe";
-"action.deleteGroupConfirm" = "Voulez-vous vraiment supprimer le groupe « %@ » ? Les éléments du groupe ne seront pas supprimés.";
-"action.removeFromGroup" = "Retirer du groupe";
+"action.assignGroup" = "Ajouter à la collection";
+"action.newGroup" = "Nouvelle collection…";
+"action.editGroup" = "Modifier la collection…";
+"action.deleteGroup" = "Supprimer la collection";
+"action.deleteGroupConfirm" = "Voulez-vous vraiment supprimer la collection « %@ » ? Les éléments de la collection ne seront pas supprimés.";
+"action.removeFromGroup" = "Retirer de la collection";
 "action.changeIcon" = "Changer l'icône…";
 "action.clearConfirm" = "Tous les éléments seront supprimés, sauf les favoris et les éléments épinglés.";
 
@@ -142,7 +142,7 @@
 "pro.beta.desc" = "PasteMemo est actuellement en bêta. Les fonctionnalités Pro seront disponibles dans une future version.";
 "pro.feature.rules" = "Règles du presse-papiers";
 "pro.feature.relay" = "Mode relais";
-"pro.feature.customCategory" = "Catégories personnalisées";
+"pro.feature.customCategory" = "Collections personnalisées";
 "pro.feature.ignoreApps" = "Ignorer certaines apps";
 "pro.feature.automation" = "Automatisation du presse-papiers";
 
@@ -481,7 +481,7 @@ Utilisez %@ pour coller un par un.";
 
 /* Filter */
 "filter.apps" = "Par app";
-"filter.groups" = "Groupes";
+"filter.groups" = "Collections";
 "filter.other" = "Autre";
 
 /* Empty State */
@@ -617,8 +617,8 @@ Utilisez %@ pour coller un par un.";
 "automation.action.trimWhitespace" = "Supprimer les espaces";
 "automation.action.removeBlankLines" = "Supprimer les lignes vides";
 "automation.action.stripRichText" = "Supprimer le texte enrichi";
-"automation.action.assignGroup" = "Attribuer au groupe";
-"automation.action.assignGroup.placeholder" = "Saisir le nom du groupe";
+"automation.action.assignGroup" = "Ajouter à la collection";
+"automation.action.assignGroup.placeholder" = "Saisir le nom de la collection";
 "automation.action.urlEncode" = "Encodage URL";
 "automation.action.urlDecode" = "Décodage URL";
 "automation.action.removeQueryParams" = "Supprimer les paramètres URL";

@@ -92,7 +92,7 @@
 "detail.type" = "種類";
 "detail.source" = "コピー元アプリ";
 "detail.created" = "作成日時";
-"detail.group" = "グループ";
+"detail.group" = "コレクション";
 "detail.lastUsed" = "最終使用";
 "detail.chars" = "文字数";
 "detail.lines" = "行数";
@@ -115,12 +115,12 @@
 "action.paste" = "ペースト";
 "action.cancel" = "キャンセル";
 "action.confirm" = "OK";
-"action.assignGroup" = "グループに割り当て";
-"action.newGroup" = "新規グループ…";
-"action.editGroup" = "グループを編集…";
-"action.deleteGroup" = "グループを削除";
-"action.deleteGroupConfirm" = "グループ「%@」を削除してもよろしいですか？グループ内のアイテムは削除されません。";
-"action.removeFromGroup" = "グループから除外";
+"action.assignGroup" = "コレクションに追加";
+"action.newGroup" = "新規コレクション…";
+"action.editGroup" = "コレクションを編集…";
+"action.deleteGroup" = "コレクションを削除";
+"action.deleteGroupConfirm" = "コレクション「%@」を削除してもよろしいですか？コレクション内のアイテムは削除されません。";
+"action.removeFromGroup" = "コレクションから除外";
 "action.changeIcon" = "アイコンを変更…";
 "action.clearConfirm" = "お気に入りとピン留めを除くすべてのアイテムが削除されます。";
 
@@ -156,7 +156,7 @@
 "pro.beta.desc" = "PasteMemoは現在ベータテスト中です。Pro機能は今後のリリースで提供予定です。";
 "pro.feature.rules" = "クリップボードルール";
 "pro.feature.relay" = "リレーモード";
-"pro.feature.customCategory" = "カスタムカテゴリ";
+"pro.feature.customCategory" = "カスタムコレクション";
 "pro.feature.ignoreApps" = "特定アプリを除外";
 "pro.feature.automation" = "クリップボード自動化";
 
@@ -497,7 +497,7 @@
 
 /* Filter - Additional */
 "filter.apps" = "アプリ別";
-"filter.groups" = "グループ";
+"filter.groups" = "コレクション";
 "filter.other" = "その他";
 
 /* Empty State - Additional */
@@ -632,8 +632,8 @@
 "automation.action.trimWhitespace" = "空白を削除";
 "automation.action.removeBlankLines" = "空行を削除";
 "automation.action.stripRichText" = "リッチテキストを除去";
-"automation.action.assignGroup" = "グループに割り当て";
-"automation.action.assignGroup.placeholder" = "グループ名を入力";
+"automation.action.assignGroup" = "コレクションに追加";
+"automation.action.assignGroup.placeholder" = "コレクション名を入力";
 "automation.action.urlEncode" = "URLエンコード";
 "automation.action.urlDecode" = "URLデコード";
 "automation.action.removeQueryParams" = "URLパラメータを削除";

@@ -225,7 +225,7 @@ final class ClipItemStore {
     private func addRetentionCondition(_ conditions: inout [String], _ params: inout [Any]) {
         guard let cutoff = ProManager.shared.retentionCutoffDate else { return }
         let cutoffVal = cutoff.timeIntervalSince(Date(timeIntervalSinceReferenceDate: 0))
-        conditions.append("(ZISPINNED = 1 OR ZCREATEDAT >= ?)")
+        conditions.append("(ZISPINNED = 1 OR ZGROUPNAME IS NOT NULL OR ZCREATEDAT >= ?)")
         params.append(cutoffVal)
     }
 

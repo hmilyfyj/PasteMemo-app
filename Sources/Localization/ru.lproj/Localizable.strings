@@ -129,7 +129,7 @@
 "pro.feature.themes" = "Пользовательские темы";
 "pro.feature.rules" = "Правила буфера обмена";
 "pro.feature.relay" = "Режим эстафеты";
-"pro.feature.customCategory" = "Пользовательские категории";
+"pro.feature.customCategory" = "Пользовательские коллекции";
 "pro.feature.ignoreApps" = "Игнорировать определённые приложения";
 "pro.feature.automation" = "Автоматизация буфера обмена";
 
@@ -143,7 +143,7 @@
 "detail.type" = "Тип";
 "detail.source" = "Приложение-источник";
 "detail.created" = "Создано";
-"detail.group" = "Группа";
+"detail.group" = "Коллекция";
 "detail.lastUsed" = "Последнее использование";
 "detail.chars" = "Символы";
 "detail.lines" = "Строки";
@@ -168,19 +168,19 @@
 /* Filter */
 "filter.types" = "По типу";
 "filter.apps" = "По приложению";
-"filter.groups" = "Группы";
+"filter.groups" = "Коллекции";
 "filter.other" = "Другое";
 
 /* Actions */
 "action.paste" = "Вставить";
 "action.cancel" = "Отмена";
 "action.confirm" = "ОК";
-"action.assignGroup" = "Назначить группу";
-"action.newGroup" = "Новая группа…";
-"action.editGroup" = "Редактировать группу…";
-"action.deleteGroup" = "Удалить группу";
-"action.deleteGroupConfirm" = "Вы уверены, что хотите удалить группу «%@»? Элементы в группе не будут удалены.";
-"action.removeFromGroup" = "Убрать из группы";
+"action.assignGroup" = "Добавить в коллекцию";
+"action.newGroup" = "Новая коллекция…";
+"action.editGroup" = "Редактировать коллекцию…";
+"action.deleteGroup" = "Удалить коллекцию";
+"action.deleteGroupConfirm" = "Вы уверены, что хотите удалить коллекцию «%@»? Элементы в коллекции не будут удалены.";
+"action.removeFromGroup" = "Убрать из коллекции";
 "action.changeIcon" = "Изменить значок…";
 "action.clearConfirm" = "Все незакреплённые элементы будут удалены.";
 "action.copy" = "Копировать";
@@ -577,8 +577,8 @@
 "automation.action.trimWhitespace" = "Удалить пробелы";
 "automation.action.removeBlankLines" = "Удалить пустые строки";
 "automation.action.stripRichText" = "Удалить форматирование";
-"automation.action.assignGroup" = "Назначить группу";
-"automation.action.assignGroup.placeholder" = "Введите название группы";
+"automation.action.assignGroup" = "Добавить в коллекцию";
+"automation.action.assignGroup.placeholder" = "Введите название коллекции";
 "automation.action.urlEncode" = "URL-кодирование";
 "automation.action.urlDecode" = "URL-декодирование";
 "automation.action.removeQueryParams" = "Удалить параметры URL";

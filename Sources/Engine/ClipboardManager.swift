@@ -470,15 +470,11 @@ final class ClipboardManager: ObservableObject {
         let descriptor = FetchDescriptor<ClipItem>()
         guard let allItems = try? context.fetch(descriptor) else { return }
 
-        var hasGroupedItems = false
         for item in allItems where item.createdAt < cutoff {
-            if item.groupName != nil { hasGroupedItems = true }
+            if item.groupName != nil { continue }
             context.delete(item)
         }
-        if hasGroupedItems {
-            try? context.save()
-            recalculateAllGroupCounts(context: context)
-        }
+        try? context.save()
     }
 
     // MARK: - Content Detection

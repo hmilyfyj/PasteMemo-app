@@ -129,7 +129,7 @@
 "pro.feature.themes" = "Tema kustom";
 "pro.feature.rules" = "Aturan papan klip";
 "pro.feature.relay" = "Mode relay";
-"pro.feature.customCategory" = "Kategori kustom";
+"pro.feature.customCategory" = "Koleksi kustom";
 "pro.feature.ignoreApps" = "Abaikan aplikasi tertentu";
 "pro.feature.automation" = "Otomatisasi papan klip";
 
@@ -143,7 +143,7 @@
 "detail.type" = "Tipe";
 "detail.source" = "Aplikasi Sumber";
 "detail.created" = "Dibuat";
-"detail.group" = "Grup";
+"detail.group" = "Koleksi";
 "detail.lastUsed" = "Terakhir Digunakan";
 "detail.chars" = "Karakter";
 "detail.lines" = "Baris";
@@ -168,19 +168,19 @@
 /* Filter */
 "filter.types" = "Berdasarkan Tipe";
 "filter.apps" = "Berdasarkan Aplikasi";
-"filter.groups" = "Grup";
+"filter.groups" = "Koleksi";
 "filter.other" = "Lainnya";
 
 /* Actions */
 "action.paste" = "Tempel";
 "action.cancel" = "Batal";
 "action.confirm" = "OK";
-"action.assignGroup" = "Tetapkan ke Grup";
-"action.newGroup" = "Grup Baru…";
-"action.editGroup" = "Edit Grup…";
-"action.deleteGroup" = "Hapus Grup";
-"action.deleteGroupConfirm" = "Yakin ingin menghapus grup \"%@\"? Item dalam grup tidak akan dihapus.";
-"action.removeFromGroup" = "Hapus dari Grup";
+"action.assignGroup" = "Tambahkan ke Koleksi";
+"action.newGroup" = "Koleksi Baru…";
+"action.editGroup" = "Edit Koleksi…";
+"action.deleteGroup" = "Hapus Koleksi";
+"action.deleteGroupConfirm" = "Yakin ingin menghapus koleksi \"%@\"? Item dalam koleksi tidak akan dihapus.";
+"action.removeFromGroup" = "Hapus dari Koleksi";
 "action.changeIcon" = "Ubah Ikon…";
 "action.clearConfirm" = "Ini akan menghapus semua item kecuali yang disematkan.";
 "action.copy" = "Salin";
@@ -577,8 +577,8 @@ Gunakan %@ untuk menempel satu per satu.";
 "automation.action.trimWhitespace" = "Hapus spasi";
 "automation.action.removeBlankLines" = "Hapus baris kosong";
 "automation.action.stripRichText" = "Hapus format teks";
-"automation.action.assignGroup" = "Tetapkan ke Grup";
-"automation.action.assignGroup.placeholder" = "Masukkan nama grup";
+"automation.action.assignGroup" = "Tambahkan ke Koleksi";
+"automation.action.assignGroup.placeholder" = "Masukkan nama koleksi";
 "automation.action.urlEncode" = "Encode URL";
 "automation.action.urlDecode" = "Decode URL";
 "automation.action.removeQueryParams" = "Hapus parameter URL";

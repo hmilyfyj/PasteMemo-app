@@ -147,7 +147,7 @@
 "pro.feature.themes" = "Custom themes";
 "pro.feature.rules" = "Clipboard rules";
 "pro.feature.relay" = "Relay Mode";
-"pro.feature.customCategory" = "Custom categories";
+"pro.feature.customCategory" = "Custom collections";
 "pro.feature.ignoreApps" = "Ignore specific apps";
 "pro.feature.automation" = "Clipboard automation";
 
@@ -161,7 +161,7 @@
 "detail.type" = "Type";
 "detail.source" = "Source App";
 "detail.created" = "Created";
-"detail.group" = "Group";
+"detail.group" = "Collection";
 "detail.lastUsed" = "Last Used";
 "detail.chars" = "Characters";
 "detail.lines" = "Lines";
@@ -194,19 +194,19 @@
 /* Filter */
 "filter.types" = "By Type";
 "filter.apps" = "By App";
-"filter.groups" = "Groups";
+"filter.groups" = "Collections";
 "filter.other" = "Other";
 
 /* Actions */
 "action.paste" = "Paste";
 "action.cancel" = "Cancel";
 "action.confirm" = "OK";
-"action.assignGroup" = "Assign to Group";
-"action.newGroup" = "New Group…";
-"action.editGroup" = "Edit Group…";
-"action.deleteGroup" = "Delete Group";
-"action.deleteGroupConfirm" = "Are you sure you want to delete the group \"%@\"? Items in the group will not be deleted.";
-"action.removeFromGroup" = "Remove from Group";
+"action.assignGroup" = "Add to Collection";
+"action.newGroup" = "New Collection…";
+"action.editGroup" = "Edit Collection…";
+"action.deleteGroup" = "Delete Collection";
+"action.deleteGroupConfirm" = "Are you sure you want to delete the collection \"%@\"? Items in the collection will not be deleted.";
+"action.removeFromGroup" = "Remove from Collection";
 "action.changeIcon" = "Change Icon…";
 "action.clearConfirm" = "This will delete all items except pinned items.";
 "action.copy" = "Copy";

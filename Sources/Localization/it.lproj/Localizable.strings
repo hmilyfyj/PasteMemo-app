@@ -129,7 +129,7 @@
 "pro.feature.themes" = "Temi personalizzati";
 "pro.feature.rules" = "Regole appunti";
 "pro.feature.relay" = "Modalità staffetta";
-"pro.feature.customCategory" = "Categorie personalizzate";
+"pro.feature.customCategory" = "Collezioni personalizzate";
 "pro.feature.ignoreApps" = "Ignora app specifiche";
 "pro.feature.automation" = "Automazione appunti";
 
@@ -143,7 +143,7 @@
 "detail.type" = "Tipo";
 "detail.source" = "App di origine";
 "detail.created" = "Creato";
-"detail.group" = "Gruppo";
+"detail.group" = "Collezione";
 "detail.lastUsed" = "Ultimo utilizzo";
 "detail.chars" = "Caratteri";
 "detail.lines" = "Righe";
@@ -168,19 +168,19 @@
 /* Filter */
 "filter.types" = "Per tipo";
 "filter.apps" = "Per app";
-"filter.groups" = "Gruppi";
+"filter.groups" = "Collezioni";
 "filter.other" = "Altro";
 
 /* Actions */
 "action.paste" = "Incolla";
 "action.cancel" = "Annulla";
 "action.confirm" = "OK";
-"action.assignGroup" = "Assegna al gruppo";
-"action.newGroup" = "Nuovo gruppo…";
-"action.editGroup" = "Modifica gruppo…";
-"action.deleteGroup" = "Elimina gruppo";
-"action.deleteGroupConfirm" = "Eliminare il gruppo \"%@\"? Gli elementi nel gruppo non verranno eliminati.";
-"action.removeFromGroup" = "Rimuovi dal gruppo";
+"action.assignGroup" = "Aggiungi alla collezione";
+"action.newGroup" = "Nuova collezione…";
+"action.editGroup" = "Modifica collezione…";
+"action.deleteGroup" = "Elimina collezione";
+"action.deleteGroupConfirm" = "Eliminare la collezione \"%@\"? Gli elementi nella collezione non verranno eliminati.";
+"action.removeFromGroup" = "Rimuovi dalla collezione";
 "action.changeIcon" = "Cambia icona…";
 "action.clearConfirm" = "Verranno eliminati tutti gli elementi tranne quelli fissati.";
 "action.copy" = "Copia";
@@ -566,8 +566,8 @@ Usa %@ per incollare uno per uno.";
 "automation.action.trimWhitespace" = "Rimuovi spazi";
 "automation.action.removeBlankLines" = "Rimuovi righe vuote";
 "automation.action.stripRichText" = "Rimuovi formattazione";
-"automation.action.assignGroup" = "Assegna al gruppo";
-"automation.action.assignGroup.placeholder" = "Inserisci il nome del gruppo";
+"automation.action.assignGroup" = "Aggiungi alla collezione";
+"automation.action.assignGroup.placeholder" = "Inserisci il nome della collezione";
 "automation.action.urlEncode" = "Codifica URL";
 "automation.action.urlDecode" = "Decodifica URL";
 "automation.action.removeQueryParams" = "Rimuovi parametri URL";
