@@ -6,6 +6,36 @@
         <description>Most recent changes with links to updates.</description>
         <language>en</language>
         <item>
+            <title>Version 1.3.0</title>
+            <pubDate>Sun, 06 Apr 2026 21:25:00 +0800</pubDate>
+            <sparkle:version>130</sparkle:version>
+            <sparkle:shortVersionString>1.3.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <h2>Sparkle Auto-Update Integration</h2>
+                <h3>🎉 New Features</h3>
+                <ul>
+                    <li>✨ Integrate Sparkle 2.9.1 for automatic app updates</li>
+                    <li>🔐 EdDSA signature verification for secure updates</li>
+                    <li>🔄 Automatic background update checking</li>
+                    <li>💫 Improved update user experience</li>
+                </ul>
+                <h3>📝 Technical Changes</h3>
+                <ul>
+                    <li>Replace custom UpdateChecker with Sparkle framework</li>
+                    <li>Add SparkleUpdater class for update management</li>
+                    <li>Configure appcast.xml for update feed</li>
+                    <li>Add GitHub Actions workflow for automated releases</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/hmilyfyj/PasteMemo-app/releases/download/v1.3.0/PasteMemo-1.3.0.dmg"
+                sparkle:edSignature="D5PTUXb0mwzfnCxswWIL0vANi+O9uRtEZRYA7vrstFTwLAL1LMkAPRsVlgGdI3jp2NIzxx4mq5Uvdrc9qCHMDw=="
+                length="7933497"
+                type="application/octet-stream"
+            />
+        </item>
+        <item>
             <title>Version 1.0.0</title>
             <pubDate>Sat, 06 Apr 2026 00:00:00 +0800</pubDate>
             <sparkle:version>1</sparkle:version>
