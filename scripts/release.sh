@@ -39,6 +39,8 @@ swift build -c release
 # 3. 创建应用包
 echo ""
 echo "==> [3/10] 创建应用包"
+PASTEMEMO_VERSION="$VERSION" \
+PASTEMEMO_BUILD_NUMBER="$BUILD_NUMBER" \
 ./scripts/rebuild_and_open_stable.sh
 
 # 4. 创建 DMG

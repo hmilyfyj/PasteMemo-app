@@ -14,6 +14,29 @@ APP_ICON="$APP_BUNDLE/Resources/AppIcon.icns"
 BUNDLE_ID="${PASTEMEMO_BUNDLE_ID:-com.lifedever.PasteMemo}"
 SIGNING_IDENTITY="${PASTEMEMO_SIGNING_IDENTITY:-}"
 FRAMEWORK_RPATH="@executable_path/../Frameworks"
+SOURCE_INFO_PLIST="$ROOT_DIR/Sources/Resources/Info.plist"
+
+plist_value() {
+  local key="$1"
+  /usr/libexec/PlistBuddy -c "Print :$key" "$SOURCE_INFO_PLIST" 2>/dev/null || true
+}
+
+latest_git_version() {
+  git tag --list 'v*' --sort=-version:refname | sed -n '1s/^v//p'
+}
+
+VERSION="${PASTEMEMO_VERSION:-$(latest_git_version)}"
+if [[ -z "$VERSION" ]]; then
+  VERSION="$(plist_value CFBundleShortVersionString)"
+fi
+
+BUILD_NUMBER="${PASTEMEMO_BUILD_NUMBER:-}"
+if [[ -z "$BUILD_NUMBER" ]]; then
+  BUILD_NUMBER="$(plist_value CFBundleVersion)"
+fi
+if [[ -z "$BUILD_NUMBER" ]]; then
+  BUILD_NUMBER="${VERSION//./}"
+fi
 
 if [[ -z "$SIGNING_IDENTITY" ]]; then
   SIGNING_IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(.*\)"/\1/p' | head -n 1 || true)"
@@ -61,9 +84,9 @@ cat > "$APP_CONTENTS_DIR/Info.plist" <<EOF
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.3.0</string>
+    <string>$VERSION</string>
     <key>CFBundleVersion</key>
-    <string>130</string>
+    <string>$BUILD_NUMBER</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>NSHighResolutionCapable</key>
@@ -148,3 +171,4 @@ if [[ -n "$SIGNING_IDENTITY" ]]; then
 else
   echo "Signing Identity: adhoc"
 fi
+echo "Version: $VERSION ($BUILD_NUMBER)"

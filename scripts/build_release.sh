@@ -5,7 +5,8 @@ ROOT_DIR="/Users/fengit/workspace/PasteMemo-app"
 BUILD_DIR="$ROOT_DIR/.build/arm64-apple-macosx/release"
 DIST_DIR="$ROOT_DIR/.dist"
 APP_DIR="$DIST_DIR/PasteMemo.app"
-VERSION="1.2.2"
+VERSION="${1:-$(git -C "$ROOT_DIR" tag --list 'v*' --sort=-version:refname | sed -n '1s/^v//p')}"
+BUILD_NUMBER="${VERSION//./}"
 
 echo "==> 创建应用包结构"
 rm -rf "$APP_DIR"
@@ -48,7 +49,7 @@ cat > "$APP_DIR/Contents/Info.plist" <<EOF
     <key>CFBundleShortVersionString</key>
     <string>$VERSION</string>
     <key>CFBundleVersion</key>
-    <string>2</string>
+    <string>$BUILD_NUMBER</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>NSHighResolutionCapable</key>
