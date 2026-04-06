@@ -528,6 +528,16 @@
 "onboarding.preferences.title" = "Preferences";
 "onboarding.preferences.desc" = "Set up your preferred behavior. You can change these anytime in Settings.";
 
+/* Onboarding - Migration */
+"onboarding.migration.title" = "Data Migration";
+"onboarding.migration.desc" = "Paste.app detected. You can migrate your clipboard history to PasteMemo with one click.";
+"onboarding.migration.found" = "%d items found";
+"onboarding.migration.import" = "Start Migration";
+"onboarding.migration.none" = "Paste.app not detected, no migration needed";
+"onboarding.migration.success" = "Migration complete! %d items imported";
+"onboarding.migration.skipped" = "%d duplicate items skipped";
+
+
 "sensitive.optionHint" = "Hold ⌥ Option to peek";
 
 "sensitive.peek" = "Peek";

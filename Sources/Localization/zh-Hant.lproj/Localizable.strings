@@ -371,6 +371,16 @@
 "onboarding.preferences.title" = "偏好設定";
 "onboarding.preferences.desc" = "設定你偏好的行為方式，之後隨時可以在設定中修改。";
 
+/* Onboarding - Migration */
+"onboarding.migration.title" = "資料遷移";
+"onboarding.migration.desc" = "偵測到你安裝了 Paste.app，可以將歷史記錄一鍵遷移到 PasteMemo。";
+"onboarding.migration.found" = "發現 %d 筆歷史記錄";
+"onboarding.migration.import" = "開始遷移";
+"onboarding.migration.none" = "未偵測到 Paste.app，無需遷移";
+"onboarding.migration.success" = "遷移完成！已匯入 %d 筆記錄";
+"onboarding.migration.skipped" = "跳過 %d 筆重複記錄";
+
+
 "sensitive.optionHint" = "按住 ⌥ Option 快速查看";
 
 "sensitive.peek" = "快速查看";

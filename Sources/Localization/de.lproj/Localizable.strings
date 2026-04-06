@@ -293,6 +293,16 @@
 "onboarding.preferences.title" = "Einstellungen";
 "onboarding.preferences.desc" = "Richten Sie Ihr bevorzugtes Verhalten ein. Sie können diese Einstellungen jederzeit ändern.";
 
+/* Onboarding - Migration */
+"onboarding.migration.title" = "Datenmigration";
+"onboarding.migration.desc" = "Paste.app erkannt. Sie können Ihre Zwischenablage-Historie mit einem Klick zu PasteMemo migrieren.";
+"onboarding.migration.found" = "%d Elemente gefunden";
+"onboarding.migration.import" = "Migration starten";
+"onboarding.migration.none" = "Paste.app nicht erkannt, keine Migration erforderlich";
+"onboarding.migration.success" = "Migration abgeschlossen! %d Elemente importiert";
+"onboarding.migration.skipped" = "%d doppelte Elemente übersprungen";
+
+
 "sensitive.optionHint" = "⌥ Option gedrückt halten zum Anzeigen";
 
 "sensitive.peek" = "Vorschau";

@@ -293,6 +293,16 @@
 "onboarding.preferences.title" = "Préférences";
 "onboarding.preferences.desc" = "Configurez votre comportement préféré. Vous pouvez modifier ces réglages à tout moment.";
 
+/* Onboarding - Migration */
+"onboarding.migration.title" = "Migration des données";
+"onboarding.migration.desc" = "Paste.app détecté. Vous pouvez migrer votre historique de presse-papiers vers PasteMemo en un clic.";
+"onboarding.migration.found" = "%d éléments trouvés";
+"onboarding.migration.import" = "Démarrer la migration";
+"onboarding.migration.none" = "Paste.app non détecté, aucune migration nécessaire";
+"onboarding.migration.success" = "Migration terminée ! %d éléments importés";
+"onboarding.migration.skipped" = "%d éléments en double ignorés";
+
+
 "sensitive.optionHint" = "Maintenez ⌥ Option pour apercevoir";
 
 "sensitive.peek" = "Aperçu";

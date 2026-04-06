@@ -529,6 +529,16 @@
 "onboarding.preferences.title" = "偏好设置";
 "onboarding.preferences.desc" = "设置你偏好的行为方式，之后随时可以在设置中修改。";
 
+/* Onboarding - Migration */
+"onboarding.migration.title" = "数据迁移";
+"onboarding.migration.desc" = "检测到你安装了 Paste.app，可以将历史记录一键迁移到 PasteMemo。";
+"onboarding.migration.found" = "发现 %d 条历史记录";
+"onboarding.migration.import" = "开始迁移";
+"onboarding.migration.none" = "未检测到 Paste.app，无需迁移";
+"onboarding.migration.success" = "迁移完成！已导入 %d 条记录";
+"onboarding.migration.skipped" = "跳过 %d 条重复记录";
+
+
 "sensitive.optionHint" = "按住 ⌥ Option 快速查看";
 
 "sensitive.peek" = "快速查看";

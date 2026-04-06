@@ -293,6 +293,16 @@
 "onboarding.preferences.title" = "Preferencias";
 "onboarding.preferences.desc" = "Configura tu comportamiento preferido. Puedes cambiarlo en cualquier momento en Ajustes.";
 
+/* Onboarding - Migration */
+"onboarding.migration.title" = "Migración de datos";
+"onboarding.migration.desc" = "Paste.app detectado. Puedes migrar tu historial del portapapeles a PasteMemo con un clic.";
+"onboarding.migration.found" = "%d elementos encontrados";
+"onboarding.migration.import" = "Iniciar migración";
+"onboarding.migration.none" = "Paste.app no detectado, no se necesita migración";
+"onboarding.migration.success" = "¡Migración completada! %d elementos importados";
+"onboarding.migration.skipped" = "%d elementos duplicados omitidos";
+
+
 "sensitive.optionHint" = "Mantén ⌥ Option para ver";
 
 "sensitive.peek" = "Vista rápida";

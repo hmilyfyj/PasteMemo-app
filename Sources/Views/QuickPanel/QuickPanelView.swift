@@ -1012,7 +1012,7 @@ struct QuickPanelView: View {
         GeometryReader { proxy in
             let metrics = resolvedBottomCardLayoutMetrics(for: proxy.size)
 
-            VStack(spacing: 12) {
+            VStack(spacing: 8) {
                 bottomHeader
                 if filteredItems.isEmpty {
                     bottomEmptyState
@@ -1040,8 +1040,8 @@ struct QuickPanelView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .quickPanelBottomShell()
             .padding(.horizontal, QuickPanelBottomTheme.shellInset)
-            .padding(.top, 6)
-            .padding(.bottom, 4)
+            .padding(.top, 4)
+            .padding(.bottom, 2)
         }
         .transaction { transaction in
             if isLiveResizing {
@@ -1342,8 +1342,8 @@ struct QuickPanelView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 14)
-        .padding(.top, 8)
-        .padding(.bottom, 4)
+        .padding(.top, 4)
+        .padding(.bottom, 1)
         .background(WindowDragArea())
     }
 

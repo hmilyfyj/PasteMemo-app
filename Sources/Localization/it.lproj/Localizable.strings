@@ -369,6 +369,16 @@
 "onboarding.preferences.title" = "Preferenze";
 "onboarding.preferences.desc" = "Configura il comportamento preferito. Puoi modificare queste impostazioni in qualsiasi momento.";
 
+/* Onboarding - Migration */
+"onboarding.migration.title" = "Migrazione dati";
+"onboarding.migration.desc" = "Paste.app rilevato. Puoi migrare la cronologia degli appunti in PasteMemo con un clic.";
+"onboarding.migration.found" = "%d elementi trovati";
+"onboarding.migration.import" = "Avvia migrazione";
+"onboarding.migration.none" = "Paste.app non rilevato, nessuna migrazione necessaria";
+"onboarding.migration.success" = "Migrazione completata! %d elementi importati";
+"onboarding.migration.skipped" = "%d elementi duplicati saltati";
+
+
 "sensitive.optionHint" = "Tieni premuto ⌥ Option per sbirciare";
 
 "sensitive.peek" = "Sbircia";

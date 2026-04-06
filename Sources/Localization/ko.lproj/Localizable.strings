@@ -293,6 +293,16 @@
 "onboarding.preferences.title" = "환경설정";
 "onboarding.preferences.desc" = "선호하는 동작 방식을 설정하세요. 설정에서 언제든 변경할 수 있습니다.";
 
+/* Onboarding - Migration */
+"onboarding.migration.title" = "데이터 마이그레이션";
+"onboarding.migration.desc" = "Paste.app이 감지되었습니다. 클립보드 기록을 원클릭으로 PasteMemo로 마이그레이션할 수 있습니다.";
+"onboarding.migration.found" = "%d개 항목 발견";
+"onboarding.migration.import" = "마이그레이션 시작";
+"onboarding.migration.none" = "Paste.app이 감지되지 않았습니다. 마이그레이션이 필요하지 않습니다";
+"onboarding.migration.success" = "마이그레이션 완료! %d개 항목 가져옴";
+"onboarding.migration.skipped" = "%d개 중복 항목 건너뜀";
+
+
 "sensitive.optionHint" = "⌥ Option을 눌러 미리보기";
 
 "sensitive.peek" = "미리보기";

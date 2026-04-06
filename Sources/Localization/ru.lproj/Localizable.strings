@@ -369,6 +369,16 @@
 "onboarding.preferences.title" = "Настройки";
 "onboarding.preferences.desc" = "Настройте предпочтительное поведение. Вы можете изменить это в любое время в настройках.";
 
+/* Onboarding - Migration */
+"onboarding.migration.title" = "Миграция данных";
+"onboarding.migration.desc" = "Обнаружено Paste.app. Вы можете перенести историю буфера обмена в PasteMemo одним кликом.";
+"onboarding.migration.found" = "Найдено %d элементов";
+"onboarding.migration.import" = "Начать миграцию";
+"onboarding.migration.none" = "Paste.app не обнаружен, миграция не требуется";
+"onboarding.migration.success" = "Миграция завершена! Импортировано %d элементов";
+"onboarding.migration.skipped" = "Пропущено %d дубликатов";
+
+
 "sensitive.optionHint" = "Удерживайте ⌥ Option для быстрого просмотра";
 
 "sensitive.peek" = "Быстрый просмотр";

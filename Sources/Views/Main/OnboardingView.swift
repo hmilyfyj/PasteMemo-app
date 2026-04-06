@@ -15,8 +15,13 @@ struct OnboardingView: View {
     @AppStorage(QuickPanelStyle.storageKey) private var quickPanelStyle = QuickPanelStyle.bottomFloating.rawValue
     @State private var detectedManagers: [(bundleID: String, name: String, icon: NSImage)] = []
     @State private var selectedManagerIDs: Set<String> = []
+    @State private var hasPasteApp = false
+    @State private var pasteAppItemCount = 0
+    @State private var isMigrating = false
+    @State private var migrationProgress = ""
+    @State private var migrationResult: String?
 
-    private let totalSteps = 6
+    private let totalSteps = 7
     private let allRetentionOptions = [1, 3, 7, 14, 30, 60, 90, 180, 365]
 
     private var availableOptions: [Int] { allRetentionOptions }
@@ -32,8 +37,9 @@ struct OnboardingView: View {
                 case 1: accessibilityStep
                 case 2: privacyAppsStep
                 case 3: preferencesStep
-                case 4: relayIntroStep
-                case 5: shortcutStep
+                case 4: migrationStep
+                case 5: relayIntroStep
+                case 6: shortcutStep
                 default: EmptyView()
                 }
             }
@@ -424,6 +430,128 @@ struct OnboardingView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    private var migrationStep: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "arrow.left.arrow.right")
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 60, height: 60)
+                .background(Color.orange, in: Circle())
+
+            Text(L10n.tr("onboarding.migration.title"))
+                .font(.title2)
+                .fontWeight(.bold)
+
+            Text(L10n.tr("onboarding.migration.desc"))
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 360)
+
+            if isMigrating {
+                VStack(spacing: 8) {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                    Text(migrationProgress)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.top, 4)
+            } else if let result = migrationResult {
+                VStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 32))
+                        .foregroundStyle(.green)
+                    Text(result)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.top, 4)
+            } else if hasPasteApp {
+                VStack(spacing: 12) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "externaldrive.fill.badge.icloud")
+                            .font(.system(size: 20))
+                            .foregroundStyle(.orange)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Paste.app")
+                                .font(.callout)
+                                .fontWeight(.medium)
+                            Text(L10n.tr("onboarding.migration.found", pasteAppItemCount))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                    }
+                    .padding(12)
+                    .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+                    .frame(maxWidth: 320)
+
+                    Button(L10n.tr("onboarding.migration.import")) {
+                        performMigration()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .pointerCursor()
+                }
+                .padding(.top, 4)
+            } else {
+                VStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle")
+                        .font(.system(size: 32))
+                        .foregroundStyle(.green)
+                    Text(L10n.tr("onboarding.migration.none"))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.top, 4)
+            }
+        }
+        .padding(28)
+        .onAppear {
+            checkPasteApp()
+        }
+    }
+
+    private func checkPasteApp() {
+        hasPasteApp = PasteAppMigrator.checkPasteAppDatabaseExists()
+        if hasPasteApp {
+            pasteAppItemCount = PasteAppMigrator.getPasteAppItemCount()
+        }
+    }
+
+    @MainActor
+    private func performMigration() {
+        guard !isMigrating else { return }
+        
+        isMigrating = true
+        migrationProgress = ""
+        migrationResult = nil
+        
+        Task {
+            let container = PasteMemoApp.sharedModelContainer
+            let context = container.mainContext
+            
+            let result = await PasteAppMigrator.migrate(
+                into: context
+            ) { current, total, status in
+                Task { @MainActor in
+                    migrationProgress = "\(current) / \(total) - \(status)"
+                }
+            }
+            
+            isMigrating = false
+            migrationProgress = ""
+            
+            var message = L10n.tr("onboarding.migration.success", result.imported)
+            if result.skipped > 0 {
+                message += " " + L10n.tr("onboarding.migration.skipped", result.skipped)
+            }
+            migrationResult = message
+        }
     }
 
     private var relayIntroStep: some View {

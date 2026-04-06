@@ -369,6 +369,16 @@
 "onboarding.preferences.title" = "Preferensi";
 "onboarding.preferences.desc" = "Atur perilaku yang Anda inginkan. Anda dapat mengubahnya kapan saja di Pengaturan.";
 
+/* Onboarding - Migration */
+"onboarding.migration.title" = "Migrasi Data";
+"onboarding.migration.desc" = "Paste.app terdeteksi. Anda dapat memigrasikan riwayat papan klip ke PasteMemo dengan satu klik.";
+"onboarding.migration.found" = "%d item ditemukan";
+"onboarding.migration.import" = "Mulai Migrasi";
+"onboarding.migration.none" = "Paste.app tidak terdeteksi, tidak perlu migrasi";
+"onboarding.migration.success" = "Migrasi selesai! %d item diimpor";
+"onboarding.migration.skipped" = "%d item duplikat dilewati";
+
+
 "sensitive.optionHint" = "Tahan ⌥ Option untuk mengintip";
 
 "sensitive.peek" = "Intip";

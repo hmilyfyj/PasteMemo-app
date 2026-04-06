@@ -307,6 +307,16 @@
 "onboarding.preferences.title" = "環境設定";
 "onboarding.preferences.desc" = "お好みの動作を設定してください。設定はいつでも変更できます。";
 
+/* Onboarding - Migration */
+"onboarding.migration.title" = "データ移行";
+"onboarding.migration.desc" = "Paste.appが検出されました。クリップボード履歴をワンクリックでPasteMemoに移行できます。";
+"onboarding.migration.found" = "%d件のアイテムが見つかりました";
+"onboarding.migration.import" = "移行を開始";
+"onboarding.migration.none" = "Paste.appは検出されませんでした。移行は不要です";
+"onboarding.migration.success" = "移行完了！%d件のアイテムをインポートしました";
+"onboarding.migration.skipped" = "%d件の重複アイテムをスキップしました";
+
+
 "sensitive.optionHint" = "⌥ Option を押して一時表示";
 
 "sensitive.peek" = "一時表示";
