@@ -384,9 +384,6 @@ struct OnboardingView: View {
                     }
                     .labelsHidden()
                     .onChange(of: quickPanelStyle) { _, newValue in
-                        if newValue == QuickPanelStyle.bottomFloating.rawValue {
-                            QuickPanelBottomDefaults.resetStoredSizing()
-                        }
                     }
                 }
                 .padding(.horizontal, 12)

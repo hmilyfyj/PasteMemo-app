@@ -298,9 +298,6 @@ struct PreferencesTab: View {
                     Text(L10n.tr("settings.quickPanelStyle.bottomFloating")).tag(QuickPanelStyle.bottomFloating.rawValue)
                 }
                 .onChange(of: quickPanelStyle) { _, newValue in
-                    if newValue == QuickPanelStyle.bottomFloating.rawValue {
-                        QuickPanelBottomDefaults.resetStoredSizing()
-                    }
                 }
                 if quickPanelStyle == QuickPanelStyle.bottomFloating.rawValue {
                     BottomFloatingHeightSettingView()

@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 APP_DIR="$HOME/Applications/PasteMemo Dev.app"
 SIGNING_IDENTITY="${PASTEMEMO_SIGNING_IDENTITY:-PasteMemo Dev Code Signing}"
-BUNDLE_ID="${PASTEMEMO_BUNDLE_ID:-com.lifedever.PasteMemo.dev}"
+BUNDLE_ID="${PASTEMEMO_BUNDLE_ID:-com.lifedever.PasteMemo}"
 
 cd "$ROOT_DIR"
 

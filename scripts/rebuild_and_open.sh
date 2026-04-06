@@ -11,7 +11,7 @@ APP_BINARY="$BUILD_DIR/PasteMemo"
 APP_BUNDLE="$BUILD_DIR/PasteMemo_PasteMemo.bundle"
 APP_EXECUTABLE="$APP_CONTENTS_DIR/MacOS/PasteMemo"
 APP_ICON="$APP_BUNDLE/Resources/AppIcon.icns"
-BUNDLE_ID="${PASTEMEMO_BUNDLE_ID:-com.lifedever.PasteMemo.dev}"
+BUNDLE_ID="${PASTEMEMO_BUNDLE_ID:-com.lifedever.PasteMemo}"
 SIGNING_IDENTITY="${PASTEMEMO_SIGNING_IDENTITY:-}"
 
 if [[ -z "$SIGNING_IDENTITY" ]]; then
