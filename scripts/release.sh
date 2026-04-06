@@ -4,7 +4,7 @@ set -e
 
 if [ -z "$1" ]; then
     echo "用法: $0 <版本号>"
-    echo "示例: $0 1.3.2"
+    echo "示例: $0 1.3.3"
     exit 1
 fi
 
@@ -105,41 +105,14 @@ gh release upload v${VERSION} /tmp/${DMG_NAME}
 echo ""
 echo "==> [10/10] 更新 appcast.xml"
 
-# 准备新的 item 内容
-PUB_DATE=$(date '+%a, %d %b %Y %H:%M:%S %z')
-NEW_ITEM="        <item>
-            <title>Version ${VERSION}</title>
-            <pubDate>${PUB_DATE}</pubDate>
-            <sparkle:version>${BUILD_NUMBER}</sparkle:version>
-            <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[
-                <h2>${RELEASE_NOTES}</h2>
-                <h3>🎉 新功能</h3>
-                <ul>
-                    <li>${RELEASE_NOTES}</li>
-                </ul>
-                <h3>📝 技术改进</h3>
-                <ul>
-                    <li>性能优化</li>
-                    <li>稳定性改进</li>
-                </ul>
-            ]]></description>
-            <enclosure
-                url=\"https://github.com/hmilyfyj/PasteMemo-app/releases/download/v${VERSION}/${DMG_NAME}\"
-                sparkle:edSignature=\"${SIGNATURE}\"
-                length=\"${LENGTH}\"
-                type=\"application/octet-stream\"
-            />
-        </item>"
-
-# 在第一个 <item> 之前插入新的 item
-sed -i.bak "/        <item>/i\\
-${NEW_ITEM}
-" appcast.xml
-
-# 删除备份文件
-rm -f appcast.xml.bak
+# 使用 Python 脚本更新 appcast.xml
+python3 scripts/update_appcast.py \
+  "${VERSION}" \
+  "${BUILD_NUMBER}" \
+  "${SIGNATURE}" \
+  "${LENGTH}" \
+  "${RELEASE_NOTES}" \
+  "${DMG_NAME}"
 
 echo "✅ appcast.xml 已更新"
 
