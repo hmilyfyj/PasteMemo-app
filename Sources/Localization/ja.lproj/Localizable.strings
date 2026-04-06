@@ -259,6 +259,17 @@
 "dataPorter.importSuccess" = "インポート成功";
 "dataPorter.wrongPassword" = "パスワードが正しくありません";
 
+/* Paste.app Migration */
+"dataPorter.pasteMigration" = "Paste.app データ移行";
+"dataPorter.pasteMigration.desc" = "Paste.appからクリップボード履歴をインポート";
+"dataPorter.pasteMigration.button" = "移行を開始";
+"dataPorter.pasteMigration.notFound" = "Paste.appデータベースが見つかりません。Paste.appがインストールされ、使用されていることを確認してください。";
+"dataPorter.pasteMigration.empty" = "Paste.appデータベースにアイテムがありません。";
+"dataPorter.pasteMigration.progress" = "Paste.appから移行中（%d件）";
+"dataPorter.pasteMigration.success" = "移行完了：%d件インポート、%d件スキップ";
+"dataPorter.pasteMigration.errors" = "エラー：%@";
+
+
 /* Dev Tools */
 "devTools.importFromRelease" = "Import Data from Release";
 "devTools.importFromRelease.confirm" = "Import from Release?";

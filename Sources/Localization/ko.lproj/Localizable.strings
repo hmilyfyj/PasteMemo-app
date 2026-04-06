@@ -245,6 +245,17 @@
 "dataPorter.importSuccess" = "가져오기 완료";
 "dataPorter.wrongPassword" = "비밀번호가 올바르지 않습니다";
 
+/* Paste.app Migration */
+"dataPorter.pasteMigration" = "Paste.app 데이터 마이그레이션";
+"dataPorter.pasteMigration.desc" = "Paste.app에서 클립보드 기록 가져오기";
+"dataPorter.pasteMigration.button" = "마이그레이션 시작";
+"dataPorter.pasteMigration.notFound" = "Paste.app 데이터베이스를 찾을 수 없습니다. Paste.app이 설치되어 있고 사용된 적 있는지 확인하세요.";
+"dataPorter.pasteMigration.empty" = "Paste.app 데이터베이스에 항목이 없습니다.";
+"dataPorter.pasteMigration.progress" = "Paste.app에서 마이그레이션 중 (%d개 항목)";
+"dataPorter.pasteMigration.success" = "마이그레이션 완료: %d개 가져옴, %d개 건너뜀";
+"dataPorter.pasteMigration.errors" = "오류: %@";
+
+
 /* Dev Tools */
 "devTools.importFromRelease" = "Import Data from Release";
 "devTools.importFromRelease.confirm" = "Import from Release?";

@@ -323,6 +323,17 @@
 "dataPorter.importSuccess" = "匯入成功";
 "dataPorter.wrongPassword" = "密碼錯誤";
 
+/* Paste.app Migration */
+"dataPorter.pasteMigration" = "Paste.app 資料遷移";
+"dataPorter.pasteMigration.desc" = "從 Paste.app 匯入剪貼板歷史記錄";
+"dataPorter.pasteMigration.button" = "開始遷移";
+"dataPorter.pasteMigration.notFound" = "未找到 Paste.app 資料庫。請確保已安裝並使用過 Paste.app。";
+"dataPorter.pasteMigration.empty" = "Paste.app 資料庫中沒有資料。";
+"dataPorter.pasteMigration.progress" = "正在從 Paste.app 遷移（%d 筆記錄）";
+"dataPorter.pasteMigration.success" = "遷移完成！已匯入 %d 筆，跳過 %d 筆重複記錄";
+"dataPorter.pasteMigration.errors" = "錯誤：%@";
+
+
 /* Dev Tools */
 "devTools.importFromRelease" = "Import Data from Release";
 "devTools.importFromRelease.confirm" = "Import from Release?";

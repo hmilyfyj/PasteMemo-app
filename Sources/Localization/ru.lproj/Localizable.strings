@@ -321,6 +321,17 @@
 "dataPorter.importSuccess" = "Импорт выполнен";
 "dataPorter.wrongPassword" = "Неверный пароль";
 
+/* Paste.app Migration */
+"dataPorter.pasteMigration" = "Миграция Paste.app";
+"dataPorter.pasteMigration.desc" = "Импорт истории буфера обмена из Paste.app";
+"dataPorter.pasteMigration.button" = "Начать миграцию";
+"dataPorter.pasteMigration.notFound" = "База данных Paste.app не найдена. Убедитесь, что Paste.app установлен и использовался.";
+"dataPorter.pasteMigration.empty" = "В базе данных Paste.app нет элементов.";
+"dataPorter.pasteMigration.progress" = "Миграция из Paste.app (%d элементов)";
+"dataPorter.pasteMigration.success" = "Миграция завершена: %d элементов импортировано, %d пропущено";
+"dataPorter.pasteMigration.errors" = "Ошибки: %@";
+
+
 /* Dev Tools */
 "devTools.importFromRelease" = "Import Data from Release";
 "devTools.importFromRelease.confirm" = "Import from Release?";

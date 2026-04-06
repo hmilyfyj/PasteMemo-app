@@ -24,14 +24,14 @@ struct DataPorterSection: View {
             exportControls
         }
 
-        Section("Paste.app Migration") {
+        Section(L10n.tr("dataPorter.pasteMigration")) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Import data from Paste.app")
+                Text(L10n.tr("dataPorter.pasteMigration.desc"))
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
 
-            Button("Migrate from Paste.app") {
+            Button(L10n.tr("dataPorter.pasteMigration.button")) {
                 startPasteAppMigration()
             }
             .disabled(isProcessing)
@@ -334,13 +334,13 @@ struct DataPorterSection: View {
 
     private func startPasteAppMigration() {
         guard PasteAppMigrator.checkPasteAppDatabaseExists() else {
-            showAlert("Paste.app database not found. Please make sure Paste.app is installed and has been used.")
+            showAlert(L10n.tr("dataPorter.pasteMigration.notFound"))
             return
         }
 
         let itemCount = PasteAppMigrator.getPasteAppItemCount()
         guard itemCount > 0 else {
-            showAlert("No items found in Paste.app database.")
+            showAlert(L10n.tr("dataPorter.pasteMigration.empty"))
             return
         }
 
@@ -348,7 +348,7 @@ struct DataPorterSection: View {
     }
 
     private func performPasteAppMigration(itemCount: Int) {
-        progressTitle = "Migrating from Paste.app (\(itemCount) items)"
+        progressTitle = L10n.tr("dataPorter.pasteMigration.progress", itemCount)
         isProcessing = true
         importProgress = ""
         progressValue = 0
@@ -369,9 +369,9 @@ struct DataPorterSection: View {
             }
 
             ClipItemStore.isBulkOperation = false
-            var message = "Migration completed: \(result.imported) items imported, \(result.skipped) skipped"
+            var message = L10n.tr("dataPorter.pasteMigration.success", result.imported, result.skipped)
             if !result.errors.isEmpty {
-                message += "\nErrors: \(result.errors.prefix(3).joined(separator: ", "))"
+                message += "\n" + L10n.tr("dataPorter.pasteMigration.errors", result.errors.prefix(3).joined(separator: ", "))
                 if result.errors.count > 3 {
                     message += "..."
                 }

@@ -245,6 +245,17 @@
 "dataPorter.importSuccess" = "Import erfolgreich";
 "dataPorter.wrongPassword" = "Falsches Passwort";
 
+/* Paste.app Migration */
+"dataPorter.pasteMigration" = "Paste.app Migration";
+"dataPorter.pasteMigration.desc" = "Zwischenablage-Verlauf aus Paste.app importieren";
+"dataPorter.pasteMigration.button" = "Migration starten";
+"dataPorter.pasteMigration.notFound" = "Paste.app-Datenbank nicht gefunden. Bitte stellen Sie sicher, dass Paste.app installiert ist und verwendet wurde.";
+"dataPorter.pasteMigration.empty" = "Keine Elemente in der Paste.app-Datenbank gefunden.";
+"dataPorter.pasteMigration.progress" = "Migration von Paste.app (%d Elemente)";
+"dataPorter.pasteMigration.success" = "Migration abgeschlossen: %d Elemente importiert, %d übersprungen";
+"dataPorter.pasteMigration.errors" = "Fehler: %@";
+
+
 /* Dev Tools */
 "devTools.importFromRelease" = "Import Data from Release";
 "devTools.importFromRelease.confirm" = "Import from Release?";

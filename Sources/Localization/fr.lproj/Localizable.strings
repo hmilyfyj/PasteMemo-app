@@ -245,6 +245,17 @@
 "dataPorter.importSuccess" = "Import réussi";
 "dataPorter.wrongPassword" = "Mot de passe incorrect";
 
+/* Paste.app Migration */
+"dataPorter.pasteMigration" = "Migration Paste.app";
+"dataPorter.pasteMigration.desc" = "Importer l'historique du presse-papiers depuis Paste.app";
+"dataPorter.pasteMigration.button" = "Démarrer la migration";
+"dataPorter.pasteMigration.notFound" = "Base de données Paste.app introuvable. Veuillez vous assurer que Paste.app est installé et a été utilisé.";
+"dataPorter.pasteMigration.empty" = "Aucun élément trouvé dans la base de données Paste.app.";
+"dataPorter.pasteMigration.progress" = "Migration depuis Paste.app (%d éléments)";
+"dataPorter.pasteMigration.success" = "Migration terminée : %d éléments importés, %d ignorés";
+"dataPorter.pasteMigration.errors" = "Erreurs : %@";
+
+
 /* Dev Tools */
 "devTools.importFromRelease" = "Import Data from Release";
 "devTools.importFromRelease.confirm" = "Import from Release?";

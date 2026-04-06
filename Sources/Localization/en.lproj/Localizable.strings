@@ -377,6 +377,17 @@
 "dataPorter.importSuccess" = "Import successful";
 "dataPorter.wrongPassword" = "Wrong password";
 
+/* Paste.app Migration */
+"dataPorter.pasteMigration" = "Paste.app Migration";
+"dataPorter.pasteMigration.desc" = "Import clipboard history from Paste.app";
+"dataPorter.pasteMigration.button" = "Start Migration";
+"dataPorter.pasteMigration.notFound" = "Paste.app database not found. Please make sure Paste.app is installed and has been used.";
+"dataPorter.pasteMigration.empty" = "No items found in Paste.app database.";
+"dataPorter.pasteMigration.progress" = "Migrating from Paste.app (%d items)";
+"dataPorter.pasteMigration.success" = "Migration completed: %d items imported, %d skipped";
+"dataPorter.pasteMigration.errors" = "Errors: %@";
+
+
 /* Dev Tools */
 "devTools.importFromRelease" = "Import Data from Release";
 "devTools.importFromRelease.confirm" = "Import from Release?";

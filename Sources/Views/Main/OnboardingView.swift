@@ -683,8 +683,14 @@ struct OnboardingView: View {
         HotkeyManager.shared.register()
         WindowManager.shared.close(id: "onboarding")
 
-        // Open main window, show help only on first completion
-        AppAction.shared.openMainWindow?()
+        // 直接打开剪贴板列表（QuickPanel），而不是管理器窗口
+        // 让用户立即看到剪贴板历史，提供更好的首次使用体验
+        QuickPanelWindowController.shared.show(
+            clipboardManager: ClipboardManager.shared,
+            modelContainer: PasteMemoApp.sharedModelContainer
+        )
+        
+        // 首次完成时显示帮助窗口
         if !UserDefaults.standard.bool(forKey: "hasShownFirstHelp") {
             UserDefaults.standard.set(true, forKey: "hasShownFirstHelp")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {

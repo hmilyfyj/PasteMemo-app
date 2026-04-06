@@ -321,6 +321,17 @@
 "dataPorter.importSuccess" = "Impor berhasil";
 "dataPorter.wrongPassword" = "Kata sandi salah";
 
+/* Paste.app Migration */
+"dataPorter.pasteMigration" = "Migrasi Paste.app";
+"dataPorter.pasteMigration.desc" = "Impor riwayat papan klip dari Paste.app";
+"dataPorter.pasteMigration.button" = "Mulai Migrasi";
+"dataPorter.pasteMigration.notFound" = "Database Paste.app tidak ditemukan. Pastikan Paste.app terinstal dan telah digunakan.";
+"dataPorter.pasteMigration.empty" = "Tidak ada item ditemukan di database Paste.app.";
+"dataPorter.pasteMigration.progress" = "Migrasi dari Paste.app (%d item)";
+"dataPorter.pasteMigration.success" = "Migrasi selesai: %d item diimpor, %d dilewati";
+"dataPorter.pasteMigration.errors" = "Kesalahan: %@";
+
+
 /* Dev Tools */
 "devTools.importFromRelease" = "Import Data from Release";
 "devTools.importFromRelease.confirm" = "Import from Release?";

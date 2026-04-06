@@ -245,6 +245,17 @@
 "dataPorter.importSuccess" = "Importación exitosa";
 "dataPorter.wrongPassword" = "Contraseña incorrecta";
 
+/* Paste.app Migration */
+"dataPorter.pasteMigration" = "Migración de Paste.app";
+"dataPorter.pasteMigration.desc" = "Importar historial del portapapeles desde Paste.app";
+"dataPorter.pasteMigration.button" = "Iniciar migración";
+"dataPorter.pasteMigration.notFound" = "Base de datos de Paste.app no encontrada. Asegúrate de que Paste.app esté instalado y haya sido utilizado.";
+"dataPorter.pasteMigration.empty" = "No se encontraron elementos en la base de datos de Paste.app.";
+"dataPorter.pasteMigration.progress" = "Migrando desde Paste.app (%d elementos)";
+"dataPorter.pasteMigration.success" = "Migración completada: %d elementos importados, %d omitidos";
+"dataPorter.pasteMigration.errors" = "Errores: %@";
+
+
 /* Dev Tools */
 "devTools.importFromRelease" = "Import Data from Release";
 "devTools.importFromRelease.confirm" = "Import from Release?";

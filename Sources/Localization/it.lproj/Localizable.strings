@@ -321,6 +321,17 @@
 "dataPorter.importSuccess" = "Importazione riuscita";
 "dataPorter.wrongPassword" = "Password errata";
 
+/* Paste.app Migration */
+"dataPorter.pasteMigration" = "Migrazione Paste.app";
+"dataPorter.pasteMigration.desc" = "Importa cronologia appunti da Paste.app";
+"dataPorter.pasteMigration.button" = "Avvia migrazione";
+"dataPorter.pasteMigration.notFound" = "Database Paste.app non trovato. Assicurati che Paste.app sia installato e utilizzato.";
+"dataPorter.pasteMigration.empty" = "Nessun elemento trovato nel database Paste.app.";
+"dataPorter.pasteMigration.progress" = "Migrazione da Paste.app (%d elementi)";
+"dataPorter.pasteMigration.success" = "Migrazione completata: %d elementi importati, %d saltati";
+"dataPorter.pasteMigration.errors" = "Errori: %@";
+
+
 /* Dev Tools */
 "devTools.importFromRelease" = "Import Data from Release";
 "devTools.importFromRelease.confirm" = "Import from Release?";
