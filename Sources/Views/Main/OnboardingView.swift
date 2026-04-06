@@ -377,6 +377,11 @@ struct OnboardingView: View {
                         Text(L10n.tr("settings.quickPanelStyle.bottomFloating")).tag(QuickPanelStyle.bottomFloating.rawValue)
                     }
                     .labelsHidden()
+                    .onChange(of: quickPanelStyle) { _, newValue in
+                        if newValue == QuickPanelStyle.bottomFloating.rawValue {
+                            QuickPanelBottomDefaults.resetStoredSizing()
+                        }
+                    }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)

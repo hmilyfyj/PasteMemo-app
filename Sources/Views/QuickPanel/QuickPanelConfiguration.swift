@@ -69,18 +69,28 @@ enum QuickPanelKeyboardRouter {
 }
 
 enum QuickPanelBottomGeometry {
-    static let horizontalInset: CGFloat = 12
-    static let legacyDefaultHorizontalInset: CGFloat = 10
-    static let bottomInset: CGFloat = 10
+    static let edgeGap: CGFloat = 10
+    static let horizontalInset: CGFloat = edgeGap
+    static let legacyDefaultHorizontalInset: CGFloat = edgeGap
+    static let bottomInset: CGFloat = edgeGap
     static let compactHeight: CGFloat = 252
     static let expandedHeight: CGFloat = 760
     static let minimumCompactHeight: CGFloat = 212
     static let minimumExpandedHeight: CGFloat = 360
     static let maxWidth: CGFloat = 10_000
     static let minimumWidth: CGFloat = 860
+    static let defaultCompactHeightRatio: CGFloat = 0.25
 
-    static func defaultHeight(for mode: QuickPanelBottomMode) -> CGFloat {
-        mode == .compact ? compactHeight : expandedHeight
+    static func defaultHeight(for mode: QuickPanelBottomMode, visibleFrame: CGRect? = nil) -> CGFloat {
+        if let visibleFrame {
+            switch mode {
+            case .compact:
+                return visibleFrame.height * defaultCompactHeightRatio
+            case .expanded:
+                return expandedHeight
+            }
+        }
+        return mode == .compact ? compactHeight : expandedHeight
     }
 
     static func minimumHeight(for mode: QuickPanelBottomMode) -> CGFloat {
@@ -124,10 +134,41 @@ enum QuickPanelBottomGeometry {
         preferredHeight: CGFloat? = nil
     ) -> CGRect {
         let width = clampedWidth(preferredWidth ?? panelWidth(for: screenFrame), screenFrame: screenFrame)
-        let height = clampedHeight(preferredHeight ?? defaultHeight(for: mode), visibleFrame: visibleFrame, mode: mode)
+        let height = clampedHeight(preferredHeight ?? defaultHeight(for: mode, visibleFrame: visibleFrame), visibleFrame: visibleFrame, mode: mode)
         let originX = screenFrame.midX - width / 2
         let originY = visibleFrame.minY + bottomInset
         return CGRect(x: originX, y: originY, width: width, height: height)
+    }
+}
+
+enum QuickPanelBottomDefaults {
+    static let sizeStorageKey = "quickPanelBottomSize"
+    static let widthIsCustomKey = "quickPanelBottomWidthIsCustom"
+    static let compactHeightPreferenceKey = "quickPanelBottomDefaultCompactHeight"
+
+    static func storedDefaultCompactHeight(visibleFrame: CGRect) -> CGFloat {
+        let stored = UserDefaults.standard.double(forKey: compactHeightPreferenceKey)
+        guard stored > 0 else {
+            return QuickPanelBottomGeometry.clampedHeight(
+                QuickPanelBottomGeometry.defaultHeight(for: .compact, visibleFrame: visibleFrame),
+                visibleFrame: visibleFrame,
+                mode: .compact
+            )
+        }
+
+        return QuickPanelBottomGeometry.clampedHeight(
+            CGFloat(stored),
+            visibleFrame: visibleFrame,
+            mode: .compact
+        )
+    }
+
+    static func resetStoredSizing() {
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: "\(sizeStorageKey).width")
+        defaults.removeObject(forKey: "\(sizeStorageKey).compact.height")
+        defaults.removeObject(forKey: "\(sizeStorageKey).expanded.height")
+        defaults.set(false, forKey: widthIsCustomKey)
     }
 }
 
@@ -135,7 +176,7 @@ enum QuickPanelBottomAnimation {
     static let revealHeight: CGFloat = 28
     static let openOvershoot: CGFloat = 0
     static let openDuration: TimeInterval = 0.22
-    static let settleDuration: TimeInterval = 0
+    static let settleDuration: TimeInterval = 0.14
     static let closeRevealHeight: CGFloat = 20
     static let closeDuration: TimeInterval = 0.18
     static let closedAlpha: CGFloat = 0.94
@@ -146,7 +187,7 @@ enum QuickPanelBottomAnimation {
     static let emergeFinalOffset: CGFloat = 10
 
     static func openingInitialOffset(for panelHeight: CGFloat) -> CGFloat {
-        panelHeight
+        -(max(panelHeight - revealHeight, 0))
     }
 
     static func closingTargetOffset(for panelHeight: CGFloat) -> CGFloat {

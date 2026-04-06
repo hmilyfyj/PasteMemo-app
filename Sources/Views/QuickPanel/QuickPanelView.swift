@@ -617,39 +617,9 @@ struct QuickPanelView: View {
         }
     }
 
-    @MainActor
-    @discardableResult
-    private func placeSearchCursorAtEnd() -> Bool {
-        let windows = [NSApp.keyWindow, NSApp.mainWindow].compactMap { $0 }
-
-        for window in windows {
-            guard let textView = window.firstResponder as? NSTextView else { continue }
-            let cursorLocation = searchText.utf16.count
-            textView.setSelectedRange(NSRange(location: cursorLocation, length: 0))
-            textView.scrollRangeToVisible(NSRange(location: cursorLocation, length: 0))
-            return true
-        }
-
-        return false
-    }
-
-    private func requestSearchCursorPlacementAtEnd() {
-        Task { @MainActor in
-            for _ in 0..<5 {
-                await Task.yield()
-                if placeSearchCursorAtEnd() {
-                    return
-                }
-            }
-        }
-    }
-
-    private func activateSearchField(placeCursorAtEnd: Bool = false) {
+    private func activateSearchField() {
         guard isBottomFloatingStyle else {
             isSearchFocused = true
-            if placeCursorAtEnd {
-                requestSearchCursorPlacementAtEnd()
-            }
             return
         }
 
@@ -657,9 +627,6 @@ struct QuickPanelView: View {
         Task { @MainActor in
             await Task.yield()
             isSearchFocused = true
-            if placeCursorAtEnd {
-                requestSearchCursorPlacementAtEnd()
-            }
         }
     }
 
@@ -920,15 +887,11 @@ struct QuickPanelView: View {
                     // Looks like a path - perform normal search
                     store.groupName = nil
                     store.searchText = searchText
-                } else if !currentSuggestionGroups.isEmpty || !currentSuggestionApps.isEmpty {
-                    // Single slash with matching groups/apps - group selection mode
-                    // Don't search yet, show suggestions
+                } else {
+                    // Single slash - group selection mode
+                    // Typing / for group selection — don't search yet
                     store.searchText = ""
                     store.groupName = nil
-                } else {
-                    // Single slash but no matching groups/apps - perform normal search
-                    store.groupName = nil
-                    store.searchText = searchText
                 }
             } else {
                 store.groupName = nil
@@ -1657,7 +1620,10 @@ struct QuickPanelView: View {
                 }
 
                 Button {
-                    showNewGroupPanelFromToolbar()
+                    if let name = showNewGroupAlert(for: []) {
+                        applyCustomGroupFilter(name)
+                    }
+                    restoreSearchFocusIfNeeded()
                 } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 16, weight: .medium))
@@ -1675,33 +1641,6 @@ struct QuickPanelView: View {
             .padding(.horizontal, 4)
         }
         .frame(minWidth: 220, maxWidth: 600, minHeight: 28, maxHeight: 28)
-    }
-
-    private func showNewGroupPanelFromToolbar() {
-        isSearchFocused = false
-        removeKeyMonitor()
-        QuickPanelWindowController.shared.suppressDismiss = true
-
-        DispatchQueue.main.async {
-            GroupEditorPanel.showAsync() { result in
-                QuickPanelWindowController.shared.suppressDismiss = false
-                installKeyMonitor()
-
-                guard let result else {
-                    restoreSearchFocusIfNeeded()
-                    return
-                }
-
-                let context = PasteMemoApp.sharedModelContainer.mainContext
-                let resultName = result.name
-                AppMenuActions.upsertGroup(name: resultName, icon: result.icon, context: context)
-                try? context.save()
-                AppMenuActions.notifyGroupStoreDidChange()
-                store.refreshSidebarCounts()
-                applyCustomGroupFilter(resultName)
-                restoreSearchFocusIfNeeded()
-            }
-        }
     }
 
     private func bottomGroupToolbarChip(
@@ -2008,8 +1947,7 @@ struct QuickPanelView: View {
                                     isLiveResizing: false,
                                     shortcutIndex: shortcutIndex(for: item),
                                     cardWidth: metrics.cardWidth,
-                                    cardHeight: metrics.cardHeight,
-                                    searchText: searchText
+                                    cardHeight: metrics.cardHeight
                                 )
                                 .background(
                                     BottomClipEnsureVisibleProbe(
@@ -2687,7 +2625,7 @@ struct QuickPanelView: View {
                         }
                         // Add the character to search text and activate search field
                         searchText += String(character)
-                        activateSearchField(placeCursorAtEnd: true)
+                        activateSearchField()
                         return nil
                     }
                 }
@@ -3038,17 +2976,17 @@ struct QuickPanelView: View {
 
     private func dismissAndRestoreApp(action: @escaping (NSRunningApplication) -> Void) {
         let appToRestore = QuickPanelWindowController.shared.previousApp
-        QuickPanelWindowController.shared.dismiss {
-            guard let app = appToRestore else { return }
-            app.activate()
-            Task { @MainActor in
-                for _ in 0..<20 {
-                    try? await Task.sleep(for: .milliseconds(50))
-                    if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier { break }
-                }
+        QuickPanelWindowController.shared.dismiss()
+
+        guard let app = appToRestore else { return }
+        app.activate()
+        Task { @MainActor in
+            for _ in 0..<20 {
                 try? await Task.sleep(for: .milliseconds(50))
-                action(app)
+                if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier { break }
             }
+            try? await Task.sleep(for: .milliseconds(50))
+            action(app)
         }
     }
 
@@ -3222,18 +3160,15 @@ struct QuickPanelView: View {
         installKeyMonitor()
         
         guard let result else { return nil }
-        // Quick Panel 工具栏的“新建分组”会创建空分组，此时不要依赖当前视图上下文，
-        // 直接走共享主上下文，和菜单栏入口保持一致，避免悬浮窗上下文不同步导致看起来“未提交”。
-        if items.isEmpty {
-            let context = PasteMemoApp.sharedModelContainer.mainContext
-            AppMenuActions.upsertGroup(name: result.name, icon: result.icon, context: context)
-            try? context.save()
-            AppMenuActions.notifyGroupStoreDidChange()
-            store.refreshSidebarCounts()
-            return result.name
+        let name = result.name
+        let descriptor = FetchDescriptor<SmartGroup>(predicate: #Predicate { $0.name == name })
+        if let existing = try? modelContext.fetch(descriptor).first {
+            existing.icon = result.icon
+        } else {
+            let maxOrder = (try? modelContext.fetch(FetchDescriptor<SmartGroup>()))?.map(\.sortOrder).max() ?? -1
+            let group = SmartGroup(name: result.name, icon: result.icon, sortOrder: maxOrder + 1)
+            modelContext.insert(group)
         }
-
-        AppMenuActions.upsertGroup(name: result.name, icon: result.icon, context: modelContext)
         try? modelContext.save()
         assignToGroup(items: items, name: result.name)
         return result.name
@@ -3378,9 +3313,8 @@ struct QuickPanelView: View {
         // Link → open in browser
         if item.contentType == .link,
            let url = URL(string: item.content.trimmingCharacters(in: .whitespacesAndNewlines)) {
-            QuickPanelWindowController.shared.dismiss {
-                NSWorkspace.shared.open(url)
-            }
+            QuickPanelWindowController.shared.dismiss()
+            NSWorkspace.shared.open(url)
         }
         // File-based (including file images) → paste path
         else if isFileBasedItem(item) {
@@ -3397,8 +3331,17 @@ struct QuickPanelView: View {
     }
 
     private func handlePlainTextPaste(_ item: ClipItem) {
-        dismissAndRestoreApp { _ in
+        let appToRestore = QuickPanelWindowController.shared.previousApp
+        QuickPanelWindowController.shared.dismiss()
+
+        if let app = appToRestore {
+            app.activate()
             Task { @MainActor in
+                for _ in 0..<20 {
+                    try? await Task.sleep(for: .milliseconds(50))
+                    if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier { break }
+                }
+                try? await Task.sleep(for: .milliseconds(50))
                 clipboardManager.pasteAsPlainText(item)
             }
         }
@@ -3412,9 +3355,17 @@ struct QuickPanelView: View {
         let ext = item.resolvedFileExtension
         guard let savedURL = clipboardManager.saveTextToFolder(item.content, folder: folder, fileExtension: ext) else { return }
 
-        dismissAndRestoreApp { _ in
+        let appToRestore = QuickPanelWindowController.shared.previousApp
+        QuickPanelWindowController.shared.dismiss()
+
+        if let app = appToRestore {
+            app.activate()
             Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(50))
+                for _ in 0..<20 {
+                    try? await Task.sleep(for: .milliseconds(50))
+                    if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier { break }
+                }
+                try? await Task.sleep(for: .milliseconds(100))
                 NSWorkspace.shared.selectFile(savedURL.path, inFileViewerRootedAtPath: savedURL.deletingLastPathComponent().path)
             }
         }
@@ -3428,8 +3379,17 @@ struct QuickPanelView: View {
         clipboardManager.lastChangeCount = pasteboard.changeCount
         SoundManager.playPaste()
 
-        dismissAndRestoreApp { _ in
+        let appToRestore = QuickPanelWindowController.shared.previousApp
+        QuickPanelWindowController.shared.dismiss()
+
+        if let app = appToRestore {
+            app.activate()
             Task { @MainActor in
+                for _ in 0..<20 {
+                    try? await Task.sleep(for: .milliseconds(50))
+                    if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier { break }
+                }
+                try? await Task.sleep(for: .milliseconds(50))
                 clipboardManager.simulatePaste()
             }
         }
@@ -3443,8 +3403,17 @@ struct QuickPanelView: View {
         clipboardManager.lastChangeCount = pasteboard.changeCount
         SoundManager.playPaste()
 
-        dismissAndRestoreApp { _ in
+        let appToRestore = QuickPanelWindowController.shared.previousApp
+        QuickPanelWindowController.shared.dismiss()
+
+        if let app = appToRestore {
+            app.activate()
             Task { @MainActor in
+                for _ in 0..<20 {
+                    try? await Task.sleep(for: .milliseconds(50))
+                    if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier { break }
+                }
+                try? await Task.sleep(for: .milliseconds(50))
                 clipboardManager.simulatePaste()
             }
         }
@@ -3486,9 +3455,17 @@ struct QuickPanelView: View {
             return
         }
 
-        dismissAndRestoreApp { _ in
+        let appToRestore = QuickPanelWindowController.shared.previousApp
+        QuickPanelWindowController.shared.dismiss()
+
+        if let app = appToRestore {
+            app.activate()
             Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(50))
+                for _ in 0..<20 {
+                    try? await Task.sleep(for: .milliseconds(50))
+                    if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier { break }
+                }
+                try? await Task.sleep(for: .milliseconds(100))
                 NSWorkspace.shared.selectFile(savedURL.path, inFileViewerRootedAtPath: savedURL.deletingLastPathComponent().path)
             }
         }

@@ -327,7 +327,14 @@ final class QuickPanelWindowController {
 
     private func bottomPanelHeight(for mode: QuickPanelBottomMode, visibleFrame: CGRect) -> CGFloat {
         let saved = UserDefaults.standard.double(forKey: "\(BOTTOM_SIZE_KEY).\(mode.rawValue).height")
-        let preferred = saved > 0 ? saved : QuickPanelBottomGeometry.defaultHeight(for: mode)
+        let preferred: CGFloat
+        if saved > 0 {
+            preferred = CGFloat(saved)
+        } else if mode == .compact {
+            preferred = QuickPanelBottomDefaults.storedDefaultCompactHeight(visibleFrame: visibleFrame)
+        } else {
+            preferred = QuickPanelBottomGeometry.defaultHeight(for: mode, visibleFrame: visibleFrame)
+        }
         return QuickPanelBottomGeometry.clampedHeight(preferred, visibleFrame: visibleFrame, mode: mode)
     }
 
