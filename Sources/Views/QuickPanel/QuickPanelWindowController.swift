@@ -389,6 +389,32 @@ final class QuickPanelWindowController {
         }
     }
 
+    func handleStyleChange(to style: QuickPanelStyle) {
+        resizePersistenceWorkItem?.cancel()
+        resizePersistenceWorkItem = nil
+
+        if style == .bottomFloating {
+            bottomMode = .compact
+        }
+
+        guard let panel else { return }
+
+        guard panel.isVisible else {
+            panel.orderOut(nil)
+            panel.close()
+            self.panel = nil
+            isWarmedUp = false
+            bottomFloatingAnimationState = .hidden
+            return
+        }
+
+        applyPanelBehavior(panel)
+        positionPanel(panel)
+        panel.alphaValue = 1
+        panel.orderFrontRegardless()
+        panel.makeKey()
+    }
+
     /// Call once at app launch to pre-build the panel off-screen
     func warmUp(clipboardManager: ClipboardManager, modelContainer: ModelContainer) {
         guard !isWarmedUp else { return }
