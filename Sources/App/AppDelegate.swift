@@ -19,7 +19,6 @@ final class AppAction {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     static var shouldReallyQuit = false
     private var isLaunchComplete = false
-    private var updateDialogCancellable: AnyCancellable?
 
     override init() {
         super.init()
@@ -90,9 +89,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         try? await Task.sleep(nanoseconds: 100_000_000)
         
         LaunchPerformanceMonitor.shared.beginStage("Update Check")
-        await UpdateChecker.shared.checkForUpdates()
-        UpdateChecker.shared.startPeriodicChecks()
-        setupUpdateDialogObserver()
+        SparkleUpdater.shared.startUpdater()
+        SparkleUpdater.shared.checkForUpdatesInBackground()
         LaunchPerformanceMonitor.shared.endStage("Update Check")
         
         LaunchPerformanceMonitor.shared.beginStage("Backup Scheduler")
@@ -153,15 +151,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "dark": NSApp.appearance = NSAppearance(named: .darkAqua)
         default: NSApp.appearance = nil
         }
-    }
-
-    private func setupUpdateDialogObserver() {
-        updateDialogCancellable = UpdateChecker.shared.$showUpdateDialog
-            .receive(on: DispatchQueue.main)
-            .sink { show in
-                guard show else { return }
-                showUpdateWindow(updater: UpdateChecker.shared)
-            }
     }
 
 }

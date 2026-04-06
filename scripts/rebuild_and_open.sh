@@ -13,6 +13,7 @@ APP_EXECUTABLE="$APP_CONTENTS_DIR/MacOS/PasteMemo"
 APP_ICON="$APP_BUNDLE/Resources/AppIcon.icns"
 BUNDLE_ID="${PASTEMEMO_BUNDLE_ID:-com.lifedever.PasteMemo}"
 SIGNING_IDENTITY="${PASTEMEMO_SIGNING_IDENTITY:-}"
+FRAMEWORK_RPATH="@executable_path/../Frameworks"
 
 if [[ -z "$SIGNING_IDENTITY" ]]; then
   SIGNING_IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(.*\)"/\1/p' | head -n 1 || true)"
@@ -36,7 +37,7 @@ fi
 
 echo "==> 重建应用包"
 rm -rf "$APP_DIR"
-mkdir -p "$APP_CONTENTS_DIR/MacOS" "$APP_CONTENTS_DIR/Resources"
+mkdir -p "$APP_CONTENTS_DIR/MacOS" "$APP_CONTENTS_DIR/Resources" "$APP_CONTENTS_DIR/Frameworks"
 
 cat > "$APP_CONTENTS_DIR/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -67,6 +68,10 @@ cat > "$APP_CONTENTS_DIR/Info.plist" <<EOF
     <string>14.0</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>SUFeedURL</key>
+    <string>https://raw.githubusercontent.com/hmilyfyj/PasteMemo-app/main/appcast.xml</string>
+    <key>SUPublicEDKey</key>
+    <string>gdCKVVE0vuVdqw4SS5eN7Q0F9wVoVjb+Grd6FyGUAbs=</string>
 </dict>
 </plist>
 EOF
@@ -76,6 +81,32 @@ cp -R "$APP_BUNDLE" "$APP_CONTENTS_DIR/Resources/"
 
 if [[ -f "$APP_ICON" ]]; then
   cp "$APP_ICON" "$APP_CONTENTS_DIR/Resources/AppIcon.icns"
+fi
+
+echo "==> 复制 Sparkle.framework"
+SPARKLE_FRAMEWORK="$ROOT_DIR/.build/arm64-apple-macosx/debug/Sparkle.framework"
+if [[ -d "$SPARKLE_FRAMEWORK" ]]; then
+  cp -R "$SPARKLE_FRAMEWORK" "$APP_CONTENTS_DIR/Frameworks/"
+  echo "Sparkle.framework 已复制"
+else
+  echo "警告: 未找到 Sparkle.framework，尝试从 artifacts 目录查找"
+  SPARKLE_ARTIFACTS="$ROOT_DIR/.build/artifacts/sparkle/Sparkle/Sparkle.framework"
+  if [[ -d "$SPARKLE_ARTIFACTS" ]]; then
+    cp -R "$SPARKLE_ARTIFACTS" "$APP_CONTENTS_DIR/Frameworks/"
+    echo "Sparkle.framework 已从 artifacts 复制"
+  else
+    echo "错误: 未找到 Sparkle.framework"
+    echo "请运行: swift build"
+    exit 1
+  fi
+fi
+
+echo "==> 修正运行时库搜索路径"
+if ! otool -l "$APP_EXECUTABLE" | grep -Fq "$FRAMEWORK_RPATH"; then
+  install_name_tool -add_rpath "$FRAMEWORK_RPATH" "$APP_EXECUTABLE"
+  echo "已添加 rpath: $FRAMEWORK_RPATH"
+else
+  echo "rpath 已存在: $FRAMEWORK_RPATH"
 fi
 
 echo "==> 重新签名"

@@ -1,0 +1,88 @@
+name: Release with Sparkle
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Swift
+        uses: swift-actions/setup-swift@v1
+        with:
+          swift-version: "6.0"
+
+      - name: Build app
+        run: |
+          swift build -c release
+          cd .build/release
+          mkdir -p PasteMemo.app/Contents/MacOS
+          mkdir -p PasteMemo.app/Contents/Resources
+          cp PasteMemo PasteMemo.app/Contents/MacOS/
+          cp -r ../../Sources/Resources/* PasteMemo.app/Contents/Resources/
+          cp ../../Sources/Resources/Info.plist PasteMemo.app/Contents/
+
+      - name: Create DMG
+        run: |
+          brew install create-dmg
+          create-dmg \
+            --volname "PasteMemo" \
+            --volicon "Sources/Resources/AppIcon.icns" \
+            --window-pos 200 120 \
+            --window-size 800 400 \
+            --icon-size 100 \
+            --icon "PasteMemo.app" 200 190 \
+            --hide-extension "PasteMemo.app" \
+            --app-drop-link 600 185 \
+            "PasteMemo-${{ github.event.release.tag_name }}.dmg" \
+            ".build/release/"
+
+      - name: Generate EdDSA key pair (if not exists)
+        run: |
+          if [ ! -f sparkle_private_key.pem ]; then
+            openssl genpkey -algorithm ED25519 -out sparkle_private_key.pem
+            openssl pkey -in sparkle_private_key.pem -pubout -out sparkle_public_key.pem
+            echo "SPARKLE_PRIVATE_KEY=$(cat sparkle_private_key.pem)" >> $GITHUB_ENV
+            echo "SPARKLE_PUBLIC_KEY=$(cat sparkle_public_key.pem)" >> $GITHUB_ENV
+          fi
+
+      - name: Sign DMG with Sparkle
+        run: |
+          # Download Sparkle tools
+          curl -L https://github.com/sparkle-project/Sparkle/releases/latest/download/Sparkle-2.9.1.tar.xz -o Sparkle.tar.xz
+          tar xf Sparkle.tar.xz
+          
+          # Sign the DMG
+          ./Sparkle-2.9.1/bin/sign_update PasteMemo-${{ github.event.release.tag_name }}.dmg
+
+      - name: Generate appcast
+        run: |
+          # Generate appcast.xml
+          ./Sparkle-2.9.1/bin/generate_appcast \
+            --feed-url "https://raw.githubusercontent.com/${{ github.repository }}/main/appcast.xml" \
+            --download-url-prefix "https://github.com/${{ github.repository }}/releases/download/${{ github.event.release.tag_name }}/" \
+            .
+
+      - name: Upload DMG to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: PasteMemo-${{ github.event.release.tag_name }}.dmg
+
+      - name: Commit and push appcast
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add appcast.xml
+          git commit -m "Update appcast for ${{ github.event.release.tag_name }}" || echo "No changes to commit"
+          git push
+
+      - name: Upload private key as secret
+        if: env.SPARKLE_PRIVATE_KEY != ''
+        run: |
+          echo "Private key generated. Please add it as a repository secret named SPARKLE_PRIVATE_KEY"
+          echo "Public key: $SPARKLE_PUBLIC_KEY"

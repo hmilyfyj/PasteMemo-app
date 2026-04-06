@@ -579,7 +579,7 @@ struct SponsorTab: View {
 // MARK: - About Tab
 
 struct AboutTab: View {
-    @ObservedObject private var updateChecker = UpdateChecker.shared
+    @ObservedObject private var sparkleUpdater = SparkleUpdater.shared
 
     var body: some View {
         Form {
@@ -608,9 +608,9 @@ struct AboutTab: View {
                         .foregroundStyle(.secondary)
                 }
                 Button(L10n.tr("menu.checkForUpdates")) {
-                    Task { await updateChecker.checkForUpdates(userInitiated: true) }
+                    sparkleUpdater.checkForUpdates()
                 }
-                .disabled(updateChecker.isChecking)
+                .disabled(!sparkleUpdater.canCheckForUpdates)
             }
 
             Section {

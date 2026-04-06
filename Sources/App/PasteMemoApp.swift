@@ -19,7 +19,7 @@ struct PasteMemoApp: App {
         .commands {
             CommandGroup(after: .appInfo) {
                 Button(L10n.tr("menu.checkForUpdates")) {
-                    Task { await UpdateChecker.shared.checkForUpdates(userInitiated: true) }
+                    SparkleUpdater.shared.checkForUpdates()
                 }
                 Divider()
             }

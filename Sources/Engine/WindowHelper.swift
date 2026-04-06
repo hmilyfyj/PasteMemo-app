@@ -34,13 +34,3 @@ func showAccessibilityPrompt() {
     }
 }
 
-@MainActor
-func showUpdateWindow(updater: UpdateChecker) {
-    WindowManager.shared.show(
-        id: "update",
-        title: L10n.tr("update.available.title"),
-        size: NSSize(width: 520, height: 460)
-    ) {
-        UpdateDialogView(updater: updater)
-    }
-}

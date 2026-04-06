@@ -8,3 +8,4 @@ DerivedData/
 .DS_Store
 .dist/
 .tmp-signing
+sparkle_private_key.pem
