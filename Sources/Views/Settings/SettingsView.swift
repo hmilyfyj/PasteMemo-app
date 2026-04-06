@@ -306,9 +306,6 @@ struct PreferencesTab: View {
                     }
                     QuickPanelWindowController.shared.handleStyleChange(to: newStyle)
                 }
-                if quickPanelStyle == QuickPanelStyle.bottomFloating.rawValue {
-                    BottomFloatingHeightSettingView()
-                }
             }
 
             OCRSettingsSection()
@@ -335,73 +332,6 @@ struct PreferencesTab: View {
 
     private func applyManagerShortcut() {
         HotkeyManager.shared.updateManagerShortcut(keyCode: managerKeyCode, modifiers: managerModifiers)
-    }
-}
-
-struct BottomFloatingHeightSettingView: View {
-    @AppStorage(QuickPanelBottomDefaults.compactHeightPreferenceKey) private var compactHeightPreference = 0.0
-    @State private var sliderValue = 0.0
-
-    private var visibleFrame: CGRect {
-        NSScreen.screenWithMouse?.visibleFrame
-            ?? NSScreen.main?.visibleFrame
-            ?? NSScreen.screens.first?.visibleFrame
-            ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
-    }
-
-    private var resolvedHeight: Double {
-        Double(QuickPanelBottomDefaults.storedDefaultCompactHeight(visibleFrame: visibleFrame))
-    }
-
-    private var heightRange: ClosedRange<Double> {
-        let minimum = Double(QuickPanelBottomGeometry.minimumHeight(for: .compact))
-        let maximum = Double(
-            QuickPanelBottomGeometry.clampedHeight(
-                visibleFrame.height - QuickPanelBottomGeometry.bottomInset,
-                visibleFrame: visibleFrame,
-                mode: .compact
-            )
-        )
-        return minimum...max(minimum, maximum)
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(L10n.tr("settings.quickPanelStyle.bottomFloating.height"))
-                Spacer()
-                Text("\(Int(sliderValue.rounded())) pt")
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-            }
-            Slider(value: $sliderValue, in: heightRange, step: 4)
-        }
-        .onAppear {
-            sliderValue = resolvedHeight
-        }
-        .onChange(of: compactHeightPreference) {
-            sliderValue = resolvedHeight
-        }
-        .onChange(of: sliderValue) { _, newValue in
-            applyCompactHeight(newValue)
-        }
-    }
-
-    private func applyCompactHeight(_ newValue: Double) {
-        let clamped = QuickPanelBottomGeometry.clampedHeight(
-            CGFloat(newValue),
-            visibleFrame: visibleFrame,
-            mode: .compact
-        )
-        compactHeightPreference = Double(clamped)
-        UserDefaults.standard.set(
-            Double(clamped),
-            forKey: "\(QuickPanelBottomDefaults.sizeStorageKey).compact.height"
-        )
-        QuickPanelWindowController.shared.setBottomFloatingMode(
-            QuickPanelWindowController.shared.bottomMode,
-            animated: false
-        )
     }
 }
 

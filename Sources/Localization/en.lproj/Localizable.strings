@@ -106,7 +106,6 @@
 "settings.quickPanelStyle" = "Quick Paste Style";
 "settings.quickPanelStyle.classic" = "Classic Panel";
 "settings.quickPanelStyle.bottomFloating" = "Bottom Floating";
-"settings.quickPanelStyle.bottomFloating.height" = "Bottom Floating Height";
 "settings.managerShortcut" = "Open Manager";
 "settings.shortcut.none" = "Not set";
 "settings.shortcut.clickToRecord" = "Click to record";

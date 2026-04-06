@@ -106,7 +106,6 @@
 "settings.quickPanelStyle" = "快捷粘贴样式";
 "settings.quickPanelStyle.classic" = "经典面板";
 "settings.quickPanelStyle.bottomFloating" = "底部悬浮";
-"settings.quickPanelStyle.bottomFloating.height" = "底部悬浮高度";
 "settings.managerShortcut" = "打开管理器";
 "settings.shortcut.none" = "未设置";
 "settings.shortcut.clickToRecord" = "点击录入";

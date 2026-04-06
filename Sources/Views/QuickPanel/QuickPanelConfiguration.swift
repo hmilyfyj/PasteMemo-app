@@ -8,8 +8,8 @@ enum QuickPanelStyle: String, CaseIterable {
     static let storageKey = "quickPanelStyle"
 
     static var stored: QuickPanelStyle {
-        let raw = UserDefaults.standard.string(forKey: storageKey) ?? QuickPanelStyle.classic.rawValue
-        return QuickPanelStyle(rawValue: raw) ?? .classic
+        let raw = UserDefaults.standard.string(forKey: storageKey) ?? QuickPanelStyle.bottomFloating.rawValue
+        return QuickPanelStyle(rawValue: raw) ?? .bottomFloating
     }
 }
 
@@ -144,24 +144,6 @@ enum QuickPanelBottomGeometry {
 enum QuickPanelBottomDefaults {
     static let sizeStorageKey = "quickPanelBottomSize"
     static let widthIsCustomKey = "quickPanelBottomWidthIsCustom"
-    static let compactHeightPreferenceKey = "quickPanelBottomDefaultCompactHeight"
-
-    static func storedDefaultCompactHeight(visibleFrame: CGRect) -> CGFloat {
-        let stored = UserDefaults.standard.double(forKey: compactHeightPreferenceKey)
-        guard stored > 0 else {
-            return QuickPanelBottomGeometry.clampedHeight(
-                QuickPanelBottomGeometry.defaultHeight(for: .compact, visibleFrame: visibleFrame),
-                visibleFrame: visibleFrame,
-                mode: .compact
-            )
-        }
-
-        return QuickPanelBottomGeometry.clampedHeight(
-            CGFloat(stored),
-            visibleFrame: visibleFrame,
-            mode: .compact
-        )
-    }
 
     static func resetStoredSizing() {
         let defaults = UserDefaults.standard

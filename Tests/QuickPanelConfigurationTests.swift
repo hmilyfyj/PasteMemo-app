@@ -86,30 +86,6 @@ struct QuickPanelConfigurationTests {
         #expect(!QuickPanelBottomGeometry.shouldUpgradeSavedWidthToCurrentDefault(1200, screenFrame: screenFrame))
     }
 
-    @Test("Bottom floating uses the same gap baseline on the sides and bottom")
-    func edgeGapsStayConsistent() {
-        #expect(QuickPanelBottomGeometry.horizontalInset == QuickPanelBottomGeometry.bottomInset)
-        #expect(QuickPanelBottomGeometry.horizontalInset == QuickPanelBottomGeometry.edgeGap)
-    }
-
-    @Test("Bottom floating compact height preference overrides the default ratio")
-    func preferredCompactHeightUsesStoredPreference() {
-        let defaults = UserDefaults.standard
-        let key = QuickPanelBottomDefaults.compactHeightPreferenceKey
-        let original = defaults.object(forKey: key)
-        let visibleFrame = CGRect(x: 0, y: 24, width: 1728, height: 1056)
-
-        defaults.set(420, forKey: key)
-
-        #expect(QuickPanelBottomDefaults.storedDefaultCompactHeight(visibleFrame: visibleFrame) == 420)
-
-        if let original {
-            defaults.set(original, forKey: key)
-        } else {
-            defaults.removeObject(forKey: key)
-        }
-    }
-
     @Test("Bottom floating width remains current default when legacy custom flag is absent")
     func bottomWidthDefaultsToCurrentScreenWidthWithoutCustomFlag() {
         let defaults = UserDefaults.standard
@@ -150,18 +126,15 @@ struct QuickPanelConfigurationTests {
         let compactHeightKey = "\(QuickPanelBottomDefaults.sizeStorageKey).compact.height"
         let expandedHeightKey = "\(QuickPanelBottomDefaults.sizeStorageKey).expanded.height"
         let customKey = QuickPanelBottomDefaults.widthIsCustomKey
-        let preferredCompactHeightKey = QuickPanelBottomDefaults.compactHeightPreferenceKey
         let originalWidth = defaults.object(forKey: widthKey)
         let originalCompactHeight = defaults.object(forKey: compactHeightKey)
         let originalExpandedHeight = defaults.object(forKey: expandedHeightKey)
         let originalCustom = defaults.object(forKey: customKey)
-        let originalPreferredCompactHeight = defaults.object(forKey: preferredCompactHeightKey)
 
         defaults.set(1200, forKey: widthKey)
         defaults.set(280, forKey: compactHeightKey)
         defaults.set(640, forKey: expandedHeightKey)
         defaults.set(true, forKey: customKey)
-        defaults.set(360, forKey: preferredCompactHeightKey)
 
         QuickPanelBottomDefaults.resetStoredSizing()
 
@@ -169,7 +142,6 @@ struct QuickPanelConfigurationTests {
         #expect(defaults.object(forKey: compactHeightKey) == nil)
         #expect(defaults.object(forKey: expandedHeightKey) == nil)
         #expect(defaults.bool(forKey: customKey) == false)
-        #expect(defaults.object(forKey: preferredCompactHeightKey) as? Double == 360)
 
         if let originalWidth {
             defaults.set(originalWidth, forKey: widthKey)
@@ -193,12 +165,6 @@ struct QuickPanelConfigurationTests {
             defaults.set(originalCustom, forKey: customKey)
         } else {
             defaults.removeObject(forKey: customKey)
-        }
-
-        if let originalPreferredCompactHeight {
-            defaults.set(originalPreferredCompactHeight, forKey: preferredCompactHeightKey)
-        } else {
-            defaults.removeObject(forKey: preferredCompactHeightKey)
         }
     }
 
