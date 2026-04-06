@@ -920,11 +920,15 @@ struct QuickPanelView: View {
                     // Looks like a path - perform normal search
                     store.groupName = nil
                     store.searchText = searchText
-                } else {
-                    // Single slash - group selection mode
-                    // Typing / for group selection — don't search yet
+                } else if !currentSuggestionGroups.isEmpty || !currentSuggestionApps.isEmpty {
+                    // Single slash with matching groups/apps - group selection mode
+                    // Don't search yet, show suggestions
                     store.searchText = ""
                     store.groupName = nil
+                } else {
+                    // Single slash but no matching groups/apps - perform normal search
+                    store.groupName = nil
+                    store.searchText = searchText
                 }
             } else {
                 store.groupName = nil
