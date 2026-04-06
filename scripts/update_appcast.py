@@ -62,8 +62,10 @@ def update_appcast(version, build_number, signature, length, release_notes, dmg_
         return False
 
 if __name__ == '__main__':
-    if len(sys.argv) != 6:
+    if len(sys.argv) != 7:
         print("用法: python3 update_appcast.py <版本号> <构建号> <签名> <文件大小> <更新说明> <DMG文件名>")
+        print(f"当前参数数量: {len(sys.argv)}")
+        print(f"参数列表: {sys.argv}")
         sys.exit(1)
     
     version = sys.argv[1]
@@ -71,7 +73,7 @@ if __name__ == '__main__':
     signature = sys.argv[3]
     length = sys.argv[4]
     release_notes = sys.argv[5]
-    dmg_name = sys.argv[6] if len(sys.argv) > 6 else f"PasteMemo-{version}.dmg"
+    dmg_name = sys.argv[6]
     
     success = update_appcast(version, build_number, signature, length, release_notes, dmg_name)
     sys.exit(0 if success else 1)

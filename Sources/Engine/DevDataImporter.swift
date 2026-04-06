@@ -100,6 +100,7 @@ enum DevDataImporter {
         task.executableURL = URL(fileURLWithPath: "/bin/sh")
         task.arguments = ["-c", "sleep 1 && open \"\(path)\""]
         try? task.launch()
+        AppDelegate.shouldReallyQuit = true
         NSApp.terminate(nil)
     }
 

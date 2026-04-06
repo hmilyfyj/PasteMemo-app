@@ -116,6 +116,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard AppDelegate.shouldReallyQuit else {
+            // Default close behavior is minimizing to menu bar, but explicit quit/relaunch flows
+            // such as Sparkle updates must set shouldReallyQuit before terminating.
             hideAllMainWindows(sender)
             NSApp.setActivationPolicy(.accessory)
             return .terminateCancel
