@@ -12,9 +12,10 @@ def update_appcast(version, build_number, signature, length, release_notes, dmg_
         content = f.read()
     
     # 准备新的 item
-    pub_date = datetime.now().strftime('%a, %d %b %Y %H:%M:%S %z')
+    pub_date = datetime.now().astimezone().strftime('%a, %d %b %Y %H:%M:%S %z')
     
-    new_item = f'''        <item>
+    new_item = f'''
+        <item>
             <title>Version {version}</title>
             <pubDate>{pub_date}</pubDate>
             <sparkle:version>{build_number}</sparkle:version>
@@ -38,8 +39,7 @@ def update_appcast(version, build_number, signature, length, release_notes, dmg_
                 length="{length}"
                 type="application/octet-stream"
             />
-        </item>
-'''
+        </item>'''
     
     # 在第一个 <item> 之前插入新的 item
     # 找到第一个 <item> 标签的位置

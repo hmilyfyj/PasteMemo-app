@@ -75,37 +75,11 @@ echo "EdDSA 签名: ${SIGNATURE}"
 echo "文件大小: ${LENGTH} 字节"
 echo ""
 
-# 7. 创建 Git Tag
-echo "==> [7/10] 创建 Git Tag"
 read -p "请输入更新说明: " RELEASE_NOTES
-git tag -a v${VERSION} -m "Release v${VERSION}: ${RELEASE_NOTES}"
-git push origin v${VERSION}
+PREVIOUS_TAG=$(git tag --list 'v*' --sort=-version:refname | sed -n '1p')
 
-# 8. 创建 GitHub Release
-echo ""
-echo "==> [8/10] 创建 GitHub Release"
-LATEST_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "v1.0.0")
-gh release create v${VERSION} \
-  --title "v${VERSION} - ${RELEASE_NOTES}" \
-  --notes "## 🎉 新功能
-
-### 更新内容
-- ${RELEASE_NOTES}
-
-## 📝 技术改进
-- Sparkle 自动更新集成
-- 性能优化
-
-**完整更新日志**: https://github.com/hmilyfyj/PasteMemo-app/compare/${LATEST_TAG}...v${VERSION}"
-
-# 9. 上传 DMG
-echo ""
-echo "==> [9/10] 上传 DMG 到 GitHub Release"
-gh release upload v${VERSION} /tmp/${DMG_NAME}
-
-# 10. 更新 appcast.xml
-echo ""
-echo "==> [10/10] 更新 appcast.xml"
+# 7. 更新 appcast.xml
+echo "==> [7/10] 更新 appcast.xml"
 
 # 使用 Python 脚本更新 appcast.xml
 python3 scripts/update_appcast.py \
@@ -122,6 +96,34 @@ echo "✅ appcast.xml 已更新"
 git add appcast.xml
 git commit -m "chore: update appcast.xml for v${VERSION} release"
 git push
+
+# 8. 创建 Git Tag
+echo ""
+echo "==> [8/10] 创建 Git Tag"
+git tag -a v${VERSION} -m "Release v${VERSION}: ${RELEASE_NOTES}"
+git push origin v${VERSION}
+
+# 9. 创建 GitHub Release
+echo ""
+echo "==> [9/10] 创建 GitHub Release"
+LATEST_TAG=${PREVIOUS_TAG:-v1.0.0}
+gh release create v${VERSION} \
+  --title "v${VERSION} - ${RELEASE_NOTES}" \
+  --notes "## 🎉 新功能
+
+### 更新内容
+- ${RELEASE_NOTES}
+
+## 📝 技术改进
+- Sparkle 自动更新集成
+- 性能优化
+
+**完整更新日志**: https://github.com/hmilyfyj/PasteMemo-app/compare/${LATEST_TAG}...v${VERSION}"
+
+# 10. 上传 DMG
+echo ""
+echo "==> [10/10] 上传 DMG 到 GitHub Release"
+gh release upload v${VERSION} /tmp/${DMG_NAME}
 
 echo ""
 echo "=========================================="
