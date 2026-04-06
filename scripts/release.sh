@@ -4,7 +4,7 @@ set -e
 
 if [ -z "$1" ]; then
     echo "用法: $0 <版本号>"
-    echo "示例: $0 1.3.1"
+    echo "示例: $0 1.3.2"
     exit 1
 fi
 
@@ -18,34 +18,47 @@ echo "🚀 开始发布 v${VERSION}"
 echo "=========================================="
 echo ""
 
-# 1. 构建应用
-echo "==> [1/9] 构建 Release 版本"
+# 1. 检查工作目录
+echo "==> [1/10] 检查工作目录"
 cd "$ROOT_DIR"
+if [ -n "$(git status --porcelain)" ]; then
+    echo "⚠️  警告：有未提交的更改"
+    git status --short
+    read -p "是否继续？(y/n) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        exit 1
+    fi
+fi
+
+# 2. 构建应用
+echo ""
+echo "==> [2/10] 构建 Release 版本"
 swift build -c release
 
-# 2. 创建应用包
+# 3. 创建应用包
 echo ""
-echo "==> [2/9] 创建应用包"
+echo "==> [3/10] 创建应用包"
 ./scripts/rebuild_and_open_stable.sh
 
-# 3. 创建 DMG
+# 4. 创建 DMG
 echo ""
-echo "==> [3/9] 创建 DMG 文件"
+echo "==> [4/10] 创建 DMG 文件"
 cd /tmp
 rm -rf ${DMG_NAME} PasteMemo-dmg
 mkdir -p PasteMemo-dmg
 cp -R /Applications/PasteMemo.app PasteMemo-dmg/
 hdiutil create -volname "PasteMemo" -srcfolder PasteMemo-dmg -ov -format UDZO ${DMG_NAME}
 
-# 4. 获取 DMG 信息
+# 5. 获取 DMG 信息
 echo ""
-echo "==> [4/9] 获取 DMG 文件信息"
+echo "==> [5/10] 获取 DMG 文件信息"
 DMG_SIZE=$(stat -f%z /tmp/${DMG_NAME})
 echo "文件大小: ${DMG_SIZE} 字节"
 
-# 5. 签名 DMG
+# 6. 签名 DMG
 echo ""
-echo "==> [5/9] 使用 Sparkle 签名 DMG"
+echo "==> [6/10] 使用 Sparkle 签名 DMG"
 cd "$ROOT_DIR"
 SIGNATURE_OUTPUT=$(.build/artifacts/sparkle/Sparkle/bin/sign_update /tmp/${DMG_NAME})
 echo "签名信息："
@@ -60,15 +73,15 @@ echo "EdDSA 签名: ${SIGNATURE}"
 echo "文件大小: ${LENGTH} 字节"
 echo ""
 
-# 6. 创建 Git Tag
-echo "==> [6/9] 创建 Git Tag"
+# 7. 创建 Git Tag
+echo "==> [7/10] 创建 Git Tag"
 read -p "请输入更新说明: " RELEASE_NOTES
 git tag -a v${VERSION} -m "Release v${VERSION}: ${RELEASE_NOTES}"
 git push origin v${VERSION}
 
-# 7. 创建 GitHub Release
+# 8. 创建 GitHub Release
 echo ""
-echo "==> [7/9] 创建 GitHub Release"
+echo "==> [8/10] 创建 GitHub Release"
 LATEST_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "v1.0.0")
 gh release create v${VERSION} \
   --title "v${VERSION} - ${RELEASE_NOTES}" \
@@ -83,40 +96,52 @@ gh release create v${VERSION} \
 
 **完整更新日志**: https://github.com/hmilyfyj/PasteMemo-app/compare/${LATEST_TAG}...v${VERSION}"
 
-# 8. 上传 DMG
+# 9. 上传 DMG
 echo ""
-echo "==> [8/9] 上传 DMG 到 GitHub Release"
+echo "==> [9/10] 上传 DMG 到 GitHub Release"
 gh release upload v${VERSION} /tmp/${DMG_NAME}
 
-# 9. 更新 appcast.xml
+# 10. 更新 appcast.xml
 echo ""
-echo "==> [9/9] 更新 appcast.xml"
-echo ""
-echo "请手动更新 appcast.xml，添加以下内容："
-echo ""
-echo "<item>"
-echo "    <title>Version ${VERSION}</title>"
-echo "    <pubDate>$(date '+%a, %d %b %Y %H:%M:%S %z')</pubDate>"
-echo "    <sparkle:version>${BUILD_NUMBER}</sparkle:version>"
-echo "    <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>"
-echo "    <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>"
-echo "    <description><![CDATA["
-echo "        <h2>${RELEASE_NOTES}</h2>"
-echo "        <h3>🎉 新功能</h3>"
-echo "        <ul>"
-echo "            <li>${RELEASE_NOTES}</li>"
-echo "        </ul>"
-echo "    ]]></description>"
-echo "    <enclosure"
-echo "        url=\"https://github.com/hmilyfyj/PasteMemo-app/releases/download/v${VERSION}/${DMG_NAME}\""
-echo "        sparkle:edSignature=\"${SIGNATURE}\""
-echo "        length=\"${LENGTH}\""
-echo "        type=\"application/octet-stream\""
-echo "    />"
-echo "</item>"
-echo ""
+echo "==> [10/10] 更新 appcast.xml"
 
-read -p "按回车键继续..."
+# 准备新的 item 内容
+PUB_DATE=$(date '+%a, %d %b %Y %H:%M:%S %z')
+NEW_ITEM="        <item>
+            <title>Version ${VERSION}</title>
+            <pubDate>${PUB_DATE}</pubDate>
+            <sparkle:version>${BUILD_NUMBER}</sparkle:version>
+            <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <h2>${RELEASE_NOTES}</h2>
+                <h3>🎉 新功能</h3>
+                <ul>
+                    <li>${RELEASE_NOTES}</li>
+                </ul>
+                <h3>📝 技术改进</h3>
+                <ul>
+                    <li>性能优化</li>
+                    <li>稳定性改进</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url=\"https://github.com/hmilyfyj/PasteMemo-app/releases/download/v${VERSION}/${DMG_NAME}\"
+                sparkle:edSignature=\"${SIGNATURE}\"
+                length=\"${LENGTH}\"
+                type=\"application/octet-stream\"
+            />
+        </item>"
+
+# 在第一个 <item> 之前插入新的 item
+sed -i.bak "/        <item>/i\\
+${NEW_ITEM}
+" appcast.xml
+
+# 删除备份文件
+rm -f appcast.xml.bak
+
+echo "✅ appcast.xml 已更新"
 
 # 提交 appcast.xml
 git add appcast.xml
