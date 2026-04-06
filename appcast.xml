@@ -5,6 +5,31 @@
         <link>https://raw.githubusercontent.com/hmilyfyj/PasteMemo-app/main/appcast.xml</link>
         <description>Most recent changes with links to updates.</description>
         <language>en</language>        <item>
+            <title>Version 1.3.4</title>
+            <pubDate>Mon, 06 Apr 2026 22:09:13 </pubDate>
+            <sparkle:version>134</sparkle:version>
+            <sparkle:shortVersionString>1.3.4</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <h2>test</h2>
+                <h3>🎉 新功能</h3>
+                <ul>
+                    <li>test</li>
+                </ul>
+                <h3>📝 技术改进</h3>
+                <ul>
+                    <li>性能优化</li>
+                    <li>稳定性改进</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/hmilyfyj/PasteMemo-app/releases/download/v1.3.4/PasteMemo-1.3.4.dmg"
+                sparkle:edSignature="OQIL3hZQnynZubbTDiOB159pZyWqawMKfVIfNCibXjO5Y7uUsCzO2vTTremQZBbGEEK5Zihv/PEHU5RIgt+NDA=="
+                length="7796526"
+                type="application/octet-stream"
+            />
+        </item>
+        <item>
             <title>Version 1.3.3</title>
             <pubDate>Mon, 06 Apr 2026 22:06:49 </pubDate>
             <sparkle:version>133</sparkle:version>
