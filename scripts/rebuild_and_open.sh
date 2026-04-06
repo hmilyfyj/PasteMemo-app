@@ -35,10 +35,10 @@ fi
 
 BUILD_NUMBER="${PASTEMEMO_BUILD_NUMBER:-}"
 if [[ -z "$BUILD_NUMBER" ]]; then
-  BUILD_NUMBER="$(plist_value CFBundleVersion)"
+  BUILD_NUMBER="${VERSION//./}"
 fi
 if [[ -z "$BUILD_NUMBER" ]]; then
-  BUILD_NUMBER="${VERSION//./}"
+  BUILD_NUMBER="$(plist_value CFBundleVersion)"
 fi
 
 if [[ -z "$SIGNING_IDENTITY" ]]; then
