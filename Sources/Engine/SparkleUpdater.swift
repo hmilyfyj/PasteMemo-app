@@ -19,9 +19,7 @@ final class SparkleUpdater: ObservableObject {
         )
         updater = updaterController.updater
 
-        Task { @MainActor in
-            self.canCheckForUpdates = await updater.canCheckForUpdates
-        }
+        canCheckForUpdates = true
     }
 
     func checkForUpdates() {
@@ -32,9 +30,5 @@ final class SparkleUpdater: ObservableObject {
         Task {
             await updater.checkForUpdates()
         }
-    }
-
-    func startUpdater() {
-        updaterController.startUpdater()
     }
 }

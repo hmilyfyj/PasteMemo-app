@@ -89,7 +89,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         try? await Task.sleep(nanoseconds: 100_000_000)
         
         LaunchPerformanceMonitor.shared.beginStage("Update Check")
-        SparkleUpdater.shared.startUpdater()
         SparkleUpdater.shared.checkForUpdatesInBackground()
         LaunchPerformanceMonitor.shared.endStage("Update Check")
         

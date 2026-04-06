@@ -702,10 +702,7 @@ struct OnboardingView: View {
             }
         }
 
-        // Start update checks
-        Task {
-            await UpdateChecker.shared.checkForUpdates()
-            UpdateChecker.shared.startPeriodicChecks()
-        }
+        // Sparkle 更新检查已在 AppDelegate.performDeferredInitialization 中启动
+        // 无需在这里手动调用
     }
 }
