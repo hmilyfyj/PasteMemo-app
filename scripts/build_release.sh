@@ -5,7 +5,7 @@ ROOT_DIR="/Users/fengit/workspace/PasteMemo-app"
 BUILD_DIR="$ROOT_DIR/.build/arm64-apple-macosx/release"
 DIST_DIR="$ROOT_DIR/.dist"
 APP_DIR="$DIST_DIR/PasteMemo.app"
-VERSION="1.2.1"
+VERSION="1.2.2"
 
 echo "==> 创建应用包结构"
 rm -rf "$APP_DIR"
