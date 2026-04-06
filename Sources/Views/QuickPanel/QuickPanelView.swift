@@ -1620,10 +1620,7 @@ struct QuickPanelView: View {
                 }
 
                 Button {
-                    if let name = showNewGroupAlert(for: []) {
-                        applyCustomGroupFilter(name)
-                    }
-                    restoreSearchFocusIfNeeded()
+                    showNewGroupPanelFromToolbar()
                 } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 16, weight: .medium))
@@ -1641,6 +1638,32 @@ struct QuickPanelView: View {
             .padding(.horizontal, 4)
         }
         .frame(minWidth: 220, maxWidth: 600, minHeight: 28, maxHeight: 28)
+    }
+
+    private func showNewGroupPanelFromToolbar() {
+        isSearchFocused = false
+        removeKeyMonitor()
+        QuickPanelWindowController.shared.suppressDismiss = true
+
+        DispatchQueue.main.async {
+            GroupEditorPanel.showAsync() { result in
+                QuickPanelWindowController.shared.suppressDismiss = false
+                installKeyMonitor()
+
+                guard let result else {
+                    restoreSearchFocusIfNeeded()
+                    return
+                }
+
+                let context = PasteMemoApp.sharedModelContainer.mainContext
+                AppMenuActions.upsertGroup(name: result.name, icon: result.icon, context: context)
+                try? context.save()
+                AppMenuActions.notifyGroupStoreDidChange()
+                store.refreshSidebarCounts()
+                applyCustomGroupFilter(result.name)
+                restoreSearchFocusIfNeeded()
+            }
+        }
     }
 
     private func bottomGroupToolbarChip(
