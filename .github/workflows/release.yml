@@ -12,10 +12,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Swift
-        uses: swift-actions/setup-swift@v3
-        with:
-          swift-version: "5.9"
+      - name: Check Swift version
+        run: swift --version
 
       - name: Build app
         run: |
