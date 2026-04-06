@@ -89,7 +89,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         try? await Task.sleep(nanoseconds: 100_000_000)
         
         LaunchPerformanceMonitor.shared.beginStage("Update Check")
-        SparkleUpdater.shared.checkForUpdatesInBackground()
+        let hasCheckedUpdateOnFirstLaunch = UserDefaults.standard.bool(forKey: "hasCheckedUpdateOnFirstLaunch")
+        if !hasCheckedUpdateOnFirstLaunch {
+            SparkleUpdater.shared.checkForUpdates()
+            UserDefaults.standard.set(true, forKey: "hasCheckedUpdateOnFirstLaunch")
+        } else {
+            SparkleUpdater.shared.checkForUpdatesInBackground()
+        }
         LaunchPerformanceMonitor.shared.endStage("Update Check")
         
         LaunchPerformanceMonitor.shared.beginStage("Backup Scheduler")
