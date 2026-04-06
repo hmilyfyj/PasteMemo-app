@@ -836,13 +836,27 @@ final class QuickPanelWindowController {
 
         container.layer?.borderWidth = 0
         let targetOffset = QuickPanelBottomAnimation.closingTargetOffset(for: container.bounds.height)
-        AnimationLogger.shared.log("  Starting close shell animation with Core Animation + Spring...")
+        
+        guard let screen = NSScreen.screens.first(where: { $0.visibleFrame.intersects(panel.frame) })
+                ?? NSScreen.screenWithMouse
+                ?? panel.screen
+                ?? NSScreen.main else {
+            finalizeDismiss(panel)
+            return
+        }
+        
+        let visibleFrame = screen.visibleFrame
+        var dismissFrame = panel.frame
+        dismissFrame.origin.y = visibleFrame.minY - dismissFrame.height
+        
+        AnimationLogger.shared.log("  Starting close shell animation with window movement...")
 
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = QuickPanelBottomAnimation.closeDuration
             context.timingFunction = PanelAnimationTiming.quickEaseOut
             context.allowsImplicitAnimation = true
             shell.animator().setFrameOrigin(NSPoint(x: 0, y: targetOffset))
+            panel.animator().setFrame(dismissFrame, display: false)
         }, completionHandler: { [weak self, weak panel] in
             guard let self else { return }
             self.finalizeDismiss(panel)
