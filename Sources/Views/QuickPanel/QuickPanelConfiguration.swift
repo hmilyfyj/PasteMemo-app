@@ -70,7 +70,7 @@ enum QuickPanelKeyboardRouter {
 
 enum QuickPanelBottomGeometry {
     static let edgeGap: CGFloat = 10
-    static let horizontalInset: CGFloat = edgeGap
+    static let horizontalInset: CGFloat = 0
     static let legacyDefaultHorizontalInset: CGFloat = edgeGap
     static let bottomInset: CGFloat = edgeGap
     static let compactHeight: CGFloat = 252
@@ -169,6 +169,39 @@ enum QuickPanelBottomDefaults {
         defaults.removeObject(forKey: "\(sizeStorageKey).compact.height")
         defaults.removeObject(forKey: "\(sizeStorageKey).expanded.height")
         defaults.set(false, forKey: widthIsCustomKey)
+    }
+
+    static func resetClassicSizing() {
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: "quickPanelSize.width")
+        defaults.removeObject(forKey: "quickPanelSize.height")
+    }
+}
+
+enum QuickPanelSizePersistence {
+    static func persist(
+        size: CGSize,
+        style: QuickPanelStyle,
+        bottomMode: QuickPanelBottomMode,
+        screenFrame: CGRect?,
+        defaults: UserDefaults = .standard
+    ) {
+        switch style {
+        case .bottomFloating:
+            let resolvedScreenFrame = screenFrame ?? .zero
+            let defaultWidth = QuickPanelBottomGeometry.panelWidth(for: resolvedScreenFrame)
+            let widthIsCustom = abs(size.width - defaultWidth) > 1
+            defaults.set(widthIsCustom, forKey: QuickPanelBottomDefaults.widthIsCustomKey)
+            defaults.set(Double(size.width), forKey: "\(QuickPanelBottomDefaults.sizeStorageKey).width")
+            defaults.set(
+                Double(size.height),
+                forKey: "\(QuickPanelBottomDefaults.sizeStorageKey).\(bottomMode.rawValue).height"
+            )
+
+        case .classic:
+            defaults.set(Double(size.width), forKey: "quickPanelSize.width")
+            defaults.set(Double(size.height), forKey: "quickPanelSize.height")
+        }
     }
 }
 

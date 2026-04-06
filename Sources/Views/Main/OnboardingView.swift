@@ -384,6 +384,11 @@ struct OnboardingView: View {
                     }
                     .labelsHidden()
                     .onChange(of: quickPanelStyle) { _, newValue in
+                        if newValue == QuickPanelStyle.bottomFloating.rawValue {
+                            QuickPanelBottomDefaults.resetStoredSizing()
+                        } else if newValue == QuickPanelStyle.classic.rawValue {
+                            QuickPanelBottomDefaults.resetClassicSizing()
+                        }
                     }
                 }
                 .padding(.horizontal, 12)

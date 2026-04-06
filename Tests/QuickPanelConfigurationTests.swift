@@ -202,6 +202,59 @@ struct QuickPanelConfigurationTests {
         }
     }
 
+    @Test("Persisting a classic resize never writes into bottom floating storage")
+    func classicResizePersistenceDoesNotLeakIntoBottomFloatingStorage() {
+        let suiteName = "QuickPanelConfigurationTests.\(#function).\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let classicWidthKey = "quickPanelSize.width"
+        let classicHeightKey = "quickPanelSize.height"
+        let bottomWidthKey = "\(QuickPanelBottomDefaults.sizeStorageKey).width"
+        let bottomCompactHeightKey = "\(QuickPanelBottomDefaults.sizeStorageKey).compact.height"
+        let bottomCustomKey = QuickPanelBottomDefaults.widthIsCustomKey
+
+        QuickPanelSizePersistence.persist(
+            size: CGSize(width: 900, height: 620),
+            style: .classic,
+            bottomMode: .compact,
+            screenFrame: CGRect(x: 0, y: 0, width: 1512, height: 982),
+            defaults: defaults
+        )
+
+        #expect(defaults.double(forKey: classicWidthKey) == 900)
+        #expect(defaults.double(forKey: classicHeightKey) == 620)
+        #expect(defaults.object(forKey: bottomWidthKey) == nil)
+        #expect(defaults.object(forKey: bottomCompactHeightKey) == nil)
+        #expect(defaults.object(forKey: bottomCustomKey) == nil)
+    }
+
+    @Test("Persisting a bottom floating resize uses the captured bottom mode")
+    func bottomFloatingResizePersistenceUsesCapturedMode() {
+        let suiteName = "QuickPanelConfigurationTests.\(#function).\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let bottomWidthKey = "\(QuickPanelBottomDefaults.sizeStorageKey).width"
+        let bottomCompactHeightKey = "\(QuickPanelBottomDefaults.sizeStorageKey).compact.height"
+        let bottomExpandedHeightKey = "\(QuickPanelBottomDefaults.sizeStorageKey).expanded.height"
+        let bottomCustomKey = QuickPanelBottomDefaults.widthIsCustomKey
+
+        let screenFrame = CGRect(x: 0, y: 0, width: 1512, height: 982)
+        let defaultWidth = QuickPanelBottomGeometry.panelWidth(for: screenFrame)
+
+        QuickPanelSizePersistence.persist(
+            size: CGSize(width: defaultWidth, height: 288),
+            style: .bottomFloating,
+            bottomMode: .compact,
+            screenFrame: screenFrame,
+            defaults: defaults
+        )
+
+        #expect(defaults.double(forKey: bottomWidthKey) == Double(defaultWidth))
+        #expect(defaults.double(forKey: bottomCompactHeightKey) == 288)
+        #expect(defaults.object(forKey: bottomExpandedHeightKey) == nil)
+        #expect(defaults.bool(forKey: bottomCustomKey) == false)
+    }
+
     @Test("Bottom floating keyboard routing matches design")
     func keyboardRouting() {
         #expect(

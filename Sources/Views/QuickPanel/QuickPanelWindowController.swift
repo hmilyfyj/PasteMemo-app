@@ -338,30 +338,37 @@ final class QuickPanelWindowController {
         return QuickPanelBottomGeometry.clampedHeight(preferred, visibleFrame: visibleFrame, mode: mode)
     }
 
-    private func persistCurrentPanelSize(_ size: CGSize, panel: NSPanel?) {
-        if panelStyle == .bottomFloating {
-            let screenFrame = (panel?.screen?.frame)
-                ?? NSScreen.screens.first(where: { $0.frame.intersects(panel?.frame ?? .zero) })?.frame
-                ?? NSScreen.screenWithMouse?.frame
-                ?? NSScreen.main?.frame
-                ?? .zero
-            let defaultWidth = QuickPanelBottomGeometry.panelWidth(for: screenFrame)
-            let widthIsCustom = abs(size.width - defaultWidth) > 1
-            UserDefaults.standard.set(widthIsCustom, forKey: BOTTOM_WIDTH_IS_CUSTOM_KEY)
-            UserDefaults.standard.set(Double(size.width), forKey: "\(BOTTOM_SIZE_KEY).width")
-            UserDefaults.standard.set(Double(size.height), forKey: "\(BOTTOM_SIZE_KEY).\(bottomMode.rawValue).height")
-        } else {
-            UserDefaults.standard.set(Double(size.width), forKey: "\(CLASSIC_SIZE_KEY).width")
-            UserDefaults.standard.set(Double(size.height), forKey: "\(CLASSIC_SIZE_KEY).height")
-        }
+    private func persistCurrentPanelSize(
+        _ size: CGSize,
+        panel: NSPanel?,
+        style: QuickPanelStyle,
+        bottomMode: QuickPanelBottomMode
+    ) {
+        let screenFrame = (panel?.screen?.frame)
+            ?? NSScreen.screens.first(where: { $0.frame.intersects(panel?.frame ?? .zero) })?.frame
+            ?? NSScreen.screenWithMouse?.frame
+            ?? NSScreen.main?.frame
+        QuickPanelSizePersistence.persist(
+            size: size,
+            style: style,
+            bottomMode: bottomMode,
+            screenFrame: screenFrame
+        )
     }
 
     private func schedulePanelSizePersistence(for panel: NSPanel) {
         resizePersistenceWorkItem?.cancel()
         let size = panel.frame.size
+        let styleSnapshot = panelStyle
+        let bottomModeSnapshot = bottomMode
         let workItem = DispatchWorkItem { [weak self, weak panel] in
             guard let self else { return }
-            self.persistCurrentPanelSize(size, panel: panel)
+            self.persistCurrentPanelSize(
+                size,
+                panel: panel,
+                style: styleSnapshot,
+                bottomMode: bottomModeSnapshot
+            )
         }
         resizePersistenceWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18, execute: workItem)
@@ -559,8 +566,22 @@ final class QuickPanelWindowController {
             .environmentObject(clipboardManager)
             .modelContainer(modelContainer)
 
+        let initialWidth: CGFloat
+        let initialHeight: CGFloat
+        
+        if panelStyle == .bottomFloating {
+            let screen = NSScreen.main ?? NSScreen.screens.first
+            let screenFrame = screen?.frame ?? .zero
+            let visibleFrame = screen?.visibleFrame ?? .zero
+            initialWidth = QuickPanelBottomGeometry.panelWidth(for: screenFrame)
+            initialHeight = QuickPanelBottomGeometry.defaultHeight(for: .compact, visibleFrame: visibleFrame)
+        } else {
+            initialWidth = classicPanelWidth
+            initialHeight = classicPanelHeight
+        }
+
         let panel = KeyablePanel(
-            contentRect: NSRect(x: 0, y: 0, width: classicPanelWidth, height: classicPanelHeight),
+            contentRect: NSRect(x: 0, y: 0, width: initialWidth, height: initialHeight),
             styleMask: [.nonactivatingPanel, .titled, .borderless, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -588,7 +609,7 @@ final class QuickPanelWindowController {
         panel.addTitlebarAccessoryViewController(titlebarCover)
         dragCoverView = coverView
 
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: classicPanelWidth, height: classicPanelHeight))
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: initialWidth, height: initialHeight))
         container.wantsLayer = true
         container.layer?.cornerRadius = 16
         container.layer?.masksToBounds = true
