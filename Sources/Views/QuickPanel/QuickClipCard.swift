@@ -8,6 +8,7 @@ struct QuickClipCard: View {
     let shortcutIndex: Int?
     let cardWidth: CGFloat
     let cardHeight: CGFloat
+    var searchText: String = ""
     
     @State private var isHovered: Bool = false
 
@@ -17,7 +18,8 @@ struct QuickClipCard: View {
         isLiveResizing: Bool = false,
         shortcutIndex: Int?,
         cardWidth: CGFloat = 188,
-        cardHeight: CGFloat = 220
+        cardHeight: CGFloat = 220,
+        searchText: String = ""
     ) {
         self.item = item
         self.isSelected = isSelected
@@ -25,6 +27,7 @@ struct QuickClipCard: View {
         self.shortcutIndex = shortcutIndex
         self.cardWidth = cardWidth
         self.cardHeight = cardHeight
+        self.searchText = searchText
     }
 
     var body: some View {
@@ -422,11 +425,19 @@ struct QuickClipCard: View {
                         .lineLimit(1)
                 }
 
-                Text(linkTitle)
-                    .font(.system(size: 12.5, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.9))
-                    .lineLimit(4)
-                    .multilineTextAlignment(.leading)
+                if searchText.isEmpty {
+                    Text(linkTitle)
+                        .font(.system(size: 12.5, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .lineLimit(4)
+                        .multilineTextAlignment(.leading)
+                } else {
+                    HighlightedText(linkTitle, query: extractSearchQuery(from: searchText))
+                        .font(.system(size: 12.5, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .lineLimit(4)
+                        .multilineTextAlignment(.leading)
+                }
 
                 Spacer(minLength: 0)
 
@@ -444,10 +455,17 @@ struct QuickClipCard: View {
                     .frame(width: 46, height: 46)
                     .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
 
-                Text(fileDisplayTitle)
-                    .font(.system(size: 12.5, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.92))
-                    .lineLimit(3)
+                if searchText.isEmpty {
+                    Text(fileDisplayTitle)
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.92))
+                        .lineLimit(3)
+                } else {
+                    HighlightedText(fileDisplayTitle, query: extractSearchQuery(from: searchText))
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.92))
+                        .lineLimit(3)
+                }
 
                 Spacer(minLength: 0)
 
@@ -479,10 +497,17 @@ struct QuickClipCard: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                Text(primaryText)
-                    .font(.system(size: 12.5, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.94))
-                    .lineLimit(4)
+                if searchText.isEmpty {
+                    Text(primaryText)
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.94))
+                        .lineLimit(4)
+                } else {
+                    HighlightedText(primaryText, query: extractSearchQuery(from: searchText))
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.94))
+                        .lineLimit(4)
+                }
 
                 Text(secondaryText)
                     .font(.system(size: 11))
@@ -605,6 +630,18 @@ struct QuickClipCard: View {
             .split(separator: "\n")
             .first
             .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+    }
+    
+    private func extractSearchQuery(from searchText: String) -> String {
+        // 移除正则搜索前缀
+        if searchText.hasPrefix("regex:") {
+            return String(searchText.dropFirst(6))
+        }
+        // 移除模糊搜索前缀
+        if searchText.hasPrefix("fuzzy:") {
+            return String(searchText.dropFirst(6))
+        }
+        return searchText
     }
 }
 

@@ -30,9 +30,15 @@ struct ClipRow: View {
 
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 4) {
-                        Text(displayTitle)
-                            .font(.system(size: 13))
-                            .lineLimit(1)
+                        if searchText.isEmpty {
+                            Text(displayTitle)
+                                .font(.system(size: 13))
+                                .lineLimit(1)
+                        } else {
+                            HighlightedText(displayTitle, query: extractSearchQuery(from: searchText))
+                                .font(.system(size: 13))
+                                .lineLimit(1)
+                        }
 
                         if ocrEnabled, item.matchesOCROnly(searchText: searchText) {
                             ocrBadge
@@ -219,6 +225,18 @@ struct ClipRow: View {
             return linkTitle
         }
         return item.displayTitle ?? item.content
+    }
+    
+    private func extractSearchQuery(from searchText: String) -> String {
+        // 移除正则搜索前缀
+        if searchText.hasPrefix("regex:") {
+            return String(searchText.dropFirst(6))
+        }
+        // 移除模糊搜索前缀
+        if searchText.hasPrefix("fuzzy:") {
+            return String(searchText.dropFirst(6))
+        }
+        return searchText
     }
 
     private func partialMask(_ text: String) -> String {

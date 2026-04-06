@@ -15,30 +15,36 @@ struct HighlightedText: View {
         if query.isEmpty {
             Text(text)
         } else {
-            Text(highlightedAttributedString())
+            Text(makeHighlightedText())
         }
     }
     
-    private func highlightedAttributedString() -> AttributedString {
+    private func makeHighlightedText() -> AttributedString {
         var result = AttributedString(text)
+        
         let lowercasedText = text.lowercased()
         let lowercasedQuery = query.lowercased()
         
+        // 查找所有匹配的范围
+        var ranges: [Range<String.Index>] = []
         var searchStartIndex = lowercasedText.startIndex
         
-        while searchStartIndex < lowercasedText.endIndex,
-              let range = lowercasedText[searchStartIndex...].range(of: lowercasedQuery),
-              !range.isEmpty {
-            
-            let lowerBound = range.lowerBound
-            let upperBound = range.upperBound
-            
-            if let resultRange = Range(lowerBound..<upperBound, in: result) {
-                result[resultRange].backgroundColor = highlightColor.opacity(0.3)
-                result[resultRange].font = .body.weight(.medium)
+        while searchStartIndex < lowercasedText.endIndex {
+            if let range = lowercasedText[searchStartIndex...].range(of: lowercasedQuery) {
+                ranges.append(range)
+                searchStartIndex = range.upperBound
+            } else {
+                break
             }
-            
-            searchStartIndex = upperBound
+        }
+        
+        // 从后往前应用高亮，避免索引偏移
+        for range in ranges.reversed() {
+            if let resultRange = Range(range, in: result) {
+                result[resultRange].backgroundColor = highlightColor
+                result[resultRange].font = .system(size: 13, weight: .bold)
+                result[resultRange].foregroundColor = .black  // 高亮文字使用黑色，确保在黄色背景上可见
+            }
         }
         
         return result
@@ -72,8 +78,9 @@ struct RegexHighlightedText: View {
         for match in matches.reversed() {
             if let range = Range(match.range, in: text),
                let resultRange = Range(range, in: result) {
-                result[resultRange].backgroundColor = highlightColor.opacity(0.3)
+                result[resultRange].backgroundColor = highlightColor
                 result[resultRange].font = .body.weight(.medium)
+                result[resultRange].foregroundColor = .black  // 高亮文字使用黑色，确保在黄色背景上可见
             }
         }
         

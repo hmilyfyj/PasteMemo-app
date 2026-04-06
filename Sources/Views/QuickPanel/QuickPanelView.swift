@@ -2008,7 +2008,8 @@ struct QuickPanelView: View {
                                     isLiveResizing: false,
                                     shortcutIndex: shortcutIndex(for: item),
                                     cardWidth: metrics.cardWidth,
-                                    cardHeight: metrics.cardHeight
+                                    cardHeight: metrics.cardHeight,
+                                    searchText: searchText
                                 )
                                 .background(
                                     BottomClipEnsureVisibleProbe(
