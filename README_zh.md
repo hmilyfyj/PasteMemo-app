@@ -31,6 +31,14 @@
 ## 截图
 
 <p align="center">
+  <img src="docs/paste-sytle-1.png" width="720" alt="PasteMemo 底部悬浮样式">
+</p>
+
+<p align="center">
+  <img src="docs/paste-sytle-2.png" width="720" alt="PasteMemo 分栏样式">
+</p>
+
+<p align="center">
   <img src="https://cdn.jsdelivr.net/gh/lifedever/images@master/uPic/2026/03/CS2026-03-20-15.50.58@2x.png" width="720" alt="PasteMemo 主窗口">
 </p>
 
@@ -45,6 +53,8 @@
 <p align="center">
   <img src="https://cdn.jsdelivr.net/gh/lifedever/images@master/it/2026/03/relay-mode.png" width="720" alt="PasteMemo 接力模式">
 </p>
+
+
 
 ## 亮点功能
 

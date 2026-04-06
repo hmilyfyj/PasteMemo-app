@@ -30,6 +30,16 @@
 
 ## Screenshots
 
+
+<p align="center">
+  <img src="docs/paste-sytle-1.png" width="720" alt="PasteMemo Bottom Floating Style">
+</p>
+
+<p align="center">
+  <img src="docs/paste-sytle-2.png" width="720" alt="PasteMemo Split Panel Style">
+</p>
+
+
 <p align="center">
   <img src="https://cdn.jsdelivr.net/gh/lifedever/images@master/uPic/2026/03/CS2026-03-20-15.50.58@2x.png" width="720" alt="PasteMemo Main Window">
 </p>
