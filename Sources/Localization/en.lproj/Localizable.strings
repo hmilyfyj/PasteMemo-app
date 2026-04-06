@@ -129,6 +129,12 @@
 "settings.ocr.scanExisting" = "Scan existing images";
 "settings.ocr.scanStarted" = "Background OCR started for existing images.";
 "settings.ocr.hint" = "OCR runs on-device and makes text inside images searchable.";
+"settings.animation" = "Animation";
+"settings.animation.style" = "Animation Style";
+"settings.animation.speed" = "Animation Speed";
+"settings.animation.microInteractions" = "Enable Micro-interactions";
+"settings.animation.transitions" = "Enable Transitions";
+"settings.animation.hint" = "Micro-interactions: hover, click feedback; Transitions: content switching, panel expansion";
 
 /* Pro */
 "pro.title" = "Upgrade to PasteMemo Pro";

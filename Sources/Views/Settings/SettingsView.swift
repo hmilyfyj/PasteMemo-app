@@ -300,6 +300,8 @@ struct PreferencesTab: View {
             }
 
             OCRSettingsSection()
+            
+            AnimationSettingsSection()
 
             Section(L10n.tr("settings.history")) {
                 Picker(L10n.tr("settings.retentionDays"), selection: $retentionDays) {
@@ -353,6 +355,39 @@ struct OCRSettingsSection: View {
                     .font(.callout)
                     .foregroundStyle(.tertiary)
             }
+        }
+    }
+}
+
+struct AnimationSettingsSection: View {
+    @ObservedObject var preferences = AnimationPreferences.shared
+    
+    var body: some View {
+        Section(L10n.tr("settings.animation")) {
+            Picker(L10n.tr("settings.animation.style"), selection: $preferences.style) {
+                ForEach(AnimationStyle.allCases, id: \.self) { style in
+                    Text(style.displayName).tag(style)
+                }
+            }
+            
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text(L10n.tr("settings.animation.speed"))
+                    Spacer()
+                    Text("\(Int(preferences.animationSpeed * 100))%")
+                        .foregroundStyle(.secondary)
+                        .font(.callout)
+                }
+                Slider(value: $preferences.animationSpeed, in: 0.5...2.0, step: 0.1)
+            }
+            
+            Toggle(L10n.tr("settings.animation.microInteractions"), isOn: $preferences.enableMicroInteractions)
+            
+            Toggle(L10n.tr("settings.animation.transitions"), isOn: $preferences.enableTransitions)
+            
+            Text(L10n.tr("settings.animation.hint"))
+                .font(.callout)
+                .foregroundStyle(.tertiary)
         }
     }
 }

@@ -129,6 +129,12 @@
 "settings.ocr.scanExisting" = "扫描已有图片";
 "settings.ocr.scanStarted" = "已开始在后台扫描已有图片。";
 "settings.ocr.hint" = "OCR 在本机完成，并让图片中的文字可被搜索。";
+"settings.animation" = "动画效果";
+"settings.animation.style" = "动画风格";
+"settings.animation.speed" = "动画速度";
+"settings.animation.microInteractions" = "启用微交互动画";
+"settings.animation.transitions" = "启用过渡动画";
+"settings.animation.hint" = "微交互：悬停、点击等反馈效果；过渡：内容切换、面板展开等动画";
 
 /* Pro */
 "pro.title" = "升级到 PasteMemo Pro";

@@ -31,10 +31,25 @@ final class ClipItemStore {
     private func executeSearch() {
         currentOffset = 0
         hasMore = true
-        let ids = queryItemIDs(offset: 0, limit: pageSize)
-        items = hydrateItems(ids: ids)
-        hasMore = ids.count >= pageSize
-        currentOffset = ids.count
+        
+        // 对于正则和模糊搜索，需要获取更多数据
+        let needsAdvancedFilter = searchText.hasPrefix("regex:") || searchText.hasPrefix("fuzzy:")
+        let limit = needsAdvancedFilter ? 1000 : pageSize
+        
+        let ids = queryItemIDs(offset: 0, limit: limit)
+        var hydratedItems = hydrateItems(ids: ids)
+        
+        // 应用高级搜索过滤器
+        if needsAdvancedFilter {
+            hydratedItems = applyAdvancedSearchFilters(hydratedItems)
+            items = Array(hydratedItems.prefix(pageSize))
+            hasMore = hydratedItems.count > pageSize
+        } else {
+            items = hydratedItems
+            hasMore = ids.count >= pageSize
+        }
+        
+        currentOffset = min(items.count, pageSize)
     }
 
     var filterType: ClipContentType? = nil
@@ -253,6 +268,17 @@ final class ClipItemStore {
 
     private func addSearchCondition(_ conditions: inout [String], _ params: inout [Any]) {
         guard !searchText.isEmpty else { return }
+        
+        // 支持正则搜索：regex:pattern
+        if searchText.hasPrefix("regex:") {
+            return
+        }
+        
+        // 支持模糊搜索：fuzzy:query
+        if searchText.hasPrefix("fuzzy:") {
+            return
+        }
+        
         let tokens = SearchMatcher.tokens(from: searchText)
         guard !tokens.isEmpty else { return }
 
@@ -266,6 +292,36 @@ final class ClipItemStore {
             params.append(pattern)
         }
         conditions.append("(" + tokenConditions.joined(separator: " AND ") + ")")
+    }
+    
+    private func applyAdvancedSearchFilters(_ items: [ClipItem]) -> [ClipItem] {
+        guard !searchText.isEmpty else { return items }
+        
+        // 正则搜索
+        if searchText.hasPrefix("regex:") {
+            let pattern = String(searchText.dropFirst(6))
+            return items.filter { item in
+                let fields = [item.content, item.displayTitle, item.linkTitle, item.ocrText]
+                return fields.contains { field in
+                    guard let field, !field.isEmpty else { return false }
+                    return SearchMatcher.regexMatch(pattern: pattern, in: field)
+                }
+            }
+        }
+        
+        // 模糊搜索
+        if searchText.hasPrefix("fuzzy:") {
+            let query = String(searchText.dropFirst(6))
+            return items.filter { item in
+                let fields = [item.content, item.displayTitle, item.linkTitle, item.ocrText]
+                return fields.contains { field in
+                    guard let field, !field.isEmpty else { return false }
+                    return SearchMatcher.fuzzyMatch(query: query, in: field, threshold: 0.6)
+                }
+            }
+        }
+        
+        return items
     }
 
     // MARK: - Metadata Queries
