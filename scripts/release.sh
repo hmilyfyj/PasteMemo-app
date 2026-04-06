@@ -12,6 +12,7 @@ VERSION=$1
 BUILD_NUMBER=$(echo $VERSION | tr -d '.')
 DMG_NAME="PasteMemo-${VERSION}.dmg"
 ROOT_DIR="/Users/fengit/workspace/PasteMemo-app"
+RELEASE_APP_DIR="$ROOT_DIR/.dist/release/PasteMemo.app"
 
 echo "=========================================="
 echo "🚀 开始发布 v${VERSION}"
@@ -41,7 +42,11 @@ echo ""
 echo "==> [3/10] 创建应用包"
 PASTEMEMO_VERSION="$VERSION" \
 PASTEMEMO_BUILD_NUMBER="$BUILD_NUMBER" \
-./scripts/rebuild_and_open_stable.sh
+PASTEMEMO_BUILD_CONFIGURATION="release" \
+PASTEMEMO_APP_DIR="$RELEASE_APP_DIR" \
+PASTEMEMO_OPEN_APP="0" \
+PASTEMEMO_KILL_EXISTING="0" \
+./scripts/rebuild_and_open.sh
 
 # 4. 创建 DMG
 echo ""
@@ -49,7 +54,7 @@ echo "==> [4/10] 创建 DMG 文件"
 cd /tmp
 rm -rf ${DMG_NAME} PasteMemo-dmg
 mkdir -p PasteMemo-dmg
-cp -R /Applications/PasteMemo.app PasteMemo-dmg/
+cp -R "$RELEASE_APP_DIR" PasteMemo-dmg/
 hdiutil create -volname "PasteMemo" -srcfolder PasteMemo-dmg -ov -format UDZO ${DMG_NAME}
 
 # 5. 获取 DMG 信息

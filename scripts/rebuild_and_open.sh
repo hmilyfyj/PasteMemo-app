@@ -3,7 +3,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-BUILD_DIR="$ROOT_DIR/.build/arm64-apple-macosx/debug"
+BUILD_CONFIGURATION="${PASTEMEMO_BUILD_CONFIGURATION:-debug}"
+BUILD_DIR="$ROOT_DIR/.build/arm64-apple-macosx/$BUILD_CONFIGURATION"
 DEFAULT_APP_DIR="$ROOT_DIR/.dist/PasteMemo.app"
 APP_DIR="${PASTEMEMO_APP_DIR:-$DEFAULT_APP_DIR}"
 APP_CONTENTS_DIR="$APP_DIR/Contents"
@@ -15,6 +16,8 @@ BUNDLE_ID="${PASTEMEMO_BUNDLE_ID:-com.lifedever.PasteMemo}"
 SIGNING_IDENTITY="${PASTEMEMO_SIGNING_IDENTITY:-}"
 FRAMEWORK_RPATH="@executable_path/../Frameworks"
 SOURCE_INFO_PLIST="$ROOT_DIR/Sources/Resources/Info.plist"
+OPEN_APP="${PASTEMEMO_OPEN_APP:-1}"
+KILL_EXISTING="${PASTEMEMO_KILL_EXISTING:-1}"
 
 plist_value() {
   local key="$1"
@@ -46,7 +49,11 @@ echo "==> 切换到项目目录"
 cd "$ROOT_DIR"
 
 echo "==> 开始 Swift 构建"
-swift build
+if [[ "$BUILD_CONFIGURATION" == "release" ]]; then
+  swift build -c release
+else
+  swift build
+fi
 
 if [[ ! -f "$APP_BINARY" ]]; then
   echo "未找到构建产物: $APP_BINARY" >&2
@@ -107,7 +114,7 @@ if [[ -f "$APP_ICON" ]]; then
 fi
 
 echo "==> 复制 Sparkle.framework"
-SPARKLE_FRAMEWORK="$ROOT_DIR/.build/arm64-apple-macosx/debug/Sparkle.framework"
+SPARKLE_FRAMEWORK="$BUILD_DIR/Sparkle.framework"
 if [[ -d "$SPARKLE_FRAMEWORK" ]]; then
   cp -R "$SPARKLE_FRAMEWORK" "$APP_CONTENTS_DIR/Frameworks/"
   echo "Sparkle.framework 已复制"
@@ -141,31 +148,40 @@ else
   codesign --force --deep --sign - "$APP_DIR"
 fi
 
-echo "==> 关闭旧进程"
-pkill -f "$APP_EXECUTABLE" 2>/dev/null || true
+if [[ "$KILL_EXISTING" == "1" ]]; then
+  echo "==> 关闭旧进程"
+  pkill -f "$APP_EXECUTABLE" 2>/dev/null || true
 
-for _ in {1..20}; do
-  if ! pgrep -f "$APP_EXECUTABLE" >/dev/null 2>&1; then
-    break
-  fi
-  sleep 0.2
-done
+  for _ in {1..20}; do
+    if ! pgrep -f "$APP_EXECUTABLE" >/dev/null 2>&1; then
+      break
+    fi
+    sleep 0.2
+  done
+else
+  echo "==> 跳过关闭旧进程"
+fi
 
-echo "==> 打开新应用"
-if ! open -n "$APP_DIR"; then
-  echo "open 失败，1 秒后重试"
-  sleep 1
+if [[ "$OPEN_APP" == "1" ]]; then
+  echo "==> 打开新应用"
   if ! open -n "$APP_DIR"; then
-    echo "LaunchServices 仍未响应，改为直接启动可执行文件"
-    "$APP_EXECUTABLE" >/tmp/pastememo-launch.log 2>&1 &
-    disown
+    echo "open 失败，1 秒后重试"
+    sleep 1
+    if ! open -n "$APP_DIR"; then
+      echo "LaunchServices 仍未响应，改为直接启动可执行文件"
+      "$APP_EXECUTABLE" >/tmp/pastememo-launch.log 2>&1 &
+      disown
+    fi
   fi
+else
+  echo "==> 跳过启动应用"
 fi
 
 echo
 echo "完成"
 echo "应用路径: $APP_DIR"
 echo "Bundle ID: $BUNDLE_ID"
+echo "Build Configuration: $BUILD_CONFIGURATION"
 if [[ -n "$SIGNING_IDENTITY" ]]; then
   echo "Signing Identity: $SIGNING_IDENTITY"
 else
