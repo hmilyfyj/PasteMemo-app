@@ -335,21 +335,24 @@ final class UpdateChecker: ObservableObject {
             process.waitUntilExit()
 
             if process.terminationStatus == 0 {
-                if let mountedVolume = findMountedVolume(for: fileURL) {
-                    if let appURL = findAppInVolume(mountedVolume) {
+                if let mountedVolume = findMountedVolume(for: fileURL),
+                   let appURL = findAppInVolume(mountedVolume) {
+                    performAutoReplace(newAppURL: appURL, mountedVolume: mountedVolume)
+                } else {
+                    if let mountedVolume = findMountedVolume(for: fileURL) {
                         NSWorkspace.shared.open(mountedVolume)
-                        NSWorkspace.shared.selectFile(appURL.path, inFileViewerRootedAtPath: mountedVolume.path)
-
-                        showInstallGuideAlert(volumePath: mountedVolume.path)
                     } else {
-                        NSWorkspace.shared.open(mountedVolume)
+                        NSWorkspace.shared.open(fileURL)
                     }
+                    showInstallGuideAlert(volumePath: fileURL.path)
                 }
             } else {
                 NSWorkspace.shared.open(fileURL)
+                showInstallGuideAlert(volumePath: fileURL.path)
             }
         } catch {
             NSWorkspace.shared.open(fileURL)
+            showInstallGuideAlert(volumePath: fileURL.path)
         }
     }
 
@@ -394,17 +397,16 @@ final class UpdateChecker: ObservableObject {
             try process.run()
             process.waitUntilExit()
 
-            let extractedDir = fileURL.deletingPathExtension()
-            if let appURL = findAppInDirectory(extractedDir) {
-                NSWorkspace.shared.open(extractedDir)
-                NSWorkspace.shared.selectFile(appURL.path, inFileViewerRootedAtPath: extractedDir.path)
-
-                showInstallGuideAlert(volumePath: extractedDir.path)
+            let extractedDir = fileURL.deletingLastPathComponent()
+            if let appURL = findAppInDirectoryRecursive(extractedDir) {
+                performAutoReplace(newAppURL: appURL)
             } else {
                 NSWorkspace.shared.open(extractedDir)
+                showInstallGuideAlert(volumePath: extractedDir.path)
             }
         } catch {
             NSWorkspace.shared.open(fileURL)
+            showInstallGuideAlert(volumePath: fileURL.path)
         }
     }
 
@@ -419,6 +421,92 @@ final class UpdateChecker: ObservableObject {
         }
 
         return nil
+    }
+
+    private func findAppInDirectoryRecursive(_ dirURL: URL) -> URL? {
+        let fileManager = FileManager.default
+        guard let enumerator = fileManager.enumerator(atPath: dirURL.path) else {
+            return nil
+        }
+
+        for case let item as String in enumerator {
+            if item.hasSuffix(".app") {
+                return dirURL.appendingPathComponent(item)
+            }
+        }
+
+        return nil
+    }
+
+    private func performAutoReplace(newAppURL: URL, mountedVolume: URL? = nil) {
+        let currentAppURL = Bundle.main.bundleURL
+        let appName = currentAppURL.lastPathComponent
+        let targetURL: URL
+
+        if currentAppURL.path.hasPrefix("/Applications/") {
+            targetURL = URL(fileURLWithPath: "/Applications").appendingPathComponent(appName)
+        } else if currentAppURL.path.hasPrefix("/Users/") {
+            let homeApps = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Applications")
+            try? FileManager.default.createDirectory(at: homeApps, withIntermediateDirectories: true)
+            targetURL = homeApps.appendingPathComponent(appName)
+        } else {
+            targetURL = currentAppURL
+        }
+
+        let scriptContent: String
+        if let volume = mountedVolume {
+            scriptContent = """
+            #!/bin/bash
+            sleep 2
+            echo "Installing update..."
+            if [ -d "\(targetURL.path)" ]; then
+                rm -rf "\(targetURL.path)"
+            fi
+            cp -R "\(newAppURL.path)" "\(targetURL.path)"
+            hdiutil detach "\(volume.path)" -quiet
+            echo "Launching new version..."
+            open "\(targetURL.path)"
+            """
+        } else {
+            scriptContent = """
+            #!/bin/bash
+            sleep 2
+            echo "Installing update..."
+            if [ -d "\(targetURL.path)" ]; then
+                rm -rf "\(targetURL.path)"
+            fi
+            cp -R "\(newAppURL.path)" "\(targetURL.path)"
+            echo "Launching new version..."
+            open "\(targetURL.path)"
+            """
+        }
+
+        let tempScript = FileManager.default.temporaryDirectory.appendingPathComponent("pasteMemo_update.sh")
+        do {
+            try scriptContent.write(to: tempScript, atomically: true, encoding: .utf8)
+            let chmod = Process()
+            chmod.executableURL = URL(fileURLWithPath: "/bin/chmod")
+            chmod.arguments = ["+x", tempScript.path]
+            try chmod.run()
+            chmod.waitUntilExit()
+
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: "/bin/bash")
+            task.arguments = [tempScript.path]
+            try task.run()
+
+            AppDelegate.shouldReallyQuit = true
+            NSApp.terminate(nil)
+        } catch {
+            showErrorAlert(message: localizedString(
+                zh: "自动安装失败: \(error.localizedDescription)",
+                en: "Auto-install failed: \(error.localizedDescription)"
+            ))
+            if let volume = mountedVolume {
+                NSWorkspace.shared.open(volume)
+            }
+            showInstallGuideAlert(volumePath: newAppURL.deletingLastPathComponent().path)
+        }
     }
 
     func startPeriodicChecks() {
