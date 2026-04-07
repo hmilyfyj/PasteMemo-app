@@ -690,14 +690,6 @@ Usa %@ para pegar uno por uno.";
 "backup.nextBackup" = "Próxima copia";
 "detail.openInFinder" = "Mostrar en Finder";
 
-/* Sponsor Tab */
-"settings.sponsor" = "Apoyar";
-"sponsor.title" = "Apoya PasteMemo";
-"sponsor.desc" = "PasteMemo es gratuito y de código abierto. Si te resulta útil, considera apoyar el proyecto.";
-"sponsor.donate" = "Invítame un café";
-"sponsor.star" = "Star en GitHub";
-"sponsor.feedback" = "Enviar comentarios";
-
 /* About - Open Source */
 "about.license" = "Licencia";
 "about.sourceCode" = "Código fuente";

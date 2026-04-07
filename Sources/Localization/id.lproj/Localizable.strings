@@ -660,14 +660,6 @@ Gunakan %@ untuk menempel satu per satu.";
 "automation.action.empty" = "Tidak ada tindakan";
 "quick.pasteToApp" = "Tempel ke %@";
 
-/* Sponsor Tab */
-"settings.sponsor" = "Dukung";
-"sponsor.title" = "Dukung PasteMemo";
-"sponsor.desc" = "PasteMemo gratis dan open source. Jika bermanfaat, pertimbangkan untuk mendukung proyek ini.";
-"sponsor.donate" = "Traktir Kopi";
-"sponsor.star" = "Star di GitHub";
-"sponsor.feedback" = "Kirim Masukan";
-
 /* About - Open Source */
 "about.license" = "Lisensi";
 "about.sourceCode" = "Kode Sumber";

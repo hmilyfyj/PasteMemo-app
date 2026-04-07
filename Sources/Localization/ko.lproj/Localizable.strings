@@ -688,14 +688,6 @@
 "backup.nextBackup" = "다음 백업";
 "detail.openInFinder" = "Finder에서 보기";
 
-/* Sponsor Tab */
-"settings.sponsor" = "후원";
-"sponsor.title" = "PasteMemo 후원하기";
-"sponsor.desc" = "PasteMemo는 무료 오픈소스입니다. 도움이 되셨다면 프로젝트를 후원해 주세요.";
-"sponsor.donate" = "커피 한 잔 사주기";
-"sponsor.star" = "GitHub Star 주기";
-"sponsor.feedback" = "피드백 보내기";
-
 /* About - Open Source */
 "about.license" = "라이선스";
 "about.sourceCode" = "소스 코드";

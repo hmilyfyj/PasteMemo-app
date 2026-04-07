@@ -648,14 +648,6 @@
 "automation.action.empty" = "暫無動作";
 "quick.pasteToApp" = "貼上到 %@";
 
-/* Sponsor Tab */
-"settings.sponsor" = "支持";
-"sponsor.title" = "支持 PasteMemo";
-"sponsor.desc" = "PasteMemo 是免費開源的。如果對你有幫助，歡迎支持這個專案。";
-"sponsor.donate" = "請我喝杯咖啡";
-"sponsor.star" = "GitHub 點個 Star";
-"sponsor.feedback" = "提交回饋";
-
 /* About - Open Source */
 "about.license" = "開源授權";
 "about.sourceCode" = "原始碼";

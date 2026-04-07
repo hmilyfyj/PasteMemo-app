@@ -705,14 +705,6 @@
 "backup.nextBackup" = "次回のバックアップ";
 "detail.openInFinder" = "Finderで表示";
 
-/* Sponsor Tab */
-"settings.sponsor" = "サポート";
-"sponsor.title" = "PasteMemo を応援";
-"sponsor.desc" = "PasteMemo は無料のオープンソースです。お役に立てたら、プロジェクトのサポートをご検討ください。";
-"sponsor.donate" = "コーヒーをおごる";
-"sponsor.star" = "GitHub で Star";
-"sponsor.feedback" = "フィードバック";
-
 /* About - Open Source */
 "about.license" = "ライセンス";
 "about.sourceCode" = "ソースコード";

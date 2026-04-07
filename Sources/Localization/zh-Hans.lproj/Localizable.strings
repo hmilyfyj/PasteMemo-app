@@ -685,14 +685,6 @@
 "relay.delimiter.chineseComma" = "顿号 (\U3001)";
 "relay.delimiter.custom" = "自定义";
 
-/* Sponsor Tab */
-"settings.sponsor" = "支持";
-"sponsor.title" = "支持 PasteMemo";
-"sponsor.desc" = "PasteMemo 是免费开源的。如果对你有帮助，欢迎支持这个项目。";
-"sponsor.donate" = "请我喝杯咖啡";
-"sponsor.star" = "GitHub 点个 Star";
-"sponsor.feedback" = "提交反馈";
-
 /* About - Open Source */
 "about.license" = "开源协议";
 "about.sourceCode" = "源代码";

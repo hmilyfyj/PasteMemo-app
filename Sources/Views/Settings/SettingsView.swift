@@ -20,8 +20,6 @@ struct SettingsView: View {
             }
             DataTab()
                 .tabItem { Label(L10n.tr("dataPorter.section"), systemImage: "externaldrive") }
-            SponsorTab()
-                .tabItem { Label(L10n.tr("settings.sponsor"), systemImage: "heart") }
             AboutTab()
                 .tabItem { Label(L10n.tr("settings.about"), systemImage: "info.circle") }
         }
@@ -534,46 +532,6 @@ struct AutomationTab: View {
         }
     }
 
-}
-
-// MARK: - Pro Tab
-
-struct SponsorTab: View {
-    var body: some View {
-        Form {
-            Section {
-                VStack(spacing: 12) {
-                    Image(systemName: "heart.circle.fill")
-                        .font(.system(size: 40))
-                        .foregroundStyle(.pink)
-
-                    Text(L10n.tr("sponsor.title"))
-                        .font(.headline)
-
-                    Text(L10n.tr("sponsor.desc"))
-                        .foregroundStyle(.secondary)
-                        .font(.callout)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-            }
-
-            Section {
-                Link(destination: URL(string: "https://www.lifedever.com")!) {
-                    Label(L10n.tr("sponsor.donate"), systemImage: "cup.and.saucer")
-                }
-                Link(destination: URL(string: "https://github.com/hmilyfyj/PasteMemo-app")!) {
-                    Label(L10n.tr("sponsor.star"), systemImage: "star")
-                }
-                Link(destination: URL(string: "https://github.com/hmilyfyj/PasteMemo-app/issues")!) {
-                    Label(L10n.tr("sponsor.feedback"), systemImage: "bubble.left")
-                }
-            }
-        }
-        .formStyle(.grouped)
-        .scrollDisabled(true)
-    }
 }
 
 // MARK: - About Tab

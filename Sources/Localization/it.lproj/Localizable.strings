@@ -650,14 +650,6 @@ Usa %@ per incollare uno per uno.";
 "quick.commandPalette" = "Azioni";
 "quick.pasteToApp" = "Incolla in %@";
 
-/* Sponsor Tab */
-"settings.sponsor" = "Supporta";
-"sponsor.title" = "Supporta PasteMemo";
-"sponsor.desc" = "PasteMemo è gratuito e open source. Se ti è utile, considera di supportare il progetto.";
-"sponsor.donate" = "Offrimi un caffè";
-"sponsor.star" = "Star su GitHub";
-"sponsor.feedback" = "Invia feedback";
-
 /* About - Open Source */
 "about.license" = "Licenza";
 "about.sourceCode" = "Codice sorgente";

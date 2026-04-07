@@ -672,14 +672,6 @@ Verwenden Sie %@ zum Einfügen.";
 "backup.nextBackup" = "Nächstes Backup";
 "detail.openInFinder" = "Im Finder anzeigen";
 
-/* Sponsor Tab */
-"settings.sponsor" = "Unterstützen";
-"sponsor.title" = "PasteMemo unterstützen";
-"sponsor.desc" = "PasteMemo ist kostenlos und Open Source. Wenn es dir hilft, unterstütze das Projekt.";
-"sponsor.donate" = "Kaffee spendieren";
-"sponsor.star" = "Star auf GitHub";
-"sponsor.feedback" = "Feedback senden";
-
 /* About - Open Source */
 "about.license" = "Lizenz";
 "about.sourceCode" = "Quellcode";

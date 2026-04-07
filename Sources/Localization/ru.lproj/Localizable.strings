@@ -660,14 +660,6 @@
 "automation.action.empty" = "Нет действий";
 "quick.pasteToApp" = "Вставить в %@";
 
-/* Sponsor Tab */
-"settings.sponsor" = "Поддержать";
-"sponsor.title" = "Поддержите PasteMemo";
-"sponsor.desc" = "PasteMemo — бесплатное приложение с открытым исходным кодом. Если оно вам полезно, поддержите проект.";
-"sponsor.donate" = "Угостить кофе";
-"sponsor.star" = "Star на GitHub";
-"sponsor.feedback" = "Отправить отзыв";
-
 /* About - Open Source */
 "about.license" = "Лицензия";
 "about.sourceCode" = "Исходный код";

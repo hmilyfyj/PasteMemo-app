@@ -685,14 +685,6 @@
 "relay.delimiter.custom" = "Custom";
 "quick.pasteToApp" = "Paste to %@";
 
-/* Sponsor Tab */
-"settings.sponsor" = "Sponsor";
-"sponsor.title" = "Support PasteMemo";
-"sponsor.desc" = "PasteMemo is free and open source. If it helps you, consider supporting the project.";
-"sponsor.donate" = "Buy Me a Coffee";
-"sponsor.star" = "Star on GitHub";
-"sponsor.feedback" = "Submit Feedback";
-
 /* About - Open Source */
 "about.license" = "License";
 "about.sourceCode" = "Source Code";
