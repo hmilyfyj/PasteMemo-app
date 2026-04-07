@@ -12,14 +12,12 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/lifedever/PasteMemo-app/releases/latest"><img src="docs/readme-assets/badge-latest-en.svg" alt="Latest Release"></a>
-  <a href="https://github.com/lifedever/PasteMemo-app/releases"><img src="docs/readme-assets/badge-downloads-en.svg" alt="Downloads"></a>
   <img src="docs/readme-assets/badge-platform.svg" alt="Platform">
   <img src="docs/readme-assets/badge-license.svg" alt="License">
 </p>
 
 <p align="center">
-  <a href="https://github.com/lifedever/PasteMemo-app/releases/latest">⬇️ Download</a> | <a href="https://www.lifedever.com/PasteMemo/">🌐 Website</a> | <a href="https://www.lifedever.com">❤️ Sponsor</a>
+  <a href="https://github.com/hmilyfyj/PasteMemo-app/releases/latest">⬇️ Download</a>
 </p>
 
 <p align="center">
@@ -174,7 +172,7 @@ brew upgrade --cask pastememo
 
 ### Download
 
-Grab the latest `.dmg` from [Releases](https://github.com/lifedever/PasteMemo-app/releases):
+Grab the latest `.dmg` from [Releases](https://github.com/hmilyfyj/PasteMemo-app/releases):
 
 | File | Architecture |
 |------|-------------|
@@ -188,7 +186,7 @@ Grab the latest `.dmg` from [Releases](https://github.com/lifedever/PasteMemo-ap
 ### Build from Source
 
 ```bash
-git clone https://github.com/lifedever/PasteMemo-app.git
+git clone https://github.com/hmilyfyj/PasteMemo-app.git
 cd PasteMemo
 swift build
 ```
@@ -203,7 +201,7 @@ If PasteMemo is useful to you, consider [buying me a coffee](https://www.lifedev
 
 ## Feedback
 
-Found a bug or have a suggestion? [Open an issue](https://github.com/lifedever/PasteMemo-app/issues).
+Found a bug or have a suggestion? [Open an issue](https://github.com/hmilyfyj/PasteMemo-app/issues).
 
 ## License
 

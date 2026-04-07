@@ -66,7 +66,7 @@ struct PasteMemoApp: App {
                     showHelpWindow()
                 }
                 Divider()
-                Link(L10n.tr("menu.reportIssue"), destination: URL(string: "https://github.com/lifedever/PasteMemo-app/issues")!)
+                Link(L10n.tr("menu.reportIssue"), destination: URL(string: "https://github.com/hmilyfyj/PasteMemo-app/issues")!)
             }
         }
 

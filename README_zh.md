@@ -12,14 +12,12 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/lifedever/PasteMemo-app/releases/latest"><img src="docs/readme-assets/badge-latest-zh.svg" alt="Latest Release"></a>
-  <a href="https://github.com/lifedever/PasteMemo-app/releases"><img src="docs/readme-assets/badge-downloads-zh.svg" alt="Downloads"></a>
   <img src="docs/readme-assets/badge-platform.svg" alt="Platform">
   <img src="docs/readme-assets/badge-license.svg" alt="License">
 </p>
 
 <p align="center">
-  <a href="https://github.com/lifedever/PasteMemo-app/releases/latest">⬇️ 下载</a> | <a href="https://www.lifedever.com/PasteMemo/">🌐 官网</a> | <a href="https://www.lifedever.com">❤️ 捐助</a>
+  <a href="https://github.com/hmilyfyj/PasteMemo-app/releases/latest">⬇️ 下载</a>
 </p>
 
 <p align="center">

@@ -563,10 +563,10 @@ struct SponsorTab: View {
                 Link(destination: URL(string: "https://www.lifedever.com")!) {
                     Label(L10n.tr("sponsor.donate"), systemImage: "cup.and.saucer")
                 }
-                Link(destination: URL(string: "https://github.com/lifedever/PasteMemo-app")!) {
+                Link(destination: URL(string: "https://github.com/hmilyfyj/PasteMemo-app")!) {
                     Label(L10n.tr("sponsor.star"), systemImage: "star")
                 }
-                Link(destination: URL(string: "https://github.com/lifedever/PasteMemo-app/issues")!) {
+                Link(destination: URL(string: "https://github.com/hmilyfyj/PasteMemo-app/issues")!) {
                     Label(L10n.tr("sponsor.feedback"), systemImage: "bubble.left")
                 }
             }
@@ -616,7 +616,7 @@ struct AboutTab: View {
             Section {
                 Link(L10n.tr("about.website"), destination: URL(string: "https://www.lifedever.com/PasteMemo/")!)
                 Link(L10n.tr("about.help"), destination: URL(string: "https://www.lifedever.com/PasteMemo/help/")!)
-                Link(L10n.tr("menu.reportIssue"), destination: URL(string: "https://github.com/lifedever/PasteMemo-app/issues")!)
+                Link(L10n.tr("menu.reportIssue"), destination: URL(string: "https://github.com/hmilyfyj/PasteMemo-app/issues")!)
             }
 
             Section {
@@ -626,7 +626,7 @@ struct AboutTab: View {
                     Text("GPL-3.0")
                         .foregroundStyle(.secondary)
                 }
-                Link(L10n.tr("about.sourceCode"), destination: URL(string: "https://github.com/lifedever/PasteMemo-app")!)
+                Link(L10n.tr("about.sourceCode"), destination: URL(string: "https://github.com/hmilyfyj/PasteMemo-app")!)
             }
 
             Section {
