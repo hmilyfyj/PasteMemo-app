@@ -5,6 +5,11 @@ import Testing
 
 @Suite("QuickPanel Configuration Tests")
 struct QuickPanelConfigurationTests {
+    private func isolatedDefaults(for function: String = #function) -> (suiteName: String, defaults: UserDefaults) {
+        let suiteName = "QuickPanelConfigurationTests.\(function).\(UUID().uuidString)"
+        return (suiteName, UserDefaults(suiteName: suiteName)!)
+    }
+
     @Test("Bottom floating compact frame stays inside visible frame")
     func compactFrameFitsVisibleFrame() {
         let screenFrame = CGRect(x: 0, y: 0, width: 1512, height: 982)
@@ -88,11 +93,11 @@ struct QuickPanelConfigurationTests {
 
     @Test("Bottom floating width remains current default when legacy custom flag is absent")
     func bottomWidthDefaultsToCurrentScreenWidthWithoutCustomFlag() {
-        let defaults = UserDefaults.standard
+        let isolated = isolatedDefaults()
+        let defaults = isolated.defaults
+        defer { defaults.removePersistentDomain(forName: isolated.suiteName) }
         let widthKey = "\(QuickPanelBottomDefaults.sizeStorageKey).width"
         let customKey = QuickPanelBottomDefaults.widthIsCustomKey
-        let originalWidth = defaults.object(forKey: widthKey)
-        let originalCustom = defaults.object(forKey: customKey)
         let screenFrame = CGRect(x: 0, y: 0, width: 3360, height: 1859)
 
         defaults.set(1512, forKey: widthKey)
@@ -105,67 +110,29 @@ struct QuickPanelConfigurationTests {
 
         #expect(!widthIsCustom)
         #expect(resolvedWidth == screenFrame.width - QuickPanelBottomGeometry.horizontalInset * 2)
-
-        if let originalWidth {
-            defaults.set(originalWidth, forKey: widthKey)
-        } else {
-            defaults.removeObject(forKey: widthKey)
-        }
-
-        if let originalCustom {
-            defaults.set(originalCustom, forKey: customKey)
-        } else {
-            defaults.removeObject(forKey: customKey)
-        }
     }
 
     @Test("Resetting bottom floating defaults clears custom sizing")
     func resetBottomFloatingSizingDefaults() {
-        let defaults = UserDefaults.standard
+        let isolated = isolatedDefaults()
+        let defaults = isolated.defaults
+        defer { defaults.removePersistentDomain(forName: isolated.suiteName) }
         let widthKey = "\(QuickPanelBottomDefaults.sizeStorageKey).width"
         let compactHeightKey = "\(QuickPanelBottomDefaults.sizeStorageKey).compact.height"
         let expandedHeightKey = "\(QuickPanelBottomDefaults.sizeStorageKey).expanded.height"
         let customKey = QuickPanelBottomDefaults.widthIsCustomKey
-        let originalWidth = defaults.object(forKey: widthKey)
-        let originalCompactHeight = defaults.object(forKey: compactHeightKey)
-        let originalExpandedHeight = defaults.object(forKey: expandedHeightKey)
-        let originalCustom = defaults.object(forKey: customKey)
 
         defaults.set(1200, forKey: widthKey)
         defaults.set(280, forKey: compactHeightKey)
         defaults.set(640, forKey: expandedHeightKey)
         defaults.set(true, forKey: customKey)
 
-        QuickPanelBottomDefaults.resetStoredSizing()
+        QuickPanelBottomDefaults.resetStoredSizing(defaults: defaults)
 
         #expect(defaults.object(forKey: widthKey) == nil)
         #expect(defaults.object(forKey: compactHeightKey) == nil)
         #expect(defaults.object(forKey: expandedHeightKey) == nil)
         #expect(defaults.bool(forKey: customKey) == false)
-
-        if let originalWidth {
-            defaults.set(originalWidth, forKey: widthKey)
-        } else {
-            defaults.removeObject(forKey: widthKey)
-        }
-
-        if let originalCompactHeight {
-            defaults.set(originalCompactHeight, forKey: compactHeightKey)
-        } else {
-            defaults.removeObject(forKey: compactHeightKey)
-        }
-
-        if let originalExpandedHeight {
-            defaults.set(originalExpandedHeight, forKey: expandedHeightKey)
-        } else {
-            defaults.removeObject(forKey: expandedHeightKey)
-        }
-
-        if let originalCustom {
-            defaults.set(originalCustom, forKey: customKey)
-        } else {
-            defaults.removeObject(forKey: customKey)
-        }
     }
 
     @Test("Persisting a classic resize never writes into bottom floating storage")
@@ -321,20 +288,15 @@ struct QuickPanelConfigurationTests {
 
     @Test("Quick panel style defaults to classic and persists selection")
     func styleStorage() {
-        let defaults = UserDefaults.standard
+        let isolated = isolatedDefaults()
+        let defaults = isolated.defaults
+        defer { defaults.removePersistentDomain(forName: isolated.suiteName) }
         let key = QuickPanelStyle.storageKey
-        let original = defaults.object(forKey: key)
         defaults.removeObject(forKey: key)
 
-        #expect(QuickPanelStyle.stored == .classic)
+        #expect(QuickPanelStyle.stored(in: defaults) == .classic)
 
         defaults.set(QuickPanelStyle.bottomFloating.rawValue, forKey: key)
-        #expect(QuickPanelStyle.stored == .bottomFloating)
-
-        if let original {
-            defaults.set(original, forKey: key)
-        } else {
-            defaults.removeObject(forKey: key)
-        }
+        #expect(QuickPanelStyle.stored(in: defaults) == .bottomFloating)
     }
 }

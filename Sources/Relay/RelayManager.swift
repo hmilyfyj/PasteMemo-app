@@ -87,6 +87,9 @@ final class RelayManager {
             currentIndex = 0
             return
         }
+        if index < currentIndex {
+            currentIndex -= 1
+        }
         if currentIndex >= items.count {
             currentIndex = items.count - 1
         }
