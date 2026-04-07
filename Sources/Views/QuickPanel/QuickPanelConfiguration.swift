@@ -8,7 +8,11 @@ enum QuickPanelStyle: String, CaseIterable {
     static let storageKey = "quickPanelStyle"
 
     static var stored: QuickPanelStyle {
-        let raw = UserDefaults.standard.string(forKey: storageKey) ?? QuickPanelStyle.bottomFloating.rawValue
+        stored(in: .standard)
+    }
+
+    static func stored(in defaults: UserDefaults) -> QuickPanelStyle {
+        let raw = defaults.string(forKey: storageKey) ?? QuickPanelStyle.classic.rawValue
         return QuickPanelStyle(rawValue: raw) ?? .bottomFloating
     }
 }
@@ -145,16 +149,14 @@ enum QuickPanelBottomDefaults {
     static let sizeStorageKey = "quickPanelBottomSize"
     static let widthIsCustomKey = "quickPanelBottomWidthIsCustom"
 
-    static func resetStoredSizing() {
-        let defaults = UserDefaults.standard
+    static func resetStoredSizing(defaults: UserDefaults = .standard) {
         defaults.removeObject(forKey: "\(sizeStorageKey).width")
         defaults.removeObject(forKey: "\(sizeStorageKey).compact.height")
         defaults.removeObject(forKey: "\(sizeStorageKey).expanded.height")
         defaults.set(false, forKey: widthIsCustomKey)
     }
 
-    static func resetClassicSizing() {
-        let defaults = UserDefaults.standard
+    static func resetClassicSizing(defaults: UserDefaults = .standard) {
         defaults.removeObject(forKey: "quickPanelSize.width")
         defaults.removeObject(forKey: "quickPanelSize.height")
     }
