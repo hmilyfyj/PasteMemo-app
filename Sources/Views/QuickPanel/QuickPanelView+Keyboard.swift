@@ -75,7 +75,7 @@ extension QuickPanelView {
                         }
                         // Add the character to search text and activate search field
                         searchText += String(character)
-                        activateSearchField()
+                        activateSearchField(placeCursorAtEnd: true)
                         return nil
                     }
                 }

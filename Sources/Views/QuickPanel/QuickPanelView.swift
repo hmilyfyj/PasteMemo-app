@@ -227,9 +227,39 @@ struct QuickPanelView: View {
         }
     }
 
-    func activateSearchField() {
+    @MainActor
+    @discardableResult
+    func placeSearchCursorAtEnd() -> Bool {
+        let windows = [NSApp.keyWindow, NSApp.mainWindow].compactMap { $0 }
+
+        for window in windows {
+            guard let textView = window.firstResponder as? NSTextView else { continue }
+            let cursorLocation = searchText.utf16.count
+            textView.setSelectedRange(NSRange(location: cursorLocation, length: 0))
+            textView.scrollRangeToVisible(NSRange(location: cursorLocation, length: 0))
+            return true
+        }
+
+        return false
+    }
+
+    func requestSearchCursorPlacementAtEnd() {
+        Task { @MainActor in
+            for _ in 0..<5 {
+                await Task.yield()
+                if placeSearchCursorAtEnd() {
+                    return
+                }
+            }
+        }
+    }
+
+    func activateSearchField(placeCursorAtEnd: Bool = false) {
         guard isBottomFloatingStyle else {
             isSearchFocused = true
+            if placeCursorAtEnd {
+                requestSearchCursorPlacementAtEnd()
+            }
             return
         }
 
@@ -237,6 +267,9 @@ struct QuickPanelView: View {
         Task { @MainActor in
             await Task.yield()
             isSearchFocused = true
+            if placeCursorAtEnd {
+                requestSearchCursorPlacementAtEnd()
+            }
         }
     }
 
