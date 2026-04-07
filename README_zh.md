@@ -1,7 +1,7 @@
 # PasteMemo
 
 <p align="center">
-  <img src="https://cdn.jsdelivr.net/gh/lifedever/PasteMemo@main/logo.svg" width="128" height="128" alt="PasteMemo Icon">
+  <img src="docs/readme-assets/logo.svg" width="128" height="128" alt="PasteMemo Icon">
 </p>
 
 <h3 align="center">PasteMemo</h3>
@@ -12,10 +12,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/lifedever/PasteMemo-app/releases/latest"><img src="https://img.shields.io/github/v/release/lifedever/PasteMemo-app?style=flat-square&color=F97316&label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC" alt="Latest Release"></a>
-  <a href="https://github.com/lifedever/PasteMemo-app/releases"><img src="https://img.shields.io/github/downloads/lifedever/PasteMemo-app/total?style=flat-square&color=7C3AED&label=%E4%B8%8B%E8%BD%BD%E6%AC%A1%E6%95%B0" alt="Downloads"></a>
-  <img src="https://img.shields.io/badge/platform-macOS%2014%2B-blue?style=flat-square" alt="Platform">
-  <img src="https://img.shields.io/badge/license-GPL--3.0-green?style=flat-square" alt="License">
+  <a href="https://github.com/lifedever/PasteMemo-app/releases/latest"><img src="docs/readme-assets/badge-latest-zh.svg" alt="Latest Release"></a>
+  <a href="https://github.com/lifedever/PasteMemo-app/releases"><img src="docs/readme-assets/badge-downloads-zh.svg" alt="Downloads"></a>
+  <img src="docs/readme-assets/badge-platform.svg" alt="Platform">
+  <img src="docs/readme-assets/badge-license.svg" alt="License">
 </p>
 
 <p align="center">
@@ -39,19 +39,19 @@
 </p>
 
 <p align="center">
-  <img src="https://cdn.jsdelivr.net/gh/lifedever/images@master/uPic/2026/03/CS2026-03-20-15.50.58@2x.png" width="720" alt="PasteMemo 主窗口">
+  <img src="docs/readme-assets/main-window.png" width="720" alt="PasteMemo 主窗口">
 </p>
 
 <p align="center">
-  <img src="https://cdn.jsdelivr.net/gh/lifedever/images@master/uPic/2026/03/CS2026-03-20-15.49.56@2x.png" width="720" alt="PasteMemo 快捷粘贴">
+  <img src="docs/readme-assets/quick-paste.png" width="720" alt="PasteMemo 快捷粘贴">
 </p>
 
 <p align="center">
-  <img src="https://cdn.jsdelivr.net/gh/lifedever/images@master/it/2026/03/quick-actions.png" width="720" alt="PasteMemo 快捷操作">
+  <img src="docs/readme-assets/quick-actions.png" width="720" alt="PasteMemo 快捷操作">
 </p>
 
 <p align="center">
-  <img src="https://cdn.jsdelivr.net/gh/lifedever/images@master/it/2026/03/relay-mode.png" width="720" alt="PasteMemo 接力模式">
+  <img src="docs/readme-assets/relay-mode.png" width="720" alt="PasteMemo 接力模式">
 </p>
 
 
