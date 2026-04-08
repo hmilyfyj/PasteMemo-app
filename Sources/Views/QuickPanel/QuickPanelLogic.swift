@@ -111,3 +111,28 @@ enum QuickPanelSelectionLogic {
         return start..<end
     }
 }
+
+enum QuickPanelEnterAction: Equatable {
+    case paste(forceNewLine: Bool)
+    case contextualAction
+    case multiPaste(asPlainText: Bool, forceNewLine: Bool)
+}
+
+enum QuickPanelEnterLogic {
+    static func action(
+        isMultiSelected: Bool,
+        hasCommand: Bool,
+        hasShift: Bool
+    ) -> QuickPanelEnterAction {
+        if isMultiSelected {
+            return .multiPaste(asPlainText: hasShift, forceNewLine: hasCommand)
+        }
+        if hasCommand {
+            return .paste(forceNewLine: true)
+        }
+        if hasShift {
+            return .contextualAction
+        }
+        return .paste(forceNewLine: false)
+    }
+}

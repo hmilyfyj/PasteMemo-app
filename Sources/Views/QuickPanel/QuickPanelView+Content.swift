@@ -448,9 +448,9 @@ extension QuickPanelView {
                             footerKey("↵", L10n.tr("quick.saveToFolder"))
                         } else {
                             footerKey("↵", L10n.tr("quick.batchPaste"))
-                            footerKey("⇧↵", L10n.tr("quick.pasteNewLine"))
+                            footerKey("⌘↵", L10n.tr("quick.pasteNewLine"))
                         }
-                        footerKey("⌘↵", L10n.tr("action.pasteAsPlainText"))
+                        footerKey("⇧↵", L10n.tr("action.pasteAsPlainText"))
                     } else {
                         if let cur = currentItem {
                             if cur.imageData != nil, canPasteToFinderFolder {
@@ -459,12 +459,12 @@ extension QuickPanelView {
                                 footerKey("↵", L10n.tr("quick.saveToFolder"))
                             } else {
                                 footerKey("↵", L10n.tr("quick.pasteAction"))
-                                footerKey("⇧↵", L10n.tr("quick.pasteNewLine"))
+                                footerKey("⌘↵", L10n.tr("quick.pasteNewLine"))
                             }
                             if isFileBasedItem(cur) {
-                                footerKey("⌘↵", L10n.tr("quick.pastePath"))
-                            } else if cur.contentType == .text || cur.contentType == .code {
-                                footerKey("⌘↵", L10n.tr("action.pasteAsPlainText"))
+                                footerKey("⇧↵", L10n.tr("quick.pastePath"))
+                            } else if [.text, .code, .color, .email, .phone].contains(cur.contentType) {
+                                footerKey("⇧↵", L10n.tr("action.pasteAsPlainText"))
                             }
                         }
                     }

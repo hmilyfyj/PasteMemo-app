@@ -83,7 +83,7 @@
 - **Smooth Animations** -- Beautiful spring animations and micro-interactions for a polished experience.
 - **Keyboard Navigation** -- Cmd+1 to Cmd+9 to paste directly. Arrow keys to navigate. Enter to paste. Full keyboard workflow.
 - **Quick Actions (Cmd+K)** -- Command palette for paste, copy, pin, delete, and more -- all without leaving the keyboard.
-- **Paste + Enter** -- Shift+Enter pastes and presses Enter. Perfect for terminal commands and chat apps.
+- **Paste + Enter** -- Cmd+Enter pastes and presses Enter. Perfect for terminal commands and chat apps.
 
 ### Relay Mode
 
@@ -145,7 +145,8 @@
 | Cmd+1 - Cmd+9 | Paste the Nth item directly |
 | Up / Down | Navigate history |
 | Enter | Paste selected item |
-| Shift+Enter | Paste and press Enter |
+| Shift+Enter | Contextual paste action (plain text / path) |
+| Cmd+Enter | Paste and press Enter |
 | Cmd+K | Open Quick Actions |
 | Cmd+F | Focus search |
 | Esc | Close panel |

@@ -210,14 +210,17 @@ extension QuickPanelView {
                    textView.hasMarkedText() {
                     return event
                 }
-                if isMultiSelected {
-                    handleMultiPaste(asPlainText: hasCmd, forceNewLine: hasShift)
-                } else if hasCmd {
+                switch QuickPanelEnterLogic.action(
+                    isMultiSelected: isMultiSelected,
+                    hasCommand: hasCmd,
+                    hasShift: hasShift
+                ) {
+                case .paste(let forceNewLine):
+                    handlePaste(forceNewLine: forceNewLine)
+                case .contextualAction:
                     handleCmdEnter()
-                } else if hasShift {
-                    handlePaste(forceNewLine: true)
-                } else {
-                    handlePaste()
+                case .multiPaste(let asPlainText, let forceNewLine):
+                    handleMultiPaste(asPlainText: asPlainText, forceNewLine: forceNewLine)
                 }
                 return nil
             default:

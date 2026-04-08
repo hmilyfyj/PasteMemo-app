@@ -114,4 +114,50 @@ struct QuickPanelViewLogicTests {
             ) == 0..<6
         )
     }
+
+    @Test("Enter shortcut mapping swaps Shift and Command actions")
+    func enterShortcutMappingSwapsShiftAndCommandActions() {
+        #expect(
+            QuickPanelEnterLogic.action(
+                isMultiSelected: false,
+                hasCommand: false,
+                hasShift: false
+            ) == .paste(forceNewLine: false)
+        )
+        #expect(
+            QuickPanelEnterLogic.action(
+                isMultiSelected: false,
+                hasCommand: true,
+                hasShift: false
+            ) == .paste(forceNewLine: true)
+        )
+        #expect(
+            QuickPanelEnterLogic.action(
+                isMultiSelected: false,
+                hasCommand: false,
+                hasShift: true
+            ) == .contextualAction
+        )
+        #expect(
+            QuickPanelEnterLogic.action(
+                isMultiSelected: true,
+                hasCommand: true,
+                hasShift: false
+            ) == .multiPaste(asPlainText: false, forceNewLine: true)
+        )
+        #expect(
+            QuickPanelEnterLogic.action(
+                isMultiSelected: true,
+                hasCommand: false,
+                hasShift: true
+            ) == .multiPaste(asPlainText: true, forceNewLine: false)
+        )
+        #expect(
+            QuickPanelEnterLogic.action(
+                isMultiSelected: true,
+                hasCommand: true,
+                hasShift: true
+            ) == .multiPaste(asPlainText: true, forceNewLine: true)
+        )
+    }
 }
