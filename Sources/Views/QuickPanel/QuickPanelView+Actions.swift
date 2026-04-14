@@ -65,6 +65,7 @@ extension QuickPanelView {
                 relaySplitText = item.content
             }
         case .pin:
+            let focusID = currentItem?.persistentModelID ?? currentItems.first?.persistentModelID
             if isMultiSelected {
                 let items = currentItems
                 let shouldPin = !items.contains(where: \.isPinned)
@@ -73,6 +74,9 @@ extension QuickPanelView {
                 currentItem?.isPinned.toggle()
             }
             ClipItemStore.saveAndNotify(modelContext)
+            if let focusID {
+                requestScrollToItem(focusID)
+            }
         case .toggleSensitive:
             if isMultiSelected {
                 let items = currentItems

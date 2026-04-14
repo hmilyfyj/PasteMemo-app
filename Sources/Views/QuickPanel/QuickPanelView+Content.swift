@@ -162,7 +162,7 @@ extension QuickPanelView {
                 withAnimation(.easeOut(duration: 0.16)) {
                     proxy.scrollTo(id, anchor: .top)
                 }
-                pendingScrollRequestID = nil
+                completeScrollRequestPass()
             }
                 .onChange(of: selectedFilter) {
                 if let firstGroup = cachedGroupedItems.first {
@@ -255,7 +255,7 @@ extension QuickPanelView {
                         withAnimation(.easeOut(duration: 0.16)) {
                             proxy.scrollTo(id, anchor: .leading)
                         }
-                        pendingScrollRequestID = nil
+                        completeScrollRequestPass()
                     }
                     .onChange(of: selectedFilter) {
                         guard let firstID = cachedDisplayOrder.first?.persistentModelID else { return }

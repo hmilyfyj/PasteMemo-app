@@ -19,6 +19,9 @@ extension QuickPanelView {
             let newValue = !hasPinned
             for item in items { item.isPinned = newValue }
             ClipItemStore.saveAndNotify(modelContext)
+            if let focusID = items.first?.persistentModelID {
+                requestScrollToItem(focusID)
+            }
         }
 
         let hasSensitive = items.contains(where: \.isSensitive)
@@ -114,6 +117,7 @@ extension QuickPanelView {
             item.isPinned.toggle()
             ClipItemStore.saveAndNotify(modelContext)
             selectItem(itemID)
+            requestScrollToItem(itemID)
         }
 
         Button(item.isSensitive ? L10n.tr("sensitive.unmarkSensitive") : L10n.tr("sensitive.markSensitive")) {

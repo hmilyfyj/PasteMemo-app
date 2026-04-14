@@ -32,6 +32,7 @@ struct QuickPanelView: View {
     @State var scrollResetToken = UUID()
     @State var pendingScrollRequestID: PersistentIdentifier?
     @State var scrollRequestToken = 0
+    @State var pendingScrollRequestPasses = 0
     @State var lastSeenFirstItemID: String?
     @State var cachedGroupedItems: [GroupedItem<ClipItem>] = []
     @State var cachedDisplayOrder: [ClipItem] = []
@@ -142,7 +143,7 @@ struct QuickPanelView: View {
     }
 
     func rebuildGroupedItems() {
-        cachedGroupedItems = groupItemsByTime(filteredItems, separatePinned: false)
+        cachedGroupedItems = groupItemsByTime(filteredItems)
         cachedDisplayOrder = cachedGroupedItems.flatMap(\.items)
         cachedItemMap = Dictionary(cachedDisplayOrder.map { ($0.persistentModelID, $0) }, uniquingKeysWith: { _, last in last })
         cachedIDSet = Set(cachedItemMap.keys)
@@ -326,14 +327,25 @@ struct QuickPanelView: View {
 
     func requestScrollToItem(_ id: PersistentIdentifier) {
         pendingScrollRequestID = id
+        pendingScrollRequestPasses = 2
         scrollRequestToken += 1
     }
 
     func reissuePendingScrollRequestIfNeeded() {
-        guard let pendingID = pendingScrollRequestID, cachedIDSet.contains(pendingID) else { return }
+        guard pendingScrollRequestPasses > 1,
+              let pendingID = pendingScrollRequestID,
+              cachedIDSet.contains(pendingID) else { return }
         Task { @MainActor in
             await Task.yield()
             scrollRequestToken += 1
+        }
+    }
+
+    func completeScrollRequestPass() {
+        guard pendingScrollRequestPasses > 0 else { return }
+        pendingScrollRequestPasses -= 1
+        if pendingScrollRequestPasses == 0 {
+            pendingScrollRequestID = nil
         }
     }
 

@@ -139,6 +139,23 @@ struct QuickClipCard: View {
                         .foregroundStyle(.white)
                         .lineLimit(1)
 
+                    if item.isPinned {
+                        HStack(spacing: 4) {
+                            Image(systemName: "pin.fill")
+                                .font(.system(size: 9, weight: .bold))
+                            Text(L10n.tr("time.pinned"))
+                                .font(.system(size: 9.5, weight: .bold))
+                                .lineLimit(1)
+                        }
+                        .foregroundStyle(.white.opacity(0.95))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule()
+                                .fill(Color.black.opacity(0.16))
+                        )
+                    }
+
                     Text(formatTimeAgo(item.lastUsedAt))
                         .font(.system(size: 10.5, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.9))
@@ -644,4 +661,3 @@ struct QuickClipCard: View {
         return searchText
     }
 }
-
