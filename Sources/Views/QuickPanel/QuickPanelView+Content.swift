@@ -157,6 +157,13 @@ extension QuickPanelView {
                     proxy.scrollTo(id)
                 }
             }
+                .onChange(of: scrollRequestToken) {
+                guard let id = pendingScrollRequestID else { return }
+                withAnimation(.easeOut(duration: 0.16)) {
+                    proxy.scrollTo(id, anchor: .top)
+                }
+                pendingScrollRequestID = nil
+            }
                 .onChange(of: selectedFilter) {
                 if let firstGroup = cachedGroupedItems.first {
                     proxy.scrollTo("group_\(firstGroup.group.rawValue)", anchor: .top)
@@ -242,6 +249,13 @@ extension QuickPanelView {
                     .onChange(of: lastNavigatedID) { previousID, currentID in
                         guard let id = currentID else { return }
                         ensureBottomClipVisible(id: id, previousID: previousID, proxy: proxy)
+                    }
+                    .onChange(of: scrollRequestToken) {
+                        guard let id = pendingScrollRequestID else { return }
+                        withAnimation(.easeOut(duration: 0.16)) {
+                            proxy.scrollTo(id, anchor: .leading)
+                        }
+                        pendingScrollRequestID = nil
                     }
                     .onChange(of: selectedFilter) {
                         guard let firstID = cachedDisplayOrder.first?.persistentModelID else { return }

@@ -44,7 +44,7 @@ func groupItemsByTime(_ items: [ClipItem], separatePinned: Bool = true) -> [Grou
 
     for item in items {
         let isPinned = separatePinned ? item.isPinned : false
-        let group = TimeGroup.group(for: item.createdAt, isPinned: isPinned)
+        let group = TimeGroup.group(for: item.lastUsedAt, isPinned: isPinned)
         groups[group, default: []].append(item)
     }
 

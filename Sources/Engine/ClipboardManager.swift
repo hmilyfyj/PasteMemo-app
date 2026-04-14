@@ -254,7 +254,7 @@ final class ClipboardManager: ObservableObject {
         if let existingItem = findExistingDuplicate(for: newItem, in: context) {
             reuseExistingDuplicate(existingItem, with: newItem, in: context)
             cleanExpiredItems(in: context)
-            try? context.save()
+            ClipItemStore.saveAndNotify(context)
             SoundManager.playCopy()
             refreshLinkMetadataIfNeeded(for: existingItem, in: context)
             enqueueOCRIfNeeded(for: existingItem)
@@ -264,7 +264,7 @@ final class ClipboardManager: ObservableObject {
         print("✅ [ClipboardManager] Inserting new item: '\(newItem.content)'")
         context.insert(newItem)
         cleanExpiredItems(in: context)
-        try? context.save()
+        ClipItemStore.saveAndNotify(context)
 
         SoundManager.playCopy()
 
@@ -601,6 +601,19 @@ final class ClipboardManager: ObservableObject {
             }
         }
         lastChangeCount = NSPasteboard.general.changeCount
+    }
+
+    /// 更新条目的最近使用时间，并立即持久化，确保依赖该字段的列表立刻重排。
+    func markItemsAsUsed(_ items: [ClipItem]) {
+        guard !items.isEmpty else { return }
+
+        let base = Date()
+        for (index, item) in items.enumerated() {
+            item.lastUsedAt = base.addingTimeInterval(-Double(index) * 0.001)
+        }
+
+        guard let context = modelContainer?.mainContext else { return }
+        ClipItemStore.saveAndNotify(context)
     }
 
     /// 将文件类型的内容作为纯文本路径写入剪贴板（不作为文件引用）

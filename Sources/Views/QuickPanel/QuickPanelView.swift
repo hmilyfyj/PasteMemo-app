@@ -30,6 +30,8 @@ struct QuickPanelView: View {
     @State var targetApp: NSRunningApplication?
     @State var isPanelPinned = false
     @State var scrollResetToken = UUID()
+    @State var pendingScrollRequestID: PersistentIdentifier?
+    @State var scrollRequestToken = 0
     @State var lastSeenFirstItemID: String?
     @State var cachedGroupedItems: [GroupedItem<ClipItem>] = []
     @State var cachedDisplayOrder: [ClipItem] = []
@@ -322,6 +324,19 @@ struct QuickPanelView: View {
         }
     }
 
+    func requestScrollToItem(_ id: PersistentIdentifier) {
+        pendingScrollRequestID = id
+        scrollRequestToken += 1
+    }
+
+    func reissuePendingScrollRequestIfNeeded() {
+        guard let pendingID = pendingScrollRequestID, cachedIDSet.contains(pendingID) else { return }
+        Task { @MainActor in
+            await Task.yield()
+            scrollRequestToken += 1
+        }
+    }
+
     func handleItemClick(_ id: PersistentIdentifier) {
         let now = Date()
         let isDoubleClick = lastClickedID == id && now.timeIntervalSince(lastClickTime) < 0.3
@@ -552,6 +567,7 @@ struct QuickPanelView: View {
         }
         .onChange(of: store.items) {
             rebuildGroupedItems()
+            reissuePendingScrollRequestIfNeeded()
             guard selectedItemIDs.isEmpty || selectedItemIDs.isDisjoint(with: cachedIDSet) else { return }
             let firstID = defaultItem?.persistentModelID
             if let firstID { selectedItemIDs = [firstID] } else { selectedItemIDs.removeAll() }

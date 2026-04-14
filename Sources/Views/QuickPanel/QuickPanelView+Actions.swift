@@ -127,6 +127,7 @@ extension QuickPanelView {
     func handleMultiPaste(asPlainText: Bool, forceNewLine: Bool = false) {
         let items = currentItems
         guard !items.isEmpty else { return }
+        markItemsAsRecentlyUsed(items)
 
         // Target is Finder → special file handling
         if isTargetFinder, !asPlainText {
@@ -202,12 +203,32 @@ extension QuickPanelView {
         }
     }
 
+    func markItemsAsRecentlyUsed(_ items: [ClipItem], moveToFront: Bool = false) {
+        guard !items.isEmpty else { return }
+
+        let itemIDs = Set(items.map(\.persistentModelID))
+        let orderedItems = displayOrderItems.filter { itemIDs.contains($0.persistentModelID) }
+        let effectiveItems = orderedItems.isEmpty ? items : orderedItems
+
+        if moveToFront {
+            store.moveItemsToFront(effectiveItems)
+            rebuildGroupedItems()
+        }
+
+        if let focusID = effectiveItems.first?.persistentModelID {
+            requestScrollToItem(focusID)
+        }
+
+        clipboardManager.markItemsAsUsed(effectiveItems)
+    }
+
     func copyItemsToClipboard(_ items: [ClipItem]) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         let merged = items.map(\.content).joined(separator: "\n")
         pasteboard.setString(merged, forType: .string)
         clipboardManager.lastChangeCount = pasteboard.changeCount
+        markItemsAsRecentlyUsed(items, moveToFront: true)
         showCopiedToast = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { showCopiedToast = false }
     }
@@ -398,6 +419,7 @@ extension QuickPanelView {
     }
 
     func handlePlainTextPaste(_ item: ClipItem) {
+        markItemsAsRecentlyUsed([item])
         let appToRestore = QuickPanelWindowController.shared.previousApp
         QuickPanelWindowController.shared.dismiss()
 
@@ -416,6 +438,7 @@ extension QuickPanelView {
 
     func handlePasteTextToFolder() {
         guard let item = currentItem else { return }
+        markItemsAsRecentlyUsed([item])
 
         guard let folder = clipboardManager.getFinderSelectedFolder() else { return }
 
@@ -440,6 +463,7 @@ extension QuickPanelView {
 
     func handlePasteImage() {
         guard let item = currentItem, let imageData = item.imageData else { return }
+        markItemsAsRecentlyUsed([item])
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setData(imageData, forType: .tiff)
@@ -464,6 +488,7 @@ extension QuickPanelView {
 
     func handlePastePath() {
         guard let item = currentItem, isFileBasedItem(item) else { return }
+        markItemsAsRecentlyUsed([item])
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(item.content, forType: .string)
@@ -515,6 +540,8 @@ extension QuickPanelView {
             handlePasteImage()
             return
         }
+
+        markItemsAsRecentlyUsed([item])
 
         guard let savedURL = clipboardManager.saveImageToFolder(imageData, folder: folder) else {
             // Save failed, fallback to paste image
