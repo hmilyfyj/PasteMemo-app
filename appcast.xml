@@ -6,6 +6,31 @@
         <description>Most recent changes with links to updates.</description>
         <language>en</language>
         <item>
+            <title>Version 1.3.22</title>
+            <pubDate>Tue, 14 Apr 2026 10:41:45 +0800</pubDate>
+            <sparkle:version>1322</sparkle:version>
+            <sparkle:shortVersionString>1.3.22</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <h2>修复悬浮框剪贴板列表复制后排序与自动滚动定位问题</h2>
+                <h3>🎉 新功能</h3>
+                <ul>
+                    <li>修复悬浮框剪贴板列表复制后排序与自动滚动定位问题</li>
+                </ul>
+                <h3>📝 技术改进</h3>
+                <ul>
+                    <li>性能优化</li>
+                    <li>稳定性改进</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/hmilyfyj/PasteMemo-app/releases/download/v1.3.22/PasteMemo-1.3.22.dmg"
+                sparkle:edSignature="4wTRskaVuttPY40zi4Eh7Rx4aZRpDrBalOloWCbk33n6NVFfRFnPlqsx9q0HSup4TF/nJnwuE9FejHL2bmGaCQ=="
+                length="5366633"
+                type="application/octet-stream"
+            />
+        </item>
+        <item>
             <title>Version 1.3.21</title>
             <pubDate>Wed, 08 Apr 2026 12:15:32 +0800</pubDate>
             <sparkle:version>1321</sparkle:version>
