@@ -66,7 +66,10 @@ struct SearchHistoryTool: MCPTool {
         // SwiftData predicate 对 enum/可选捕获支持有限,沿用内存过滤;对 1036 量级的真实数据足够,
         // 大体量场景由 total_capped + since/until 时间窗口翻页解决。
         var descriptor = FetchDescriptor<ClipItem>(
-            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+            sortBy: [
+                SortDescriptor(\.lastUsedAt, order: .reverse),
+                SortDescriptor(\.createdAt, order: .reverse),
+            ]
         )
         descriptor.fetchLimit = Self.safetyCap
         var items = try context.fetch(descriptor)

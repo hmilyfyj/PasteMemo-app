@@ -45,8 +45,9 @@ final class MCPToolsTests: XCTestCase {
               case .object(let first) = arr.first!,
               case .string(let text) = first["text"]!
         else { XCTFail("Bad shape"); return }
-        let items = try JSONDecoder().decode([SearchHistoryTool.OutputItem].self,
-                                              from: text.data(using: .utf8)!)
+        let output = try JSONDecoder().decode(SearchHistoryTool.Output.self,
+                                               from: text.data(using: .utf8)!)
+        let items = output.items
         XCTAssertEqual(items.count, 1)
         XCTAssertEqual(items[0].title, "Hello world")
     }
@@ -63,10 +64,85 @@ final class MCPToolsTests: XCTestCase {
               case .object(let first) = arr.first!,
               case .string(let text) = first["text"]!
         else { XCTFail("Bad shape"); return }
-        let items = try JSONDecoder().decode([SearchHistoryTool.OutputItem].self,
-                                              from: text.data(using: .utf8)!)
+        let output = try JSONDecoder().decode(SearchHistoryTool.Output.self,
+                                               from: text.data(using: .utf8)!)
+        let items = output.items
         // 5 条样本 - 1 敏感（默认过滤）= 4
         XCTAssertEqual(items.count, 4)
+    }
+
+    func testSearchEmptyQueryUsesQuickPanelDisplayOrder() async throws {
+        let container = SampleClips.makeContainer()
+        let context = container.mainContext
+        let createdNewer = ClipItem(
+            content: "created newer, used older",
+            contentType: .text,
+            createdAt: Date(timeIntervalSince1970: 200),
+            lastUsedAt: Date(timeIntervalSince1970: 100)
+        )
+        let usedNewer = ClipItem(
+            content: "created older, used newer",
+            contentType: .text,
+            createdAt: Date(timeIntervalSince1970: 100),
+            lastUsedAt: Date(timeIntervalSince1970: 300)
+        )
+        context.insert(createdNewer)
+        context.insert(usedNewer)
+        try context.save()
+
+        let tool = SearchHistoryTool()
+        let result = try await tool.call(
+            params: .object(["limit": .number(2)]),
+            container: container,
+            guardLayer: PrivacyGuard(allowSensitive: false, sourceAppBlocklist: [])
+        )
+
+        guard case .object(let outer) = result,
+              case .array(let arr) = outer["content"]!,
+              case .object(let first) = arr.first!,
+              case .string(let text) = first["text"]!
+        else { XCTFail("Bad shape"); return }
+        let output = try JSONDecoder().decode(SearchHistoryTool.Output.self,
+                                               from: text.data(using: .utf8)!)
+        let items = output.items
+        XCTAssertEqual(items.map(\.title), [
+            "created older, used newer",
+            "created newer, used older"
+        ])
+    }
+
+    func testSelectItemMarksPasteboardWithoutReorderingHistory() async throws {
+        let container = SampleClips.makeContainer()
+        let context = container.mainContext
+        let originalLastUsedAt = Date(timeIntervalSince1970: 100)
+        let item = ClipItem(
+            content: "prepared paste content",
+            contentType: .text,
+            createdAt: Date(timeIntervalSince1970: 90),
+            lastUsedAt: originalLastUsedAt
+        )
+        context.insert(item)
+        try context.save()
+
+        let result = try await PreparePasteTool().call(
+            params: .object(["id": .string(item.itemID)]),
+            container: container,
+            guardLayer: PrivacyGuard(allowSensitive: false, sourceAppBlocklist: [])
+        )
+
+        guard case .object(let outer) = result,
+              case .array(let arr) = outer["content"]!,
+              case .object(let first) = arr.first!,
+              case .string(let text) = first["text"]!
+        else { XCTFail("Bad shape"); return }
+        let output = try JSONDecoder().decode(PreparePasteTool.Output.self,
+                                              from: text.data(using: .utf8)!)
+        XCTAssertTrue(output.written)
+        XCTAssertEqual(output.item_id, item.itemID)
+        XCTAssertEqual(NSPasteboard.general.string(forType: .string), "prepared paste content")
+        XCTAssertTrue(NSPasteboard.general.isPasteMemoWrite)
+        XCTAssertEqual(ClipboardManager.shared.lastChangeCount, NSPasteboard.general.changeCount)
+        XCTAssertEqual(item.lastUsedAt, originalLastUsedAt)
     }
 
     func testSearchPreviewTruncatedAt200() async throws {
@@ -84,8 +160,9 @@ final class MCPToolsTests: XCTestCase {
               case .object(let first) = arr.first!,
               case .string(let text) = first["text"]!
         else { XCTFail("Bad shape"); return }
-        let items = try JSONDecoder().decode([SearchHistoryTool.OutputItem].self,
-                                              from: text.data(using: .utf8)!)
+        let output = try JSONDecoder().decode(SearchHistoryTool.Output.self,
+                                               from: text.data(using: .utf8)!)
+        let items = output.items
         XCTAssertEqual(items.count, 1)
         XCTAssertEqual(items[0].content_preview.count, 200)
     }

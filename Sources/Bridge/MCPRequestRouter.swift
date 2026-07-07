@@ -15,13 +15,15 @@ final class MCPClientContext: @unchecked Sendable {
 final class MCPRequestRouter {
     private let container: ModelContainer
 
-    /// 5 个工具的注册表
+    /// 7 个工具的注册表
     private let tools: [String: any MCPTool] = [
         "clipboard_get_current":      GetCurrentTool(),
         "clipboard_search":           SearchHistoryTool(),
         "clipboard_get":              GetItemTool(),
         "clipboard_list_recent_apps": ListRecentAppsTool(),
         "clipboard_set":              SetClipboardTool(),
+        "clipboard_select_item":      PreparePasteTool(),
+        "ui_show_quick_panel":        ShowQuickPanelTool(),
     ]
 
     private let toolDescriptors: [MCPToolDescriptor] = [
@@ -30,6 +32,8 @@ final class MCPRequestRouter {
         GetItemTool.descriptor,
         ListRecentAppsTool.descriptor,
         SetClipboardTool.descriptor,
+        PreparePasteTool.descriptor,
+        ShowQuickPanelTool.descriptor,
     ]
 
     init(container: ModelContainer) {

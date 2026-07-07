@@ -19,6 +19,8 @@ PasteMemo 剪贴板桥 — AI Agent 使用说明
 - clipboard_get                —— 按 ID 取单条全量内容（含 OCR 文字、图片字节等）
 - clipboard_list_recent_apps   —— 最近活跃来源 App 列表（用来反查 bundle ID）
 - clipboard_set                —— 写入剪贴板（写入会被标记为 AI Agent 来源）
+- clipboard_select_item      —— 将历史条目载入系统剪贴板（标记为 PasteMemo 自身写入，不产生重复历史、不重排序）
+- ui_show_quick_panel       —— 打开快捷粘贴面板（当用户想浏览剪贴板历史时使用）
 
 ## 工作流
 
@@ -32,7 +34,7 @@ PasteMemo 剪贴板桥 — AI Agent 使用说明
 
 ## 找很久之前的记录
 
-- search 默认按时间倒序，单次最多 100 条
+- search 默认按 lastUsedAt 倒序（与快捷面板排序一致），单次最多 100 条
 - 往回翻：用 since + until 组成时间窗口，把 until 设为上一批最老一条的
   created_at，继续翻
 - total 字段是窗口内的总匹配数（已应用所有过滤 + 隐私）
