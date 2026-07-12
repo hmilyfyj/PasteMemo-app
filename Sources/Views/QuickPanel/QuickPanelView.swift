@@ -493,20 +493,21 @@ struct QuickPanelView: View {
 
     /// Cap each `/` suggestion section so the dropdown stays short — an unbounded
     /// match list (e.g. `/c` matching dozens of apps) both overflows visually and
-    /// stretches the panel. Most-relevant entries (highest count) surface first;
-    /// users narrow further by typing more.
+    /// stretches the panel. Apps surface highest-count first; groups keep the
+    /// user's sidebar drag order. Users narrow further by typing more.
     private static let SUGGESTION_SECTION_LIMIT = 8
 
     private var currentSuggestionGroups: [(name: String, icon: String, count: Int, preservesItems: Bool)] {
         guard shouldSuggestGroups else { return [] }
         guard searchText.hasPrefix(Self.GROUP_SEARCH_PREFIX) else { return [] }
         let query = String(searchText.dropFirst()).trimmingCharacters(in: .whitespaces).lowercased()
+        // byGroup is already in ZSORTORDER (the sidebar's drag order) — keep it,
+        // so the dropdown mirrors the main window exactly.
         let matches = store.sidebarCounts.byGroup
             .filter { group in
                 guard group.count > 0 else { return false }
                 return query.isEmpty || group.name.lowercased().contains(query)
             }
-            .sorted { $0.count > $1.count }
         return Array(matches.prefix(Self.SUGGESTION_SECTION_LIMIT))
     }
 
