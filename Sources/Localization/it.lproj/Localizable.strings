@@ -358,6 +358,7 @@
 "update.download_error" = "Download fallito";
 "update.dmg_error" = "Aggiornamento fallito";
 "update.dmg_error.message" = "L'immagine disco scaricata è corrotta. Prova a scaricare di nuovo l'aggiornamento.";
+"update.download_error.incomplete" = "Il download è incompleto o è stato interrotto. Controlla la connessione di rete e riprova.";
 
 /* Ignored Apps */
 "settings.ignoredApps" = "App ignorate";

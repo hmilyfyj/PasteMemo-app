@@ -407,6 +407,7 @@
 "update.download_error" = "Download Failed";
 "update.dmg_error" = "Update Failed";
 "update.dmg_error.message" = "The downloaded disk image is corrupted. Please try downloading the update again.";
+"update.download_error.incomplete" = "The download was incomplete or interrupted. Please check your network and try again.";
 
 /* Ignored Apps */
 "settings.ignoredApps" = "Ignored Apps";

@@ -358,6 +358,7 @@
 "update.download_error" = "下載失敗";
 "update.dmg_error" = "更新失敗";
 "update.dmg_error.message" = "下載的磁碟映像檔已損毀，請重新下載更新。";
+"update.download_error.incomplete" = "下載不完整或已中斷，請檢查網路後重試。";
 
 /* Ignored Apps */
 "settings.ignoredApps" = "忽略的應用程式";

@@ -358,6 +358,7 @@
 "update.download_error" = "Unduhan Gagal";
 "update.dmg_error" = "Pembaruan Gagal";
 "update.dmg_error.message" = "Image disk yang diunduh rusak. Silakan coba unduh pembaruan lagi.";
+"update.download_error.incomplete" = "Unduhan tidak lengkap atau terputus. Periksa koneksi jaringan Anda dan coba lagi.";
 
 /* Ignored Apps */
 "settings.ignoredApps" = "Aplikasi yang Diabaikan";

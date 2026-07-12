@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Testing
 @testable import PasteMemo
@@ -190,6 +191,7 @@ struct LocalizationCompletenessTests {
             "settings.includeBetaChannel.hint",
             "update.available.beta.title",
             "update.beta.warning",
+            "update.download_error.incomplete",
         ]
 
         for lprojURL in lprojURLs {
@@ -206,5 +208,32 @@ struct LocalizationCompletenessTests {
                 #expect(value?.isEmpty == false, "Language '\(lang)' has empty value for '\(key)'")
             }
         }
+    }
+}
+
+/// Guards the exact SHA-256 hex encoding used by DownloadDelegate to verify a
+/// downloaded DMG against the `sha256` in latest.json. If this encoding drifts
+/// from what the release script writes, every update would be wrongly rejected
+/// as "incomplete" — so pin it against known test vectors.
+@Suite("DMG checksum verification")
+struct DMGChecksumTests {
+    /// Mirrors UpdateChecker's `SHA256.hash(...).map { String(format: "%02x", $0) }.joined()`.
+    private func sha256Hex(_ data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    @Test("SHA-256 hex matches NIST vectors (lowercase, zero-padded)")
+    func knownVectors() {
+        #expect(sha256Hex(Data()) == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+        #expect(sha256Hex(Data("abc".utf8)) == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+    }
+
+    @Test("Hex is always 64 chars — leading-zero bytes are not truncated")
+    func zeroPadding() {
+        // "%02x" must pad single-digit bytes; a plain "%x" would drop the
+        // leading zero and produce a shorter, mismatching string.
+        let hex = sha256Hex(Data("The quick brown fox jumps over the lazy dog".utf8))
+        #expect(hex.count == 64)
+        #expect(hex == "d7a8fbb307d7809469ca9abcb0082e4f8d5651e46d3cdb762d02d0bf37c9e592")
     }
 }

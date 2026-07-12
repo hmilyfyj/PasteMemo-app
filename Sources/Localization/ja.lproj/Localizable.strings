@@ -279,6 +279,7 @@
 "update.download_error" = "ダウンロード失敗";
 "update.dmg_error" = "アップデート失敗";
 "update.dmg_error.message" = "ダウンロードしたディスクイメージが破損しています。再度ダウンロードしてください。";
+"update.download_error.incomplete" = "ダウンロードが未完了または中断されました。ネットワークを確認して再試行してください。";
 
 /* About */
 "about.description" = "macOS向けスマートクリップボードマネージャー";

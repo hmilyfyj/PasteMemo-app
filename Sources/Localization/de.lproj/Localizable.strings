@@ -262,6 +262,7 @@
 "update.download_error" = "Download fehlgeschlagen";
 "update.dmg_error" = "Update fehlgeschlagen";
 "update.dmg_error.message" = "Das heruntergeladene Disk-Image ist beschädigt. Bitte erneut herunterladen.";
+"update.download_error.incomplete" = "Der Download war unvollständig oder wurde unterbrochen. Bitte überprüfe deine Netzwerkverbindung und versuche es erneut.";
 
 /* About */
 "about.description" = "Smarter Zwischenablage-Manager für macOS";

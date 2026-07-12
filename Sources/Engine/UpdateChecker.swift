@@ -1,4 +1,5 @@
 import AppKit
+import CryptoKit
 import Foundation
 
 @MainActor
@@ -32,6 +33,11 @@ final class UpdateChecker: ObservableObject {
     private var downloadDelegate: DownloadDelegate?
     private var githubFallbackURL: URL?
     private var periodicTimer: Timer?
+    /// Expected SHA-256 of the DMG, taken from `latest.json`'s `checksums`
+    /// entry. Used to verify download integrity before install. Nil when the
+    /// feed lacks a checksum (e.g. Gitee/GitHub API fallback), in which case
+    /// only the byte-size check runs.
+    private var expectedSHA256: String?
 
     var currentVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
@@ -76,6 +82,10 @@ final class UpdateChecker: ObservableObject {
         // Reset before each check so a stale beta flag from a previous run
         // doesn't bleed into a stable-channel result.
         isBetaUpdate = false
+        // Same for the expected checksum: a fallback path (Gitee/GitHub API)
+        // has no sha256, so clear any value left over from a prior check to
+        // avoid verifying this download against a stale hash.
+        expectedSHA256 = nil
 
         if let info = await fetchLatestJSON() {
             // Pick stable or beta channel. Beta wins only when the user has
@@ -99,6 +109,7 @@ final class UpdateChecker: ObservableObject {
             if let fileSize = entry?.size {
                 totalBytes = Int64(fileSize)
             }
+            expectedSHA256 = entry?.sha256
 
         }
 
@@ -260,6 +271,7 @@ final class UpdateChecker: ObservableObject {
         downloadComplete = false
 
         let delegate = DownloadDelegate(
+            expectedSHA256: expectedSHA256,
             onProgress: { [weak self] progress, received, total in
                 Task { @MainActor in
                     self?.downloadProgress = progress
@@ -274,7 +286,7 @@ final class UpdateChecker: ObservableObject {
                     self?.isDownloading = false
                 }
             },
-            onError: { [weak self] errorMessage in
+            onError: { [weak self] errorInfo in
                 Task { @MainActor in
                     guard let self else { return }
                     if let fallback = self.githubFallbackURL, url != fallback {
@@ -284,7 +296,15 @@ final class UpdateChecker: ObservableObject {
                         self.isDownloading = false
                         self.downloadComplete = false
                         self.downloadProgress = 0
-                        self.showDownloadErrorAlert(errorMessage)
+                        // The delegate runs off the main actor, so it passes a
+                        // localization key for our own integrity errors (it
+                        // can't call L10n.tr). System URLSession errors arrive
+                        // as an already-localized description. Translate the
+                        // former; pass the latter through unchanged.
+                        let message = errorInfo == DownloadDelegate.incompleteDownloadKey
+                            ? L10n.tr(errorInfo)
+                            : errorInfo
+                        self.showDownloadErrorAlert(message)
                     }
                 }
             }
@@ -559,15 +579,25 @@ private struct ReleaseInfo: Codable {
 // MARK: - Download Delegate
 
 final class DownloadDelegate: NSObject, URLSessionDownloadDelegate, Sendable {
+    /// Localization key passed to `onError` when the download is truncated,
+    /// interrupted, or fails integrity checks. Localized on the MainActor side
+    /// (this delegate runs off the main actor and can't call `L10n.tr`).
+    static let incompleteDownloadKey = "update.download_error.incomplete"
+
+    /// Expected SHA-256 (lowercase hex) of the DMG, or nil to skip hash
+    /// verification (byte-size check still runs).
+    let expectedSHA256: String?
     let onProgress: @Sendable (Double, Int64, Int64) -> Void
     let onComplete: @Sendable (URL) -> Void
     let onError: @Sendable (String) -> Void
 
     init(
+        expectedSHA256: String? = nil,
         onProgress: @escaping @Sendable (Double, Int64, Int64) -> Void,
         onComplete: @escaping @Sendable (URL) -> Void,
         onError: @escaping @Sendable (String) -> Void
     ) {
+        self.expectedSHA256 = expectedSHA256
         self.onProgress = onProgress
         self.onComplete = onComplete
         self.onError = onError
@@ -577,23 +607,52 @@ final class DownloadDelegate: NSObject, URLSessionDownloadDelegate, Sendable {
         let dest = FileManager.default.temporaryDirectory.appendingPathComponent("PasteMemo-update.dmg")
         try? FileManager.default.removeItem(at: dest)
 
+        // The URLSession-provided `location` is a temporary file the system
+        // deletes as soon as this callback returns, so it must be moved to a
+        // stable path before we can hand it off. If both move and copy fail we
+        // have no usable file — report an error rather than passing a URL that
+        // is about to vanish (which would surface later as a bogus
+        // "disk image corrupted" alert at install time).
         do {
             try FileManager.default.moveItem(at: location, to: dest)
         } catch {
             do {
                 try FileManager.default.copyItem(at: location, to: dest)
             } catch {
-                onComplete(location)
+                onError(Self.incompleteDownloadKey)
                 return
             }
         }
 
+        // Verify byte size against the server's declared content length. A
+        // truncated download (slow/unstable CDN, interrupted connection) fails
+        // here — treat it as an error so the caller can retry or fall back,
+        // instead of proceeding to install a partial file.
         if let attrs = try? FileManager.default.attributesOfItem(atPath: dest.path),
            let fileSize = attrs[.size] as? Int64,
            let response = downloadTask.response as? HTTPURLResponse,
            response.expectedContentLength > 0,
            fileSize != response.expectedContentLength {
             try? FileManager.default.removeItem(at: dest)
+            onError(Self.incompleteDownloadKey)
+            return
+        }
+
+        // Verify SHA-256 against the checksum from latest.json. Catches the
+        // "size matches but bytes are wrong" case — e.g. a CDN caching a stale
+        // or corrupt image. Skipped when the feed provided no checksum.
+        if let expected = expectedSHA256?.lowercased(), !expected.isEmpty {
+            guard let data = try? Data(contentsOf: dest) else {
+                try? FileManager.default.removeItem(at: dest)
+                onError(Self.incompleteDownloadKey)
+                return
+            }
+            let actual = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+            if actual != expected {
+                try? FileManager.default.removeItem(at: dest)
+                onError(Self.incompleteDownloadKey)
+                return
+            }
         }
 
         onComplete(dest)

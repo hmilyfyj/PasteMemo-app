@@ -262,6 +262,7 @@
 "update.download_error" = "Échec du téléchargement";
 "update.dmg_error" = "Échec de la mise à jour";
 "update.dmg_error.message" = "L'image disque téléchargée est corrompue. Veuillez la télécharger à nouveau.";
+"update.download_error.incomplete" = "Le téléchargement était incomplet ou a été interrompu. Veuillez vérifier votre connexion réseau et réessayer.";
 
 /* About */
 "about.description" = "Gestionnaire de presse-papiers intelligent pour macOS";

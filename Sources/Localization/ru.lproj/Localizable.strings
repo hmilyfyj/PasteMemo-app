@@ -358,6 +358,7 @@
 "update.download_error" = "Ошибка загрузки";
 "update.dmg_error" = "Ошибка обновления";
 "update.dmg_error.message" = "Загруженный образ диска повреждён. Попробуйте скачать обновление ещё раз.";
+"update.download_error.incomplete" = "Загрузка не завершена или прервана. Проверьте подключение к сети и повторите попытку.";
 
 /* Ignored Apps */
 "settings.ignoredApps" = "Игнорируемые приложения";

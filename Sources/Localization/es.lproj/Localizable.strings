@@ -262,6 +262,7 @@
 "update.download_error" = "Error de descarga";
 "update.dmg_error" = "Error de actualización";
 "update.dmg_error.message" = "La imagen de disco descargada está dañada. Intenta descargarla de nuevo.";
+"update.download_error.incomplete" = "La descarga fue incompleta o se interrumpió. Comprueba tu conexión de red e inténtalo de nuevo.";
 
 /* About */
 "about.description" = "Gestor de portapapeles inteligente para macOS";

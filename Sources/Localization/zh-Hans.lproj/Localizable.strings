@@ -408,6 +408,7 @@
 "update.download_error" = "下载失败";
 "update.dmg_error" = "更新失败";
 "update.dmg_error.message" = "下载的磁盘映像已损坏，请重新下载更新。";
+"update.download_error.incomplete" = "下载不完整或已中断，请检查网络后重试。";
 
 /* Ignored Apps */
 "settings.ignoredApps" = "忽略的应用";
