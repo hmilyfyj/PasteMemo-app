@@ -1123,8 +1123,7 @@ struct MainWindowView: View {
         guard let result = GroupEditorPanel.show(name: group.name, icon: group.icon, preservesItems: group.preservesItems) else { return }
         group.icon = result.icon
         group.preservesItems = result.preservesItems
-        try? modelContext.save()
-        store.refreshSidebarCounts()
+        ClipItemStore.saveAndNotify(modelContext)
     }
 
     private func editGroup(name: String) {
@@ -1138,12 +1137,11 @@ struct MainWindowView: View {
             if let items = try? modelContext.fetch(itemDescriptor) {
                 for item in items { item.groupName = group.name }
             }
-            try? modelContext.save()
+            ClipItemStore.saveAndNotify(modelContext)
             if selectedFilter == .group(oldName) {
                 selectedFilter = .group(group.name)
             }
         }
-        store.refreshSidebarCounts()
     }
 
     private func assignToGroup(items: [ClipItem], name: String) {
@@ -1155,8 +1153,7 @@ struct MainWindowView: View {
                 ClipboardManager.shared.decrementSmartGroup(name: oldGroup, context: modelContext)
             }
         }
-        try? modelContext.save()
-        store.refreshSidebarCounts()
+        ClipItemStore.saveAndNotify(modelContext)
     }
 
     private func removeFromGroup(items: [ClipItem]) {
@@ -1165,8 +1162,7 @@ struct MainWindowView: View {
             item.groupName = nil
             ClipboardManager.shared.decrementSmartGroup(name: name, context: modelContext)
         }
-        try? modelContext.save()
-        store.refreshSidebarCounts()
+        ClipItemStore.saveAndNotify(modelContext)
     }
 
     private func showNewGroupAlert(for items: [ClipItem]) {
@@ -1621,7 +1617,7 @@ struct GroupDropDelegate: DropDelegate {
         for (idx, name) in currentOrder.enumerated() {
             groups.first { $0.name == name }?.sortOrder = idx
         }
-        try? modelContext.save()
+        ClipItemStore.saveAndNotify(modelContext)
         return true
     }
 
