@@ -33,7 +33,7 @@ final class MCPRouterTests: XCTestCase {
         XCTAssertEqual(context.clientName, "claude-code")
     }
 
-    func testToolsListReturnsAll5Tools() async throws {
+    func testToolsListReturnsRegisteredTools() async throws {
         let router = MCPRequestRouter(container: SampleClips.makeContainer())
         let req = JSONRPCRequest(jsonrpc: "2.0", id: .number(2),
                                  method: "tools/list", params: nil)
@@ -42,7 +42,20 @@ final class MCPRouterTests: XCTestCase {
         guard case .object(let r) = resp.result!,
               case .array(let tools) = r["tools"]!
         else { XCTFail("Bad shape"); return }
-        XCTAssertEqual(tools.count, 5)
+        let names = Set(tools.compactMap { tool -> String? in
+            guard case .object(let fields) = tool,
+                  case .string(let name) = fields["name"] else { return nil }
+            return name
+        })
+        XCTAssertEqual(names, [
+            "clipboard_get_current",
+            "clipboard_search",
+            "clipboard_get",
+            "clipboard_list_recent_apps",
+            "clipboard_set",
+            "clipboard_select_item",
+            "ui_show_quick_panel",
+        ])
     }
 
     func testToolsCallDispatchesToCorrectTool() async throws {
