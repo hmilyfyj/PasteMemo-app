@@ -850,7 +850,7 @@ Usa %@ para pegar uno por uno.";
 "onboarding.analytics.hint" = "Puedes cambiar esto en Ajustes → Privacidad.";
 
 /* OCR */
-"settings.ocr" = "OCR de imágenes";
+"settings.ocr" = "OCR";
 "settings.ocr.enable" = "Activar OCR de imágenes";
 "settings.ocr.auto" = "Procesar nuevas imágenes automáticamente";
 "settings.ocr.markdown" = "Reconocer el diseño como Markdown";

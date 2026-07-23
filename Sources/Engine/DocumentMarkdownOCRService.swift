@@ -108,16 +108,37 @@ struct DocumentMarkdownOCRService {
     }
 
     private func normalizeTextBlock(_ textBlock: DocumentObservation.Container.Text) -> String {
-        let lines = textBlock.lines
-            .map(\.transcript)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+        let recognizedLines = textBlock.lines.filter {
+            !$0.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
 
-        if lines.isEmpty {
+        if recognizedLines.isEmpty {
             return normalizeTranscript(textBlock.transcript)
         }
 
-        return joinLinesInSameParagraph(lines)
+        let texts = recognizedLines.map { $0.transcript.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+        // The wrap-vs-hard-break heuristic reasons about horizontal line
+        // endings; vertical text keeps the legacy always-merge behavior.
+        // `shouldWrapToNextLine` is NOT usable here: measured on macOS 26 it is
+        // true for every non-final line of a paragraph even when the breaks are
+        // clearly intentional (poem-style blocks), so it only encodes "is not
+        // the paragraph's last line".
+        guard !recognizedLines.contains(where: { $0.textDirection == .topToBottom }) else {
+            return joinLinesInSameParagraph(texts)
+        }
+
+        // Mirror RTL blocks so "where the line ends" is always the max-x edge.
+        let rightToLeftCount = recognizedLines.filter { $0.textDirection == .rightToLeft }.count
+        let isRightToLeft = rightToLeftCount * 2 > recognizedLines.count
+
+        let lines = zip(texts, recognizedLines).map { text, line -> OCRParagraphLine in
+            let rect = line.boundingRegion.boundingBox.cgRect
+            return isRightToLeft
+                ? OCRParagraphLine(text: text, minX: -rect.maxX, maxX: -rect.minX)
+                : OCRParagraphLine(text: text, minX: rect.minX, maxX: rect.maxX)
+        }
+        return OCRParagraphLineJoiner.join(lines)
     }
 
     private func markdownTable(from table: DocumentObservation.Container.Table) -> String {
@@ -331,7 +352,7 @@ struct DocumentMarkdownOCRService {
             }
 
             let mergedText = previousBlock.text
-                + (shouldInsertSpace(between: previousBlock.text, and: block.text) ? " " : "")
+                + (OCRParagraphLineJoiner.shouldInsertSpace(between: previousBlock.text, and: block.text) ? " " : "")
                 + block.text
             result[result.count - 1] = previousBlock.replacingText(with: mergedText)
         }
@@ -366,17 +387,84 @@ struct DocumentMarkdownOCRService {
                 return
             }
 
-            result += shouldInsertSpace(between: result, and: line) ? " \(line)" : line
+            result += OCRParagraphLineJoiner.shouldInsertSpace(between: result, and: line) ? " \(line)" : line
+        }
+    }
+}
+
+/// One recognized line inside a Vision paragraph, reduced to the geometry the
+/// wrap-vs-hard-break heuristic needs. Coordinates are normalized (0...1) and
+/// must grow in reading direction — RTL callers pre-mirror them.
+struct OCRParagraphLine {
+    let text: String
+    let minX: CGFloat
+    let maxX: CGFloat
+}
+
+enum OCRParagraphLineJoiner {
+    /// Joins the recognized lines of one OCR paragraph, deciding per break
+    /// whether it is a soft wrap (the line ran out of horizontal space → merge)
+    /// or a hard break the author typed (→ keep "\n").
+    ///
+    /// A break is soft only when the next line's first word (single character
+    /// for CJK) would NOT have fit into the space left after the previous line.
+    /// Blocks where at least half of the breaks are hard are treated as
+    /// line-structured (poems, lists, code): there the longest line defines the
+    /// block width, so it always looks "full" and would otherwise merge into
+    /// its successor — every break is kept instead.
+    static func join(_ lines: [OCRParagraphLine]) -> String {
+        guard let first = lines.first else { return "" }
+        guard lines.count > 1 else { return first.text }
+
+        let blockMaxX = lines.map(\.maxX).max() ?? first.maxX
+        let breakIsHard = (0..<(lines.count - 1)).map { index in
+            blockMaxX - lines[index].maxX >= firstWrapUnitWidth(of: lines[index + 1])
+        }
+        let lineStructured = breakIsHard.filter { $0 }.count * 2 >= breakIsHard.count
+
+        return lines.dropFirst().enumerated().reduce(into: first.text) { result, pair in
+            let (index, line) = pair
+            if lineStructured || breakIsHard[index] {
+                result += "\n" + line.text
+            } else {
+                result += shouldInsertSpace(between: result, and: line.text) ? " " + line.text : line.text
+            }
         }
     }
 
-    private func shouldInsertSpace(between previousText: String, and nextText: String) -> Bool {
+    static func shouldInsertSpace(between previousText: String, and nextText: String) -> Bool {
         guard let previousScalar = previousText.unicodeScalars.last,
               let nextScalar = nextText.unicodeScalars.first else {
             return false
         }
 
         return !previousScalar.isCJK && !nextScalar.isCJK
+    }
+
+    /// Safety factor on the estimated unit width. Absorbs bounding-box noise
+    /// and CJK line-start punctuation rules (禁则), which legitimately wrap a
+    /// line slightly before it is completely full.
+    private static let wrapSlack: CGFloat = 1.3
+
+    /// Width the next line's first unbreakable unit (word for spaced scripts,
+    /// one character for CJK) would have needed at the end of the previous
+    /// line, estimated from the next line's own average character width.
+    private static func firstWrapUnitWidth(of line: OCRParagraphLine) -> CGFloat {
+        let width = line.maxX - line.minX
+        guard width > 0, !line.text.isEmpty else { return .greatestFiniteMagnitude }
+
+        // Average width per CJK-equivalent unit. Latin/digit glyphs are roughly
+        // half as wide as CJK glyphs, so a plain per-character average would
+        // underestimate a CJK unit on mixed-script lines.
+        let weightedCount = line.text.unicodeScalars.reduce(CGFloat.zero) { $0 + ($1.isCJK ? 1 : 0.5) }
+        let unitWidth = width / max(weightedCount, 0.5)
+
+        guard let firstScalar = line.text.unicodeScalars.first, !firstScalar.isCJK else {
+            return unitWidth * wrapSlack
+        }
+
+        let firstWord = line.text.prefix { !$0.isWhitespace }
+        return unitWidth * 0.5 * CGFloat(firstWord.count + 1) * wrapSlack
     }
 }
 

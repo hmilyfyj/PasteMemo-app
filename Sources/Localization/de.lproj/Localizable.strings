@@ -832,7 +832,7 @@ Verwenden Sie %@ zum Einfügen.";
 "onboarding.analytics.hint" = "Du kannst dies jederzeit unter Einstellungen → Datenschutz ändern.";
 
 /* OCR */
-"settings.ocr" = "Bild-OCR";
+"settings.ocr" = "OCR";
 "settings.ocr.enable" = "Bild-OCR aktivieren";
 "settings.ocr.auto" = "Neue Bilder automatisch verarbeiten";
 "settings.ocr.markdown" = "Layout als Markdown erkennen";

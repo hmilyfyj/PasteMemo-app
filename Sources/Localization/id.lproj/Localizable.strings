@@ -820,7 +820,7 @@ Gunakan %@ untuk menempel satu per satu.";
 "onboarding.analytics.hint" = "Anda dapat mengubahnya di Pengaturan → Privasi.";
 
 /* OCR */
-"settings.ocr" = "OCR gambar";
+"settings.ocr" = "OCR";
 "settings.ocr.enable" = "Aktifkan OCR gambar";
 "settings.ocr.auto" = "Proses gambar baru secara otomatis";
 "settings.ocr.markdown" = "Kenali tata letak sebagai Markdown";

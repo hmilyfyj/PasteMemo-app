@@ -184,7 +184,7 @@
 "settings.quickPanelSpecifiedScreen" = "指定ディスプレイ";
 "settings.behavior" = "動作";
 "settings.preferences" = "環境設定";
-"settings.ocr" = "画像OCR";
+"settings.ocr" = "OCR";
 "settings.ocr.enable" = "画像OCRを有効にする";
 "settings.ocr.auto" = "新しい画像を自動処理する";
 "settings.ocr.markdown" = "レイアウトを Markdown として認識";

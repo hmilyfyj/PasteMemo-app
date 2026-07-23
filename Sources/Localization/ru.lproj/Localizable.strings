@@ -820,7 +820,7 @@
 "onboarding.analytics.hint" = "Вы можете изменить это в Настройки → Конфиденциальность.";
 
 /* OCR */
-"settings.ocr" = "OCR изображений";
+"settings.ocr" = "OCR";
 "settings.ocr.enable" = "Включить OCR изображений";
 "settings.ocr.auto" = "Автоматически обрабатывать новые изображения";
 "settings.ocr.markdown" = "Распознавать разметку как Markdown";

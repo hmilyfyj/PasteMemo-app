@@ -41,13 +41,16 @@ final class OCRTaskCoordinator: ObservableObject {
         enqueueForce(itemID: itemID)
     }
 
+    /// Manual retry is a user-initiated action like "Paste OCR Text", so it
+    /// bypasses the `isEnabled` master toggle — that toggle only gates
+    /// background OCR. Without this, a stale cached result (e.g. produced by an
+    /// older engine) could never be refreshed while background OCR is off.
     func retry(itemID: String) {
-        guard isEnabled else { return }
         enqueueForce(itemID: itemID)
     }
 
     func canRetry(item: ClipItem) -> Bool {
-        isEnabled && item.contentType == .image && item.imageData != nil
+        item.contentType == .image && item.imageData != nil
     }
 
     func scanExistingImages() {

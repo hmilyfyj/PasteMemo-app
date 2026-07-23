@@ -781,22 +781,25 @@ struct OCRSettingsSection: View {
     var body: some View {
         Section(L10n.tr("settings.ocr")) {
             Toggle(L10n.tr("settings.ocr.enable"), isOn: $ocrEnabled)
+
+            // Layout-aware Markdown OCR relies on RecognizeDocumentsRequest,
+            // which only exists on macOS 26+. Hide the control on older
+            // systems where it has no effect (the engine uses plain text).
+            // Kept outside `if ocrEnabled`: it also governs the on-demand
+            // "Paste OCR Text" path, which works with background OCR off.
+            if #available(macOS 26.0, *) {
+                Toggle(L10n.tr("settings.ocr.markdown"), isOn: $ocrMarkdown)
+                Text(L10n.tr("settings.ocr.markdown.hint"))
+                    .font(.callout)
+                    .foregroundStyle(.tertiary)
+            }
+
             if ocrEnabled {
                 // 启用后给一句内存提示：OCR 后台跑 Vision 会增加内存占用。
                 Text(L10n.tr("settings.ocr.memoryHint"))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 Toggle(L10n.tr("settings.ocr.auto"), isOn: $autoProcess)
-
-                // Layout-aware Markdown OCR relies on RecognizeDocumentsRequest,
-                // which only exists on macOS 26+. Hide the control on older
-                // systems where it has no effect (the engine uses plain text).
-                if #available(macOS 26.0, *) {
-                    Toggle(L10n.tr("settings.ocr.markdown"), isOn: $ocrMarkdown)
-                    Text(L10n.tr("settings.ocr.markdown.hint"))
-                        .font(.callout)
-                        .foregroundStyle(.tertiary)
-                }
 
                 if coordinator.isScanning {
                     VStack(alignment: .leading, spacing: 6) {

@@ -230,8 +230,8 @@ struct PasteMemoTests {
         #expect(matched == nil)
     }
 
-    @Test("Retry OCR respects global OCR setting")
-    @MainActor func retryOCRRespectsGlobalSetting() {
+    @Test("Retry OCR stays available with the global OCR toggle off")
+    @MainActor func retryOCRIgnoresGlobalSetting() {
         let defaults = UserDefaults.standard
         let key = OCRTaskCoordinator.enableOCRKey
         let original = defaults.object(forKey: key)
@@ -244,8 +244,11 @@ struct PasteMemoTests {
             }
         }
 
+        // Manual retry is user-initiated (like "Paste OCR Text") and must work
+        // with background OCR off — it is the only way to refresh a stale
+        // cached OCR result in that configuration.
         let item = ClipItem(content: "[Image]", contentType: .image, imageData: Data([1]))
-        #expect(!OCRTaskCoordinator.shared.canRetry(item: item))
+        #expect(OCRTaskCoordinator.shared.canRetry(item: item))
     }
 
     @Test("Image clip defaults to pending OCR status")

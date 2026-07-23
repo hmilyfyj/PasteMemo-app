@@ -810,7 +810,7 @@ Usa %@ per incollare uno per uno.";
 "onboarding.analytics.hint" = "Puoi modificarlo in Impostazioni → Privacy.";
 
 /* OCR */
-"settings.ocr" = "OCR immagini";
+"settings.ocr" = "OCR";
 "settings.ocr.enable" = "Abilita OCR immagini";
 "settings.ocr.auto" = "Elabora automaticamente le nuove immagini";
 "settings.ocr.markdown" = "Riconosci il layout come Markdown";

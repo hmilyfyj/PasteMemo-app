@@ -850,7 +850,7 @@ Utilisez %@ pour coller un par un.";
 "onboarding.analytics.hint" = "Vous pouvez modifier cela à tout moment dans Réglages → Confidentialité.";
 
 /* OCR */
-"settings.ocr" = "OCR des images";
+"settings.ocr" = "OCR";
 "settings.ocr.enable" = "Activer l'OCR des images";
 "settings.ocr.auto" = "Traiter automatiquement les nouvelles images";
 "settings.ocr.markdown" = "Reconnaître la mise en page en Markdown";

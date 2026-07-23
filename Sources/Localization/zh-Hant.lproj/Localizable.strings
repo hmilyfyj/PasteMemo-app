@@ -806,7 +806,7 @@
 "onboarding.analytics.hint" = "你可以隨時在 設定 → 隱私 中更改。";
 
 /* OCR */
-"settings.ocr" = "圖片 OCR";
+"settings.ocr" = "OCR";
 "settings.ocr.enable" = "啟用圖片 OCR";
 "settings.ocr.auto" = "自動處理新圖片";
 "settings.ocr.markdown" = "辨識版面為 Markdown";

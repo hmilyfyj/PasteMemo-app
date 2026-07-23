@@ -848,7 +848,7 @@
 "onboarding.analytics.hint" = "설정 → 개인 정보에서 언제든 변경할 수 있습니다.";
 
 /* OCR */
-"settings.ocr" = "이미지 OCR";
+"settings.ocr" = "OCR";
 "settings.ocr.enable" = "이미지 OCR 활성화";
 "settings.ocr.auto" = "새 이미지를 자동 처리";
 "settings.ocr.markdown" = "레이아웃을 Markdown으로 인식";
