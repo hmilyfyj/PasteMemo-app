@@ -343,12 +343,28 @@ final class ClipItem {
     /// raw content untouched (the list still shows `jp.evoxt.lifedever.com`).
     var resolvedURL: URL? { URL.fromLinkString(content) }
 
+    /// 多文件条目的统一标题：首个文件名（超长截断）+「等N个文件」。
+    /// `.file/.archive` 等类型与「全是图片的多文件复制」（contentType 判成 .image）共用，
+    /// 避免后者只显示第一张图的文件名（用户误以为条目只有一个文件）。
+    @MainActor
+    private static func fileListTitle(paths: [String]) -> String {
+        let firstName = URL(fileURLWithPath: paths.first ?? "").lastPathComponent
+        guard paths.count > 1 else { return firstName }
+        let suffix = L10n.tr("file.multiTitle", paths.count)
+        let maxNameLen = 12
+        let name = firstName.count > maxNameLen
+            ? String(firstName.prefix(maxNameLen)) + "..."
+            : firstName
+        return name + suffix
+    }
+
     @MainActor
     static func buildTitle(content: String, contentType: ClipContentType, imageData: Data? = nil, filePaths: String? = nil) -> String {
         switch contentType {
         case .image:
             if content != "[Image]" {
-                return URL(fileURLWithPath: content.components(separatedBy: "\n").first ?? "").lastPathComponent
+                let paths = content.components(separatedBy: "\n").filter { !$0.isEmpty }
+                return fileListTitle(paths: paths)
             }
             if let data = imageData, let img = NSImage(data: data) {
                 return "Image (\(Int(img.size.width))×\(Int(img.size.height)))"
@@ -356,16 +372,7 @@ final class ClipItem {
             return "[Image]"
         case .file, .video, .audio, .document, .archive, .application:
             let paths = content.components(separatedBy: "\n").filter { !$0.isEmpty }
-            let firstName = URL(fileURLWithPath: paths.first ?? "").lastPathComponent
-            if paths.count > 1 {
-                let suffix = L10n.tr("file.multiTitle", paths.count)
-                let maxNameLen = 12
-                let name = firstName.count > maxNameLen
-                    ? String(firstName.prefix(maxNameLen)) + "..."
-                    : firstName
-                return name + suffix
-            }
-            return firstName
+            return fileListTitle(paths: paths)
         case .link:
             // base64 data URIs can be megabytes long — store a short marker as the
             // display title so SwiftData doesn't materialize a giant string for

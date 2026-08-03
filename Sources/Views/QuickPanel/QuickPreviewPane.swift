@@ -221,7 +221,11 @@ struct QuickPreviewPane: View {
     @ViewBuilder
     private var previewContent: some View {
         if item.contentType == .image {
-            if ClipImagePreviewSource.resolve(from: item) != nil {
+            if item.content != "[Image]", !item.isSingleFileBackedImage {
+                // 多张图片一次复制（Finder 多选）：与多文件条目一致，列出全部文件。
+                // 不走单图渲染——sourceImageFileURL 只会解析到第一张，预览会误导。
+                filePreview
+            } else if ClipImagePreviewSource.resolve(from: item) != nil {
                 imagePreview
             } else if item.content != "[Image]", item.imageData == nil {
                 filePreview

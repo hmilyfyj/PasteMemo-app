@@ -264,7 +264,10 @@ struct ClipDetailView: View {
     @ViewBuilder
     private var contentPreview: some View {
         if item.contentType == .image {
-            if ClipImagePreviewSource.resolve(from: item) != nil {
+            if item.content != "[Image]", !item.isSingleFileBackedImage {
+                // 多张图片一次复制：与快捷面板一致，列出全部文件而非只渲染第一张
+                filePreview
+            } else if ClipImagePreviewSource.resolve(from: item) != nil {
                 zoomableImagePreview
             } else if item.content != "[Image]", item.imageData == nil {
                 filePreview
