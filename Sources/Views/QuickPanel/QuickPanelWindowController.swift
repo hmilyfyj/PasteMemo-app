@@ -96,6 +96,14 @@ final class QuickPanelWindowController {
     }
     var suppressDismiss = false
     private var snapGuide: SnapGuideWindow?
+    /// 延迟 orderOut 的收尾任务（见 orderOutAvoidingKeyProposal）；非 nil 表示面板
+    /// 视觉上已消失、真正的 orderOut 还在等 key 转移。
+    private var pendingOrderOut: DispatchWorkItem?
+    private var pendingOrderOutResignObserver: NSObjectProtocol?
+
+    private var isDismissPending: Bool {
+        pendingOrderOut != nil || pendingOrderOutResignObserver != nil
+    }
 
     private var panelWidth: CGFloat {
         let saved = UserDefaults.standard.double(forKey: "\(SIZE_KEY).width")
@@ -155,9 +163,17 @@ final class QuickPanelWindowController {
 
     func show(clipboardManager: ClipboardManager, modelContainer: ModelContainer) {
         if let existing = panel, existing.isVisible {
-            // 再次按开关热键 = 用户主动关闭，置顶时也要关
-            dismiss(force: true)
-            return
+            if isDismissPending {
+                // 上次关闭的延迟 orderOut 还没落地（面板仅仅是 alpha=0 隐身），
+                // 对用户而言它已经关了：取消收尾、复用在屏面板直接重新展示。
+                cancelPendingOrderOut()
+                (existing as? KeyablePanel)?.refuseKey = false
+                existing.ignoresMouseEvents = false
+            } else {
+                // 再次按开关热键 = 用户主动关闭，置顶时也要关
+                dismiss(force: true)
+                return
+            }
         }
 
         previousApp = NSWorkspace.shared.frontmostApplication
@@ -248,8 +264,61 @@ final class QuickPanelWindowController {
         NotificationCenter.default.post(name: .quickPanelWillDismiss, object: nil)
         panel.contentView?.layoutSubtreeIfNeeded()
         panel.displayIfNeeded()
-        panel.orderOut(nil)
+        orderOutAvoidingKeyProposal(panel)
         HotkeyManager.shared.isQuickPanelVisible = false
+    }
+
+    /// macOS 26 (Tahoe) 的窗口协调器（NSWMWindowCoordinator）在 orderOut 一个仍持有
+    /// key 状态的窗口时，会跨进程向窗口服务器提议下一个 key 窗口并同步等待回复；
+    /// 对非激活 App 的 nonactivating 面板，这个提议得不到应答，主线程要干等约 0.4s
+    /// 超时才放行——Esc 关闭面板肉眼可见地卡住。这里改为：面板立即隐身（alpha=0）、
+    /// 拒绝 key 并把焦点显式交还目标 App（复用置顶模式的既有做法），等面板真正
+    /// resign key 后再 orderOut——此时无 key 可让，协调器不再发起提议。300ms 兜底
+    /// 保证 resign 通知缺席时面板也一定会被 orderOut（最差退回旧行为，但已不可见）。
+    /// 行为探测而非版本分流：面板不是 key（点击外部、失焦等路径）时直接同步 orderOut。
+    private func orderOutAvoidingKeyProposal(_ panel: NSPanel) {
+        cancelPendingOrderOut()
+        guard panel.isKeyWindow, let keyable = panel as? KeyablePanel else {
+            panel.orderOut(nil)
+            return
+        }
+
+        panel.alphaValue = 0
+        // 隐身等待期不吃鼠标事件，避免用户紧接着点到"看不见的面板"
+        panel.ignoresMouseEvents = true
+        keyable.refuseKey = true
+        previousApp?.activate(options: [])
+
+        let finish: @MainActor () -> Void = { [weak panel, weak keyable] in
+            let shared = QuickPanelWindowController.shared
+            // 收尾状态已被清（show() 复用面板重新展示、或另一次 finish 先到）就让路，
+            // 否则迟到的 resign Task 会把刚重新展示的面板误关。
+            guard shared.isDismissPending else { return }
+            shared.cancelPendingOrderOut()
+            guard let panel else { return }
+            panel.orderOut(nil)
+            panel.ignoresMouseEvents = false
+            keyable?.refuseKey = QuickPanelWindowController.shared.isPinned
+        }
+        pendingOrderOutResignObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didResignKeyNotification,
+            object: panel,
+            queue: .main
+        ) { _ in
+            Task { @MainActor in finish() }
+        }
+        let fallback = DispatchWorkItem { finish() }
+        pendingOrderOut = fallback
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: fallback)
+    }
+
+    private func cancelPendingOrderOut() {
+        if let obs = pendingOrderOutResignObserver {
+            NotificationCenter.default.removeObserver(obs)
+            pendingOrderOutResignObserver = nil
+        }
+        pendingOrderOut?.cancel()
+        pendingOrderOut = nil
     }
 
     func dismissAndPaste(_ item: ClipItem, clipboardManager: ClipboardManager, addNewLine: Bool = false) {
@@ -275,7 +344,10 @@ final class QuickPanelWindowController {
     }
 
     var isVisible: Bool {
-        panel?.isVisible ?? false
+        // 延迟 orderOut 等待期内面板在窗口服务器上仍是 visible，但对用户已消失；
+        // 报 false 让开关热键在这个窗口期内按下时走"重新打开"而不是"再关一次"。
+        guard let panel, panel.isVisible else { return false }
+        return !isDismissPending
     }
 
     // MARK: - Panel Construction
