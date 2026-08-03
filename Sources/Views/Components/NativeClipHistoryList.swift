@@ -134,14 +134,20 @@ struct NativeClipHistoryList<RowContent: View, HeaderContent: View, ContextMenuC
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         context.coordinator.parent = self
-        let structureChanged = context.coordinator.applyRows(rows)
+        let structureChange = context.coordinator.applyRows(rows)
         context.coordinator.applyPaginationState(canLoadMore: canLoadMore)
         context.coordinator.applySelection(selectedItemIDs)
         context.coordinator.applyScrollTarget(scrollTargetID)
-        // 结构变化时 NSTableView 会通过 viewFor 用最新 rootView 重建 cell；
-        // 只有结构没变但 selection / focus / palette / 行高变化时才需要手动刷新可见行。
-        context.coordinator.applyRowMetricsIfNeeded(structureChanged: structureChanged)
-        if !structureChanged {
+        context.coordinator.applyRowMetricsIfNeeded(structureChanged: structureChange != .none)
+        switch structureChange {
+        case .fullReload:
+            // reloadData 已用最新 selection/focus 重建了所有 cell，但必须把
+            // 「cell 当前渲染的是什么状态」的缓存也同步过来——漏了这步，切分类后
+            // 新列表首条的选中高亮就永远不在后续差集刷新范围内，形成"焊死"的
+            // 双高亮（v1.7.11 增量刷新优化引入，用户在压缩包分类实测撞到）。
+            context.coordinator.syncRowStateCacheAfterFullRebuild()
+        case .incremental, .none:
+            // 增量插入/删除不重建既有 cell，选中态变化仍要按差集手动刷新。
             context.coordinator.updateVisibleRowsIfNeeded()
         }
     }
@@ -217,22 +223,28 @@ struct NativeClipHistoryList<RowContent: View, HeaderContent: View, ContextMenuC
             return container
         }
 
-        /// - Returns: `true` 当且仅当表格结构真的被更新（insert/remove/reload）。
-        ///   结构变时 NSTableView 会通过 viewFor 用最新 rootView 重建 cell，
-        ///   调用方可据此跳过后续的可见行手动刷新。
+        enum StructureChange {
+            case none
+            /// 尾部增量插入/删除：既有 cell 未重建，行级状态仍需差集刷新
+            case incremental
+            /// 整表 reloadData：所有 cell 已按最新 parent 状态重建
+            case fullReload
+        }
+
         @discardableResult
-        func applyRows(_ rows: [ClipHistoryListBuilder.Row]) -> Bool {
+        func applyRows(_ rows: [ClipHistoryListBuilder.Row]) -> StructureChange {
             guard let tableView else {
                 lastAppliedRows = rows
-                return false
+                return .none
             }
 
             let previousRows = lastAppliedRows
             let previousCount = previousRows.count
             let newCount = rows.count
-            guard rows != previousRows else { return false }
+            guard rows != previousRows else { return .none }
 
             lastAppliedRows = rows
+            let change: StructureChange
 
             // 尾部分页是这里最常见的更新形态，优先走增量插入/删除，避免整表 reload。
             if newCount > previousCount,
@@ -242,6 +254,7 @@ struct NativeClipHistoryList<RowContent: View, HeaderContent: View, ContextMenuC
                 tableView.beginUpdates()
                 tableView.insertRows(at: inserted, withAnimation: [])
                 tableView.endUpdates()
+                change = .incremental
             } else if previousCount > newCount,
                       previousCount > 0,
                       Array(previousRows.prefix(newCount)) == rows {
@@ -249,8 +262,10 @@ struct NativeClipHistoryList<RowContent: View, HeaderContent: View, ContextMenuC
                 tableView.beginUpdates()
                 tableView.removeRows(at: removed, withAnimation: [])
                 tableView.endUpdates()
+                change = .incremental
             } else {
                 tableView.reloadData()
+                change = .fullReload
             }
 
             if pendingLoadMore,
@@ -268,7 +283,15 @@ struct NativeClipHistoryList<RowContent: View, HeaderContent: View, ContextMenuC
             DispatchQueue.main.async { [weak self] in
                 self?.maybeTriggerLoadMore()
             }
-            return true
+            return change
+        }
+
+        /// 整表 reloadData 后调用：cell 已按最新 parent 状态重建，把行级状态缓存
+        /// 对齐到当前值，让后续差集刷新有正确的基准。
+        func syncRowStateCacheAfterFullRebuild() {
+            lastSelectedItemIDs = parent.selectedItemIDs
+            lastFocusedItemID = parent.focusedItemID
+            lastShowCommandPalette = parent.showCommandPalette
         }
 
         func applyPaginationState(canLoadMore: Bool) {
