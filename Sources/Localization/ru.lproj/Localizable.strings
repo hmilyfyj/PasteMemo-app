@@ -36,7 +36,7 @@
 "type.color" = "Цвет";
 "type.file" = "Файл";
 "type.other" = "Другое";
-"type.email" = "Email";
+"type.email" = "Эл. почта";
 "type.phone" = "Телефон";
 "phone.call" = "Позвонить";
 "phone.message" = "Сообщение";
@@ -213,7 +213,7 @@
 "detail.preview_failed" = "Не удалось загрузить предпросмотр";
 "detail.multiSelected" = "Выбрано элементов: %d";
 "action.deleteSelected" = "Удалить элементов: %d";
-"action.deleteSelected.confirm" = "Delete %d items?";
+"action.deleteSelected.confirm" = "Удалить записи (%d)?";
 "file.multiTitle" = " и ещё %d файлов";
 
 /* Filter */
@@ -402,11 +402,11 @@
 "dataPorter.summary.newRules" = "Новых правил: %d";
 
 /* Dev Tools */
-"devTools.importFromRelease" = "Import Data from Release";
-"devTools.importFromRelease.confirm" = "Import from Release?";
-"devTools.importFromRelease.confirmMessage" = "This will overwrite all data in the Dev version. This action cannot be undone.";
-"devTools.importFromRelease.releaseRunning" = "Please quit the release version of PasteMemo before importing.";
-"devTools.importFromRelease.noData" = "No release version data found.";
+"devTools.importFromRelease" = "Импортировать данные из основной версии";
+"devTools.importFromRelease.confirm" = "Импортировать из основной версии?";
+"devTools.importFromRelease.confirmMessage" = "Все данные Dev-версии будут перезаписаны. Это действие нельзя отменить.";
+"devTools.importFromRelease.releaseRunning" = "Перед импортом закройте основную версию PasteMemo.";
+"devTools.importFromRelease.noData" = "Данные основной версии не найдены.";
 
 /* Rich Text / Plain Text */
 "action.pasteAsPlainText" = "Обычный текст";
@@ -435,7 +435,7 @@
 "settings.automation.enabled" = "Включить правила автоматизации";
 "settings.automation.ruleCount" = "%d правил (%d включено)";
 "settings.automation.manage" = "Управление правилами автоматизации...";
-"settings.automation.hint" = "All matching rules are executed in order. Drag to reorder.";
+"settings.automation.hint" = "Все совпавшие правила выполняются по порядку. Перетащите, чтобы изменить порядок.";
 "settings.automation.auto" = "Авто";
 "settings.automation.manual" = "Вручную";
 "settings.automation.proRequired" = "Правила автоматизации — функция Pro";
@@ -608,7 +608,7 @@
 "relay.settings.postPasteKey.up" = "Вверх";
 "relay.settings.postPasteKey.left" = "Влево";
 "relay.settings.postPasteKey.right" = "Вправо";
-"relay.settings.postPasteKey.space" = "Space";
+"relay.settings.postPasteKey.space" = "Пробел";
 "relay.settings.description" = "Режим эстафеты позволяет копировать несколько элементов и вставлять их по одному. Идеально для копирования списка имён и построчной вставки в Excel.";
 "relay.settings.shortcuts" = "Горячие клавиши";
 "relay.settings.operations" = "Операции";
@@ -753,38 +753,38 @@
 "automation.action.section.text" = "Текст";
 "automation.action.section.url" = "URL";
 "automation.action.section.advanced" = "Дополнительно";
-"automation.action.section.clipboard" = "Clipboard";
-"automation.action.markSensitive" = "Mark as Sensitive";
-"automation.action.pin" = "Pin";
-"automation.action.skipCapture" = "Skip Capture";
-"automation.action.section.external" = "External";
-"automation.action.runShortcut" = "Run Shortcut";
-"automation.action.runShortcut.placeholder" = "Shortcut name";
-"automation.action.runShortcut.empty" = "No shortcut selected";
-"automation.action.runShortcut.pick" = "Pick from list";
-"automation.action.runShortcut.openInApp" = "Open in Shortcuts";
-"automation.action.runShortcut.failed" = "Shortcut failed";
-"automation.action.runShortcut.loading" = "Loading…";
-"automation.rule.notifyOnTrigger" = "Send notification on trigger";
+"automation.action.section.clipboard" = "Буфер обмена";
+"automation.action.markSensitive" = "Пометить как конфиденциальное";
+"automation.action.pin" = "Закрепить";
+"automation.action.skipCapture" = "Не сохранять в историю";
+"automation.action.section.external" = "Внешние";
+"automation.action.runShortcut" = "Запустить быструю команду";
+"automation.action.runShortcut.placeholder" = "Название быстрой команды";
+"automation.action.runShortcut.empty" = "Быстрая команда не выбрана";
+"automation.action.runShortcut.pick" = "Выбрать из списка";
+"automation.action.runShortcut.openInApp" = "Открыть в «Быстрых командах»";
+"automation.action.runShortcut.failed" = "Сбой быстрой команды";
+"automation.action.runShortcut.loading" = "Загрузка…";
+"automation.rule.notifyOnTrigger" = "Отправлять уведомление при срабатывании";
 "automation.rule.writeBackToPasteboard" = "Записывать результат обратно в буфер обмена";
 "automation.rule.writeBackToPasteboard.help" = "Когда включено, результат правила записывается обратно в системный буфер обмена, поэтому ⌘V сразу после копирования вставляет преобразованный текст (форматированный текст становится обычным).";
-"automation.notification.title" = "Automation";
-"automation.applied" = "Automation applied";
-"automation.validation.incomplete" = "Cannot enable rule";
-"automation.validation.incompleteMessage" = "Please add at least one condition and one action before enabling.";
-"automation.delete.confirm" = "Delete Rule?";
-"automation.delete.confirmMessage" = "This action cannot be undone.";
-"automation.notification.permissionDenied" = "Notifications Not Allowed";
-"automation.notification.permissionDeniedMessage" = "Please allow notifications for PasteMemo in System Settings.";
-"automation.notification.openSettings" = "Open Settings";
+"automation.notification.title" = "Автоматизация";
+"automation.applied" = "Автоматизация выполнена";
+"automation.validation.incomplete" = "Не удалось включить правило";
+"automation.validation.incompleteMessage" = "Перед включением добавьте хотя бы одно условие и одно действие.";
+"automation.delete.confirm" = "Удалить правило?";
+"automation.delete.confirmMessage" = "Это действие нельзя отменить.";
+"automation.notification.permissionDenied" = "Уведомления запрещены";
+"automation.notification.permissionDeniedMessage" = "Разрешите уведомления для PasteMemo в Системных настройках.";
+"automation.notification.openSettings" = "Открыть настройки";
 "automation.condition.sourceApp.select" = "Выбрать приложение";
 "automation.condition.sourceApp.add" = "Добавить приложение";
 "automation.condition.sourceApp.empty" = "Приложения не выбраны";
 "automation.editor.definition" = "Определение правила";
 "automation.editor.settings" = "Настройки";
-"automation.editor.triggerAndNotification" = "Trigger & Notification";
-"automation.rule.status.active" = "Active";
-"automation.rule.status.inactive" = "Inactive";
+"automation.editor.triggerAndNotification" = "Триггер и уведомления";
+"automation.rule.status.active" = "Активно";
+"automation.rule.status.inactive" = "Неактивно";
 "automation.editor.save" = "Сохранить";
 "automation.editor.cancel" = "Отмена";
 "automation.editor.edit" = "Редактировать";

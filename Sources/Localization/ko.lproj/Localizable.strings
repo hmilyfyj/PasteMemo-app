@@ -310,11 +310,11 @@
 "dataPorter.summary.newRules" = "규칙 %d개를 새로 추가했습니다";
 
 /* Dev Tools */
-"devTools.importFromRelease" = "Import Data from Release";
-"devTools.importFromRelease.confirm" = "Import from Release?";
-"devTools.importFromRelease.confirmMessage" = "This will overwrite all data in the Dev version. This action cannot be undone.";
-"devTools.importFromRelease.releaseRunning" = "Please quit the release version of PasteMemo before importing.";
-"devTools.importFromRelease.noData" = "No release version data found.";
+"devTools.importFromRelease" = "정식 버전에서 데이터 가져오기";
+"devTools.importFromRelease.confirm" = "정식 버전에서 가져오시겠습니까?";
+"devTools.importFromRelease.confirmMessage" = "Dev 버전의 모든 데이터를 덮어씁니다. 이 동작은 취소할 수 없습니다.";
+"devTools.importFromRelease.releaseRunning" = "가져오기 전에 정식 버전 PasteMemo를 종료해 주세요.";
+"devTools.importFromRelease.noData" = "정식 버전 데이터를 찾을 수 없습니다.";
 
 /* Rich Text / Plain Text */
 "action.pasteAsPlainText" = "일반 텍스트";
@@ -343,7 +343,7 @@
 "settings.automation.enabled" = "자동화 규칙 활성화";
 "settings.automation.ruleCount" = "%d개의 규칙 (%d개 활성)";
 "settings.automation.manage" = "자동화 규칙 관리...";
-"settings.automation.hint" = "All matching rules are executed in order. Drag to reorder.";
+"settings.automation.hint" = "일치하는 모든 규칙이 순서대로 실행됩니다. 드래그하여 순서를 조정할 수 있습니다.";
 "settings.automation.auto" = "자동";
 "settings.automation.manual" = "수동";
 "settings.automation.proRequired" = "자동화 규칙은 Pro 전용 기능입니다";
@@ -503,13 +503,13 @@
 "relay.settings.postPasteKey" = "붙여넣기 후 키";
 "relay.settings.postPasteKey.desc" = "연속 입력에 유용";
 "relay.settings.postPasteKey.none" = "없음";
-"relay.settings.postPasteKey.return" = "Return";
+"relay.settings.postPasteKey.return" = "리턴";
 "relay.settings.postPasteKey.tab" = "Tab";
 "relay.settings.postPasteKey.down" = "아래";
 "relay.settings.postPasteKey.up" = "위";
 "relay.settings.postPasteKey.left" = "왼쪽";
 "relay.settings.postPasteKey.right" = "오른쪽";
-"relay.settings.postPasteKey.space" = "Space";
+"relay.settings.postPasteKey.space" = "스페이스";
 "relay.settings.description" = "릴레이 모드는 여러 항목을 복사한 후 순서대로 하나씩 붙여넣을 수 있습니다. 웹페이지에서 이름 목록을 복사하여 Excel에 행별로 붙여넣기에 적합합니다.";
 "relay.settings.shortcuts" = "단축키";
 "relay.settings.operations" = "작업 설명";
@@ -569,7 +569,7 @@
 "action.undo" = "실행 취소";
 "delete.undo.toast" = "%d개 항목 삭제됨";
 "action.deleteSelected" = "%d개 항목 삭제";
-"action.deleteSelected.confirm" = "Delete %d items?";
+"action.deleteSelected.confirm" = "%d개 기록을 삭제하시겠습니까?";
 
 /* About - Additional */
 "about.website" = "웹사이트";
@@ -577,7 +577,7 @@
 /* Content Types - Additional */
 "type.file" = "파일";
 "type.other" = "기타";
-"type.email" = "Email";
+"type.email" = "이메일";
 "type.phone" = "전화번호";
 "type.video" = "동영상";
 "type.audio" = "오디오";
@@ -776,10 +776,10 @@
 "automation.action.section.text" = "텍스트";
 "automation.action.section.url" = "URL";
 "automation.action.section.advanced" = "고급";
-"automation.action.section.clipboard" = "Clipboard";
-"automation.action.markSensitive" = "Mark as Sensitive";
-"automation.action.pin" = "Pin";
-"automation.action.skipCapture" = "Skip Capture";
+"automation.action.section.clipboard" = "클립보드";
+"automation.action.markSensitive" = "민감한 항목으로 표시";
+"automation.action.pin" = "고정";
+"automation.action.skipCapture" = "기록하지 않기";
 "automation.action.section.external" = "외부";
 "automation.action.runShortcut" = "단축어 실행";
 "automation.action.runShortcut.placeholder" = "단축어 이름";
@@ -788,18 +788,18 @@
 "automation.action.runShortcut.openInApp" = "단축어 앱에서 열기";
 "automation.action.runShortcut.failed" = "단축어 실행 실패";
 "automation.action.runShortcut.loading" = "불러오는 중…";
-"automation.rule.notifyOnTrigger" = "Send notification on trigger";
+"automation.rule.notifyOnTrigger" = "실행 시 알림 보내기";
 "automation.rule.writeBackToPasteboard" = "처리 결과를 클립보드에 다시 쓰기";
 "automation.rule.writeBackToPasteboard.help" = "켜면 규칙 처리 결과가 시스템 클립보드에 다시 기록되어, 복사 직후 ⌘V로 변환된 텍스트가 붙여넣어집니다(서식 있는 텍스트는 일반 텍스트로 변환됩니다).";
-"automation.notification.title" = "Automation";
-"automation.applied" = "Automation applied";
-"automation.validation.incomplete" = "Cannot enable rule";
-"automation.validation.incompleteMessage" = "Please add at least one condition and one action before enabling.";
-"automation.delete.confirm" = "Delete Rule?";
-"automation.delete.confirmMessage" = "This action cannot be undone.";
-"automation.notification.permissionDenied" = "Notifications Not Allowed";
-"automation.notification.permissionDeniedMessage" = "Please allow notifications for PasteMemo in System Settings.";
-"automation.notification.openSettings" = "Open Settings";
+"automation.notification.title" = "자동화";
+"automation.applied" = "자동화가 실행됨";
+"automation.validation.incomplete" = "규칙을 활성화할 수 없음";
+"automation.validation.incompleteMessage" = "활성화하기 전에 조건과 동작을 각각 하나 이상 추가해 주세요.";
+"automation.delete.confirm" = "규칙을 삭제하시겠습니까?";
+"automation.delete.confirmMessage" = "이 동작은 취소할 수 없습니다.";
+"automation.notification.permissionDenied" = "알림이 허용되지 않음";
+"automation.notification.permissionDeniedMessage" = "시스템 설정에서 PasteMemo 알림을 허용해 주세요.";
+"automation.notification.openSettings" = "설정 열기";
 "automation.action.delete" = "규칙 삭제";
 "automation.action.empty" = "작업 없음";
 

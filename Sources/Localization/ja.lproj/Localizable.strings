@@ -327,11 +327,11 @@
 "dataPorter.summary.newRules" = "新規ルール %d 個を追加";
 
 /* Dev Tools */
-"devTools.importFromRelease" = "Import Data from Release";
-"devTools.importFromRelease.confirm" = "Import from Release?";
-"devTools.importFromRelease.confirmMessage" = "This will overwrite all data in the Dev version. This action cannot be undone.";
-"devTools.importFromRelease.releaseRunning" = "Please quit the release version of PasteMemo before importing.";
-"devTools.importFromRelease.noData" = "No release version data found.";
+"devTools.importFromRelease" = "正式版からデータを読み込む";
+"devTools.importFromRelease.confirm" = "正式版からデータを読み込みますか？";
+"devTools.importFromRelease.confirmMessage" = "Dev 版のすべてのデータが上書きされます。この操作は取り消せません。";
+"devTools.importFromRelease.releaseRunning" = "読み込む前に正式版 PasteMemo を終了してください。";
+"devTools.importFromRelease.noData" = "正式版のデータが見つかりません。";
 
 /* Rich Text / Plain Text */
 "action.pasteAsPlainText" = "プレーンテキスト";
@@ -360,7 +360,7 @@
 "settings.automation.enabled" = "自動化ルールを有効にする";
 "settings.automation.ruleCount" = "%d 件のルール（%d 件有効）";
 "settings.automation.manage" = "自動化ルールを管理...";
-"settings.automation.hint" = "All matching rules are executed in order. Drag to reorder.";
+"settings.automation.hint" = "一致したルールはすべて順番に実行されます。ドラッグで並べ替えできます。";
 "settings.automation.auto" = "自動";
 "settings.automation.manual" = "手動";
 "settings.automation.proRequired" = "自動化ルールは Pro 専用機能です";
@@ -523,13 +523,13 @@
 "relay.settings.postPasteKey" = "貼り付け後のキー";
 "relay.settings.postPasteKey.desc" = "連続入力に便利";
 "relay.settings.postPasteKey.none" = "なし";
-"relay.settings.postPasteKey.return" = "Return";
+"relay.settings.postPasteKey.return" = "リターン";
 "relay.settings.postPasteKey.tab" = "Tab";
 "relay.settings.postPasteKey.down" = "下";
 "relay.settings.postPasteKey.up" = "上";
 "relay.settings.postPasteKey.left" = "左";
 "relay.settings.postPasteKey.right" = "右";
-"relay.settings.postPasteKey.space" = "Space";
+"relay.settings.postPasteKey.space" = "スペース";
 "relay.settings.description" = "リレーモードでは複数のアイテムをコピーして順番に1つずつペーストできます。Webページから名前のリストをコピーして Excel に行ごとにペーストするのに最適です。";
 "relay.settings.shortcuts" = "ショートカット";
 "relay.settings.operations" = "操作説明";
@@ -589,7 +589,7 @@
 "action.undo" = "元に戻す";
 "delete.undo.toast" = "%d 件を削除しました";
 "action.deleteSelected" = "%d 件を削除";
-"action.deleteSelected.confirm" = "Delete %d items?";
+"action.deleteSelected.confirm" = "%d 件の記録を削除しますか？";
 
 /* About - Additional */
 "about.website" = "ウェブサイト";
@@ -597,7 +597,7 @@
 /* Content Types - Additional */
 "type.file" = "ファイル";
 "type.other" = "その他";
-"type.email" = "Email";
+"type.email" = "メール";
 "type.phone" = "電話番号";
 "type.video" = "動画";
 "type.audio" = "オーディオ";
@@ -797,10 +797,10 @@
 "automation.action.section.text" = "テキスト";
 "automation.action.section.url" = "URL";
 "automation.action.section.advanced" = "高度な設定";
-"automation.action.section.clipboard" = "Clipboard";
-"automation.action.markSensitive" = "Mark as Sensitive";
-"automation.action.pin" = "Pin";
-"automation.action.skipCapture" = "Skip Capture";
+"automation.action.section.clipboard" = "クリップボード";
+"automation.action.markSensitive" = "機密としてマーク";
+"automation.action.pin" = "ピン留め";
+"automation.action.skipCapture" = "記録しない";
 "automation.action.section.external" = "外部";
 "automation.action.runShortcut" = "ショートカットを実行";
 "automation.action.runShortcut.placeholder" = "ショートカット名";
@@ -809,18 +809,18 @@
 "automation.action.runShortcut.openInApp" = "ショートカットアプリで開く";
 "automation.action.runShortcut.failed" = "ショートカット実行失敗";
 "automation.action.runShortcut.loading" = "読み込み中…";
-"automation.rule.notifyOnTrigger" = "Send notification on trigger";
+"automation.rule.notifyOnTrigger" = "トリガー時に通知を送信";
 "automation.rule.writeBackToPasteboard" = "処理結果をクリップボードに書き戻す";
 "automation.rule.writeBackToPasteboard.help" = "オンにすると、ルールの処理結果がシステムのクリップボードに書き戻され、コピー直後の ⌘V で変換後のテキストが貼り付けられます（リッチテキストはプレーンテキストになります）。";
-"automation.notification.title" = "Automation";
-"automation.applied" = "Automation applied";
-"automation.validation.incomplete" = "Cannot enable rule";
-"automation.validation.incompleteMessage" = "Please add at least one condition and one action before enabling.";
-"automation.delete.confirm" = "Delete Rule?";
-"automation.delete.confirmMessage" = "This action cannot be undone.";
-"automation.notification.permissionDenied" = "Notifications Not Allowed";
-"automation.notification.permissionDeniedMessage" = "Please allow notifications for PasteMemo in System Settings.";
-"automation.notification.openSettings" = "Open Settings";
+"automation.notification.title" = "自動化";
+"automation.applied" = "自動化を実行しました";
+"automation.validation.incomplete" = "ルールを有効にできません";
+"automation.validation.incompleteMessage" = "有効にする前に、条件とアクションを少なくとも 1 つずつ追加してください。";
+"automation.delete.confirm" = "ルールを削除しますか？";
+"automation.delete.confirmMessage" = "この操作は取り消せません。";
+"automation.notification.permissionDenied" = "通知が許可されていません";
+"automation.notification.permissionDeniedMessage" = "システム設定で PasteMemo の通知を許可してください。";
+"automation.notification.openSettings" = "設定を開く";
 "automation.action.delete" = "ルールを削除";
 "automation.action.empty" = "アクションなし";
 

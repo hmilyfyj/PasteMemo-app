@@ -37,7 +37,7 @@
 "type.color" = "顏色";
 "type.file" = "檔案";
 "type.other" = "其他";
-"type.email" = "Email";
+"type.email" = "電子郵件";
 "type.phone" = "電話";
 "phone.call" = "撥打";
 "phone.message" = "簡訊";
@@ -212,7 +212,7 @@
 "detail.preview_failed" = "無法載入預覽";
 "detail.multiSelected" = "已選取 %d 筆記錄";
 "action.deleteSelected" = "刪除 %d 筆記錄";
-"action.deleteSelected.confirm" = "Delete %d items?";
+"action.deleteSelected.confirm" = "確定刪除 %d 筆記錄？";
 "file.multiTitle" = "等%d個檔案";
 
 /* Filter */
@@ -402,11 +402,11 @@
 "dataPorter.summary.newRules" = "新增規則 %d 條";
 
 /* Dev Tools */
-"devTools.importFromRelease" = "Import Data from Release";
-"devTools.importFromRelease.confirm" = "Import from Release?";
-"devTools.importFromRelease.confirmMessage" = "This will overwrite all data in the Dev version. This action cannot be undone.";
-"devTools.importFromRelease.releaseRunning" = "Please quit the release version of PasteMemo before importing.";
-"devTools.importFromRelease.noData" = "No release version data found.";
+"devTools.importFromRelease" = "從正式版匯入資料";
+"devTools.importFromRelease.confirm" = "從正式版匯入資料？";
+"devTools.importFromRelease.confirmMessage" = "這將覆寫 Dev 版的所有資料，此操作無法復原。";
+"devTools.importFromRelease.releaseRunning" = "請先結束正式版 PasteMemo 再匯入。";
+"devTools.importFromRelease.noData" = "未找到正式版資料。";
 
 /* Rich Text / Plain Text */
 "action.pasteAsPlainText" = "純文字貼上";
@@ -435,7 +435,7 @@
 "settings.automation.enabled" = "啟用自動化規則";
 "settings.automation.ruleCount" = "%d 條規則（%d 條啟用）";
 "settings.automation.manage" = "管理自動化規則...";
-"settings.automation.hint" = "All matching rules are executed in order. Drag to reorder.";
+"settings.automation.hint" = "所有符合的規則將依序執行，可拖曳調整優先順序。";
 "settings.automation.auto" = "自動";
 "settings.automation.manual" = "手動";
 "settings.automation.proRequired" = "自動化規則為 Pro 專屬功能";
@@ -601,7 +601,7 @@
 "relay.settings.postPasteKey.up" = "上";
 "relay.settings.postPasteKey.left" = "左";
 "relay.settings.postPasteKey.right" = "右";
-"relay.settings.postPasteKey.space" = "Space";
+"relay.settings.postPasteKey.space" = "空白鍵";
 "relay.settings.description" = "接力模式可以連續複製多條內容，然後按順序逐條貼上。適合從網頁複製一批使用者名稱，再切到 Excel 逐行貼上的場景。";
 "relay.settings.shortcuts" = "快捷鍵";
 "relay.settings.operations" = "操作說明";
@@ -739,10 +739,10 @@
 "automation.action.section.text" = "文字處理";
 "automation.action.section.url" = "URL 處理";
 "automation.action.section.advanced" = "進階";
-"automation.action.section.clipboard" = "Clipboard";
-"automation.action.markSensitive" = "Mark as Sensitive";
-"automation.action.pin" = "Pin";
-"automation.action.skipCapture" = "Skip Capture";
+"automation.action.section.clipboard" = "剪貼簿";
+"automation.action.markSensitive" = "標記為敏感";
+"automation.action.pin" = "置頂";
+"automation.action.skipCapture" = "不複製";
 "automation.action.section.external" = "外部";
 "automation.action.runShortcut" = "執行捷徑";
 "automation.action.runShortcut.placeholder" = "捷徑名稱";
@@ -751,18 +751,18 @@
 "automation.action.runShortcut.openInApp" = "在捷徑中開啟";
 "automation.action.runShortcut.failed" = "捷徑執行失敗";
 "automation.action.runShortcut.loading" = "載入中…";
-"automation.rule.notifyOnTrigger" = "Send notification on trigger";
+"automation.rule.notifyOnTrigger" = "觸發時傳送通知";
 "automation.rule.writeBackToPasteboard" = "處理後寫回剪貼簿";
 "automation.rule.writeBackToPasteboard.help" = "開啟後，規則處理結果會寫回系統剪貼簿，複製後直接 ⌘V 貼上即為處理後的內容（富文字會轉為純文字）。";
-"automation.notification.title" = "Automation";
-"automation.applied" = "Automation applied";
-"automation.validation.incomplete" = "Cannot enable rule";
-"automation.validation.incompleteMessage" = "Please add at least one condition and one action before enabling.";
-"automation.delete.confirm" = "Delete Rule?";
-"automation.delete.confirmMessage" = "This action cannot be undone.";
-"automation.notification.permissionDenied" = "Notifications Not Allowed";
-"automation.notification.permissionDeniedMessage" = "Please allow notifications for PasteMemo in System Settings.";
-"automation.notification.openSettings" = "Open Settings";
+"automation.notification.title" = "自動化";
+"automation.applied" = "自動化已執行";
+"automation.validation.incomplete" = "無法啟用規則";
+"automation.validation.incompleteMessage" = "請至少新增一個條件和一個動作後再啟用。";
+"automation.delete.confirm" = "刪除規則？";
+"automation.delete.confirmMessage" = "此操作無法復原。";
+"automation.notification.permissionDenied" = "未開啟通知權限";
+"automation.notification.permissionDeniedMessage" = "請在系統設定中允許 PasteMemo 傳送通知。";
+"automation.notification.openSettings" = "開啟設定";
 "automation.condition.sourceApp.select" = "選擇應用程式";
 "automation.condition.sourceApp.add" = "新增應用程式";
 "automation.condition.sourceApp.empty" = "暫無已選應用程式";
