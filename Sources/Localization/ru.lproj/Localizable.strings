@@ -150,9 +150,6 @@
 "settings.preferences" = "Настройки";
 "settings.quickPanel" = "Быстрая вставка";
 "settings.previewRecognition" = "Предпросмотр и распознавание";
-"settings.quickPanelGlass" = "Фон быстрой вставки";
-"settings.quickPanelGlass.translucent" = "Liquid Glass (рекомендуется)";
-"settings.quickPanelGlass.opaque" = "Непрозрачный";
 "settings.showLinkURL" = "Показывать URL вместо заголовка для ссылок";
 "settings.webPreview" = "Веб-предпросмотр";
 "settings.imageLinkPreview" = "Предпросмотр ссылок на изображения";

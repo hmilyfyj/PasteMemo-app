@@ -150,9 +150,6 @@
 "settings.preferences" = "Preferenze";
 "settings.quickPanel" = "Incolla Rapido";
 "settings.previewRecognition" = "Anteprima e riconoscimento";
-"settings.quickPanelGlass" = "Sfondo di Incolla Rapido";
-"settings.quickPanelGlass.translucent" = "Liquid Glass (consigliato)";
-"settings.quickPanelGlass.opaque" = "Opaco";
 "settings.showLinkURL" = "Mostra URL invece del titolo per i link";
 "settings.webPreview" = "Anteprima web";
 "settings.imageLinkPreview" = "Anteprima link immagine";

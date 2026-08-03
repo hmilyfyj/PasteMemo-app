@@ -160,9 +160,6 @@
 "settings.preferences" = "偏好";
 "settings.quickPanel" = "快捷面板";
 "settings.previewRecognition" = "预览与识别";
-"settings.quickPanelGlass" = "快捷面板背景";
-"settings.quickPanelGlass.translucent" = "液态玻璃（推荐）";
-"settings.quickPanelGlass.opaque" = "不透明";
 "settings.showLinkURL" = "链接显示原始网址而非页面标题";
 "settings.webPreview" = "网页预览";
 "settings.imageLinkPreview" = "图片链接预览";

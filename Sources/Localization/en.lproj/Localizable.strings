@@ -160,9 +160,6 @@
 "settings.preferences" = "Preferences";
 "settings.quickPanel" = "Quick Paste";
 "settings.previewRecognition" = "Preview & Recognition";
-"settings.quickPanelGlass" = "Quick Paste background";
-"settings.quickPanelGlass.translucent" = "Liquid Glass (Recommended)";
-"settings.quickPanelGlass.opaque" = "Opaque";
 "settings.showLinkURL" = "Show URL instead of page title for links";
 "settings.webPreview" = "Web preview";
 "settings.imageLinkPreview" = "Image link preview";

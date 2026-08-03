@@ -73,8 +73,6 @@ final class QuickPanelWindowController {
     /// 置顶期间跟踪前台 App 切换，让粘贴目标跟随当前 App
     private var pinnedActivationObserver: Any?
     private var resizeObserver: Any?
-    private weak var glassView: NSView?  // NSGlassEffectView（macOS 26+）；类型收窄在使用点做
-    private var glassStyleObserver: Any?
     private(set) var previousApp: NSRunningApplication?
     private var isWarmedUp = false
     var isPinned = false {
@@ -354,47 +352,24 @@ final class QuickPanelWindowController {
         let hostingView = hosting.view
         hostingView.translatesAutoresizingMaskIntoConstraints = false
 
-        let container: NSView
-        if #available(macOS 26.0, *) {
-            let glass = NSGlassEffectView(frame: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight))
-            glass.cornerRadius = 16
-            // Damp the glass transparency: a large content-dense surface needs the
-            // backdrop pushed toward the window background or list text becomes
-            // unreadable over busy wallpapers/windows. Alpha follows the user's
-            // 外观 → 快捷面板背景 setting (translucent 0.5 / opaque 1.0).
-            glass.tintColor = NSColor.windowBackgroundColor
-                .withAlphaComponent(QuickPanelGlassStyle.current.tintAlpha)
-            glass.contentView = hostingView
-            container = glass
-            glassView = glass
+        // Raycast 同款方案：外观锁定的系统材质（浅色外观=浅底、深色=深底，亮度
+        // 不随背后内容漂移），而非 NSGlassEffectView——玻璃的最终亮度由背后内容
+        // 主导且 tintColor 压不住（探针实锤：浅色外观叠黑背景，tint 1.0 仍是中灰，
+        // 黑字直接糊掉），大面积文字面板在外观与背景明暗错配时必然发灰。Liquid
+        // Glass 只用在系统原生支持的场景（设置窗口侧边栏、popover 材质背景）。
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight))
+        container.wantsLayer = true
+        container.layer?.cornerRadius = 16
+        container.layer?.masksToBounds = true
 
-            // 设置变更即时生效（面板只 warmUp 一次，不重建）。
-            if let previous = glassStyleObserver {
-                NotificationCenter.default.removeObserver(previous)
-            }
-            glassStyleObserver = NotificationCenter.default.addObserver(
-                forName: UserDefaults.didChangeNotification,
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                Task { @MainActor in self?.applyGlassStyle() }
-            }
-        } else {
-            let legacy = NSView(frame: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight))
-            legacy.wantsLayer = true
-            legacy.layer?.cornerRadius = 16
-            legacy.layer?.masksToBounds = true
+        let visualEffect = NSVisualEffectView(frame: container.bounds)
+        visualEffect.material = .headerView
+        visualEffect.blendingMode = .behindWindow
+        visualEffect.state = .active
+        visualEffect.autoresizingMask = [.width, .height]
+        container.addSubview(visualEffect)
 
-            let visualEffect = NSVisualEffectView(frame: legacy.bounds)
-            visualEffect.material = .headerView
-            visualEffect.blendingMode = .behindWindow
-            visualEffect.state = .active
-            visualEffect.autoresizingMask = [.width, .height]
-            legacy.addSubview(visualEffect)
-
-            legacy.addSubview(hostingView)
-            container = legacy
-        }
+        container.addSubview(hostingView)
         NSLayoutConstraint.activate([
             hostingView.topAnchor.constraint(equalTo: container.topAnchor),
             hostingView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
@@ -425,15 +400,6 @@ final class QuickPanelWindowController {
         }
 
         return panel
-    }
-
-    /// 把「外观 → 快捷面板背景」设置应用到已存在的玻璃背景（半透明 / 不透明）。
-    private func applyGlassStyle() {
-        guard #available(macOS 26.0, *),
-              let glass = glassView as? NSGlassEffectView else { return }
-        let alpha = QuickPanelGlassStyle.current.tintAlpha
-        guard glass.tintColor?.alphaComponent != alpha else { return }
-        glass.tintColor = NSColor.windowBackgroundColor.withAlphaComponent(alpha)
     }
 
     private func positionPanel(_ panel: NSPanel) {

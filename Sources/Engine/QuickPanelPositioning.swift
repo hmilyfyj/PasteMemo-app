@@ -49,38 +49,6 @@ enum QuickPanelSettings {
     static let imageLayoutKey = "quickPanelImageLayout"
     /// 瀑布流密度（疏 / 中 / 密 → 目标列宽），默认中
     static let imageGridDensityKey = "quickPanelImageGridDensity"
-    /// 面板玻璃背景样式（仅 macOS 26+，旧系统固定走 NSVisualEffectView）
-    static let glassStyleKey = "quickPanelGlassStyle"
-}
-
-/// 快捷面板背景（macOS 26+）：半透明 Liquid Glass（默认）或不透明。
-/// 不透明 = 玻璃 tint 拉满窗口底色，保留玻璃边缘高光但背景不再透出内容。
-enum QuickPanelGlassStyle: String, CaseIterable {
-    case translucent
-    case opaque
-
-    /// NSGlassEffectView.tintColor 的透明度：半透明 0.65——0.5 在「面板外观与
-    /// 背后内容明暗错配」时（浅色外观叠深色终端，或反过来）会被背景带偏成灰雾，
-    /// 0.65 让面板守住自身底色、玻璃高光仍在；不透明拉满(1.0)。
-    var tintAlpha: CGFloat {
-        switch self {
-        case .translucent: 0.65
-        case .opaque: 1.0
-        }
-    }
-
-    var titleKey: String {
-        switch self {
-        case .translucent: "settings.quickPanelGlass.translucent"
-        case .opaque: "settings.quickPanelGlass.opaque"
-        }
-    }
-
-    static var current: QuickPanelGlassStyle {
-        QuickPanelGlassStyle(
-            rawValue: UserDefaults.standard.string(forKey: QuickPanelSettings.glassStyleKey) ?? ""
-        ) ?? .translucent
-    }
 }
 
 /// 选中「图片」类型时的展示方式。仅作用于图片筛选，其它类型始终用列表。

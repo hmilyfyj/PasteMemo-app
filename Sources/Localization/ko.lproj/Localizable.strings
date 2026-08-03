@@ -178,9 +178,6 @@
 "settings.preferences" = "환경설정";
 "settings.quickPanel" = "빠른 붙여넣기";
 "settings.previewRecognition" = "미리보기 및 인식";
-"settings.quickPanelGlass" = "빠른 붙여넣기 배경";
-"settings.quickPanelGlass.translucent" = "리퀴드 글래스(권장)";
-"settings.quickPanelGlass.opaque" = "불투명";
 "settings.showLinkURL" = "링크를 페이지 제목 대신 URL로 표시";
 "settings.webPreview" = "웹 미리보기";
 "settings.imageLinkPreview" = "이미지 링크 미리보기";

@@ -150,9 +150,6 @@
 "settings.preferences" = "Preferensi";
 "settings.quickPanel" = "Tempel Cepat";
 "settings.previewRecognition" = "Pratinjau & Pengenalan";
-"settings.quickPanelGlass" = "Latar Tempel Cepat";
-"settings.quickPanelGlass.translucent" = "Liquid Glass (disarankan)";
-"settings.quickPanelGlass.opaque" = "Buram";
 "settings.showLinkURL" = "Tampilkan URL alih-alih judul halaman untuk tautan";
 "settings.webPreview" = "Pratinjau web";
 "settings.imageLinkPreview" = "Pratinjau tautan gambar";

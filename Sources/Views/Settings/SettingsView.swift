@@ -256,7 +256,6 @@ struct AppearancePane: View {
     @AppStorage("appearanceMode") private var appearanceMode = "system"
     @AppStorage("menuBarIconStyle") private var menuBarIconStyle = "outline"
     @AppStorage(MenuBarLeftClickAction.storageKey) private var menuBarLeftClickActionRaw = MenuBarLeftClickAction.menu.rawValue
-    @AppStorage(QuickPanelSettings.glassStyleKey) private var quickPanelGlassStyle = QuickPanelGlassStyle.translucent.rawValue
 
     var body: some View {
         Form {
@@ -295,15 +294,6 @@ struct AppearancePane: View {
                     }
                 }
                 .help(L10n.tr("settings.menuBar.leftClickAction.help"))
-
-                // 快捷面板玻璃背景仅 macOS 26+ 存在(旧系统走 NSVisualEffectView 路径)。
-                if #available(macOS 26.0, *) {
-                    Picker(L10n.tr("settings.quickPanelGlass"), selection: $quickPanelGlassStyle) {
-                        ForEach(QuickPanelGlassStyle.allCases, id: \.rawValue) { style in
-                            Text(L10n.tr(style.titleKey)).tag(style.rawValue)
-                        }
-                    }
-                }
             }
         }
         .formStyle(.grouped)

@@ -186,9 +186,6 @@
 "settings.preferences" = "環境設定";
 "settings.quickPanel" = "クイック貼り付け";
 "settings.previewRecognition" = "プレビューと認識";
-"settings.quickPanelGlass" = "クイック貼り付けの背景";
-"settings.quickPanelGlass.translucent" = "リキッドガラス（推奨）";
-"settings.quickPanelGlass.opaque" = "不透明";
 "settings.ocr" = "OCR";
 "settings.ocr.enable" = "画像OCRを有効にする";
 "settings.ocr.auto" = "新しい画像を自動処理する";
