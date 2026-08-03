@@ -3,7 +3,7 @@ import SwiftData
 import Quartz
 
 /// tabBar 的主过滤维度：所有模式共用 pinned/aiAgent/all；类型模式下追加 .type，分组模式下追加 .group
-private enum QuickFilter: Equatable {
+private enum QuickFilter: Equatable, Hashable {
     case all
     case pinned
     case aiAgent
@@ -844,40 +844,58 @@ struct QuickPanelView: View {
     // MARK: - Tabs
 
     private var tabBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                badge(L10n.tr("filter.pinned"), isActive: selectedFilter == .pinned) {
-                    selectedFilter = selectedFilter == .pinned ? .all : .pinned
-                    isSearchFocused = true
-                }
-                badge(L10n.tr("filter.all"), isActive: selectedFilter == .all) {
-                    selectedFilter = .all
-                    isSearchFocused = true
-                }
-                if secondaryRow == .types {
-                    ForEach(availableContentTypes, id: \.self) { type in
-                        badge(type.label, isActive: selectedFilter == .type(type)) {
-                            selectedFilter = selectedFilter == .type(type) ? .all : .type(type)
-                            isSearchFocused = true
-                        }
-                    }
-                } else {
-                    ForEach(availableGroupsForTab, id: \.name) { group in
-                        badge(group.name, isActive: selectedFilter == .group(group.name)) {
-                            selectedFilter = selectedFilter == .group(group.name) ? .all : .group(group.name)
-                            isSearchFocused = true
-                        }
-                    }
-                }
-                if store.sidebarCounts.aiAgent > 0 {
-                    badge(L10n.tr("filter.aiAgent"), isActive: selectedFilter == .aiAgent) {
-                        selectedFilter = selectedFilter == .aiAgent ? .all : .aiAgent
+        // ScrollViewReader + onChange：窄窗口下标签溢出时，无论切换来源
+        // （Tab 键、方向键、鼠标点击、`/` 命令）都让选中标签滚入可见区。
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    badge(L10n.tr("filter.pinned"), isActive: selectedFilter == .pinned) {
+                        selectedFilter = selectedFilter == .pinned ? .all : .pinned
                         isSearchFocused = true
                     }
+                    .id(QuickFilter.pinned)
+                    badge(L10n.tr("filter.all"), isActive: selectedFilter == .all) {
+                        selectedFilter = .all
+                        isSearchFocused = true
+                    }
+                    .id(QuickFilter.all)
+                    if secondaryRow == .types {
+                        ForEach(availableContentTypes, id: \.self) { type in
+                            badge(type.label, isActive: selectedFilter == .type(type)) {
+                                selectedFilter = selectedFilter == .type(type) ? .all : .type(type)
+                                isSearchFocused = true
+                            }
+                            .id(QuickFilter.type(type))
+                        }
+                    } else {
+                        ForEach(availableGroupsForTab, id: \.name) { group in
+                            badge(group.name, isActive: selectedFilter == .group(group.name)) {
+                                selectedFilter = selectedFilter == .group(group.name) ? .all : .group(group.name)
+                                isSearchFocused = true
+                            }
+                            .id(QuickFilter.group(group.name))
+                        }
+                    }
+                    if store.sidebarCounts.aiAgent > 0 {
+                        badge(L10n.tr("filter.aiAgent"), isActive: selectedFilter == .aiAgent) {
+                            selectedFilter = selectedFilter == .aiAgent ? .all : .aiAgent
+                            isSearchFocused = true
+                        }
+                        .id(QuickFilter.aiAgent)
+                    }
+                }
+                .padding(.horizontal, 18)
+                .padding(.bottom, 8)
+            }
+            .onChange(of: selectedFilter) {
+                withAnimation(.easeOut(duration: 0.15)) {
+                    proxy.scrollTo(selectedFilter, anchor: nil)
                 }
             }
-            .padding(.horizontal, 18)
-            .padding(.bottom, 8)
+            .onAppear {
+                // 面板重开恢复上次筛选时，选中标签可能已在可视区外，进场先对齐一次
+                proxy.scrollTo(selectedFilter, anchor: nil)
+            }
         }
     }
 
