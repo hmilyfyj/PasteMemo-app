@@ -1380,13 +1380,14 @@ final class ClipboardManager: ObservableObject {
         let groups = buildPasteGroups(items, downgradeRichText: downgrade)
 
         SoundManager.playPaste()
+        let targetPid = targetApp?.processIdentifier
         Task { @MainActor in
             for (index, group) in groups.enumerated() {
                 if index > 0 {
                     try? await Task.sleep(for: .milliseconds(150))
                     // Insert a newline between groups so heterogeneous pastes (text + file,
                     // text + image, etc.) don't glue together on the same line.
-                    simulateReturn()
+                    simulateReturn(targetPid: targetPid)
                     try? await Task.sleep(for: .milliseconds(80))
                 }
 
@@ -1428,11 +1429,11 @@ final class ClipboardManager: ObservableObject {
                 lastChangeCount = pasteboard.changeCount
                 skipRelayMonitorIfActive()
                 try? await Task.sleep(for: PASTE_SIMULATION_DELAY)
-                simulateCommandV()
+                simulateCommandV(targetPid: targetPid)
             }
             if forceNewLine {
                 try? await Task.sleep(for: .milliseconds(100))
-                simulateReturn()
+                simulateReturn(targetPid: targetPid)
             }
         }
     }
@@ -1490,7 +1491,7 @@ final class ClipboardManager: ObservableObject {
         item.contentType.isFileBased && !(item.contentType == .image && item.content == "[Image]")
     }
 
-    func pasteMultipleAsPlainText(_ items: [ClipItem]) {
+    func pasteMultipleAsPlainText(_ items: [ClipItem], targetApp: NSRunningApplication? = nil) {
         let merged = items.map(\.content).joined(separator: "\n")
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
@@ -1499,20 +1500,21 @@ final class ClipboardManager: ObservableObject {
         lastChangeCount = pasteboard.changeCount
         skipRelayMonitorIfActive()
 
+        let targetPid = targetApp?.processIdentifier
         Task { @MainActor in
             try? await Task.sleep(for: PASTE_SIMULATION_DELAY)
-            simulateCommandV()
+            simulateCommandV(targetPid: targetPid)
         }
     }
 
-    func pasteAsPlainText(_ item: ClipItem) {
-        pasteAsPlainText(item.content)
+    func pasteAsPlainText(_ item: ClipItem, targetApp: NSRunningApplication? = nil) {
+        pasteAsPlainText(item.content, targetApp: targetApp)
     }
 
     /// Paste an arbitrary plain-text string into the frontmost app. Mirrors the
     /// `ClipItem` overload — used by "Paste OCR Text", where the pasted text is
     /// the recognized OCR result rather than the clip's own content.
-    func pasteAsPlainText(_ text: String) {
+    func pasteAsPlainText(_ text: String, targetApp: NSRunningApplication? = nil) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
@@ -1521,9 +1523,10 @@ final class ClipboardManager: ObservableObject {
         skipRelayMonitorIfActive()
         SoundManager.playPaste()
 
+        let targetPid = targetApp?.processIdentifier
         Task { @MainActor in
             try? await Task.sleep(for: PASTE_SIMULATION_DELAY)
-            simulateCommandV()
+            simulateCommandV(targetPid: targetPid)
         }
     }
 
@@ -1533,18 +1536,24 @@ final class ClipboardManager: ObservableObject {
         }
     }
 
-    func simulatePaste(forceNewLine: Bool = false) {
-        simulateCommandV()
+    /// - Parameter targetApp: 已知粘贴目标时传入。合成键会用 `postToPid` 直接投递给
+    ///   目标进程，**不依赖窗口服务器此刻把键盘路由给谁**——快捷面板延迟 orderOut 期间
+    ///   面板仍名义上持有 key，走 HID tap 的 ⌘V 会落空（1.7.12-beta.2 粘贴延迟的根因：
+    ///   面板等不到 resignKey，只能干等 300ms 兜底）。postToPid 零等待且路由确定。
+    ///   不传则退回 HID tap（老路径，调用方需保证目标已持有键盘焦点）。
+    func simulatePaste(forceNewLine: Bool = false, targetApp: NSRunningApplication? = nil) {
+        let pid = targetApp?.processIdentifier
+        simulateCommandV(targetPid: pid)
 
         let shouldNewLine = forceNewLine || UserDefaults.standard.bool(forKey: "addNewLineAfterPaste")
         if shouldNewLine {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                self.simulateReturn()
+                self.simulateReturn(targetPid: pid)
             }
         }
     }
 
-    private func simulateCommandV() {
+    private func simulateCommandV(targetPid: pid_t? = nil) {
         // privateState: 合成事件的修饰位完全由我们指定，不会并入用户此刻按住的物理键
         // （全局热键释放时机、⌘1–9 置顶快粘、Ctrl 触发接力都可能还压着键）。
         let source = CGEventSource(stateID: .privateState)
@@ -1568,21 +1577,29 @@ final class ClipboardManager: ObservableObject {
         vDown.flags = cmdFlags
         vUp.flags = cmdFlags
         cmdUp.flags = []   // ⌘ 已抬起
-        cmdDown.post(tap: .cghidEventTap)
-        vDown.post(tap: .cghidEventTap)
-        vUp.post(tap: .cghidEventTap)
-        cmdUp.post(tap: .cghidEventTap)
+        for event in [cmdDown, vDown, vUp, cmdUp] {
+            if let targetPid {
+                event.postToPid(targetPid)
+            } else {
+                event.post(tap: .cghidEventTap)
+            }
+        }
     }
 
-    private func simulateReturn() {
+    private func simulateReturn(targetPid: pid_t? = nil) {
         let source = CGEventSource(stateID: .combinedSessionState)
         source?.localEventsSuppressionInterval = 0.0
         let returnCode: CGKeyCode = 0x24
-        let keyDown = CGEvent(keyboardEventSource: source, virtualKey: returnCode, keyDown: true)
-        let keyUp = CGEvent(keyboardEventSource: source, virtualKey: returnCode, keyDown: false)
-        // 走 HID 层与 simulateCommandV 一致，确保「粘贴后回车」也能进远程桌面（issue #60）。
-        keyDown?.post(tap: .cghidEventTap)
-        keyUp?.post(tap: .cghidEventTap)
+        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: returnCode, keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: returnCode, keyDown: false) else { return }
+        // 无目标时走 HID 层与 simulateCommandV 一致，确保「粘贴后回车」也能进远程桌面（issue #60）。
+        for event in [keyDown, keyUp] {
+            if let targetPid {
+                event.postToPid(targetPid)
+            } else {
+                event.post(tap: .cghidEventTap)
+            }
+        }
     }
 
     func requestAccessibilityPermission() {

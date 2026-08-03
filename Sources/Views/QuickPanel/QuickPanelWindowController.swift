@@ -96,36 +96,6 @@ final class QuickPanelWindowController {
     }
     var suppressDismiss = false
     private var snapGuide: SnapGuideWindow?
-    /// 延迟 orderOut 的收尾任务（见 orderOutAvoidingKeyProposal）；非 nil 表示面板
-    /// 视觉上已消失、真正的 orderOut 还在等 key 转移。
-    private var pendingOrderOut: DispatchWorkItem?
-    private var pendingOrderOutResignObserver: NSObjectProtocol?
-
-    private var isDismissPending: Bool {
-        pendingOrderOut != nil || pendingOrderOutResignObserver != nil
-    }
-
-    /// 关闭落地（面板 resign key、orderOut 完成）后才能执行的动作队列。
-    /// 发合成 ⌘V 的粘贴路径都必须经此排队：延迟 orderOut 机制下 dismiss 返回时
-    /// key 转移还在飞，立刻发键会打在仍持有 key 的面板上而丢失。
-    private var dismissSettledActions: [@MainActor () -> Void] = []
-
-    /// dismiss 后需要「目标 App 已拿回键盘焦点」的动作（发合成 ⌘V / 回车等）从这里走：
-    /// 关闭还在延迟收尾期就排队，收尾完成后统一执行；否则立即执行。
-    func performAfterDismissSettled(_ action: @escaping @MainActor () -> Void) {
-        if isDismissPending {
-            dismissSettledActions.append(action)
-        } else {
-            action()
-        }
-    }
-
-    private func flushDismissSettledActions() {
-        guard !dismissSettledActions.isEmpty else { return }
-        let actions = dismissSettledActions
-        dismissSettledActions = []
-        for action in actions { action() }
-    }
 
     private var panelWidth: CGFloat {
         let saved = UserDefaults.standard.double(forKey: "\(SIZE_KEY).width")
@@ -185,19 +155,9 @@ final class QuickPanelWindowController {
 
     func show(clipboardManager: ClipboardManager, modelContainer: ModelContainer) {
         if let existing = panel, existing.isVisible {
-            if isDismissPending {
-                // 上次关闭的延迟 orderOut 还没落地（面板仅仅是 alpha=0 隐身），
-                // 对用户而言它已经关了：取消收尾、复用在屏面板直接重新展示。
-                cancelPendingOrderOut()
-                // 排队中的粘贴动作丢弃：面板即将重新成为 key，此刻发 ⌘V 会打进面板自己
-                dismissSettledActions = []
-                (existing as? KeyablePanel)?.refuseKey = false
-                existing.ignoresMouseEvents = false
-            } else {
-                // 再次按开关热键 = 用户主动关闭，置顶时也要关
-                dismiss(force: true)
-                return
-            }
+            // 再次按开关热键 = 用户主动关闭，置顶时也要关
+            dismiss(force: true)
+            return
         }
 
         previousApp = NSWorkspace.shared.frontmostApplication
@@ -292,59 +252,23 @@ final class QuickPanelWindowController {
         HotkeyManager.shared.isQuickPanelVisible = false
     }
 
-    /// macOS 26 (Tahoe) 的窗口协调器（NSWMWindowCoordinator）在 orderOut 一个仍持有
-    /// key 状态的窗口时，会跨进程向窗口服务器提议下一个 key 窗口并同步等待回复；
-    /// 对非激活 App 的 nonactivating 面板，这个提议得不到应答，主线程要干等约 0.4s
-    /// 超时才放行——Esc 关闭面板肉眼可见地卡住。这里改为：面板立即隐身（alpha=0）、
-    /// 拒绝 key 并把焦点显式交还目标 App（复用置顶模式的既有做法），等面板真正
-    /// resign key 后再 orderOut——此时无 key 可让，协调器不再发起提议。300ms 兜底
-    /// 保证 resign 通知缺席时面板也一定会被 orderOut（最差退回旧行为，但已不可见）。
-    /// 行为探测而非版本分流：面板不是 key（点击外部、失焦等路径）时直接同步 orderOut。
+    /// macOS 26 (Tahoe) 的窗口协调器（NSWMWindowCoordinator）在 orderOut 一个**可成为
+    /// key** 且仍持有 key 状态的窗口时，会跨进程向窗口服务器提议下一个 key 窗口并同步
+    /// 等待回复；对非激活 App 的 nonactivating 面板，提议得不到应答，主线程干等约 0.4s
+    /// 超时——Esc 关闭面板肉眼可见地卡住。行为探测（探针实测）发现：先把面板置为
+    /// `refuseKey`（canBecomeKey=false）再 orderOut，协调器不再发起提议，orderOut 即刻
+    /// 返回。附带把焦点显式交还目标 App（复用置顶模式的既有做法）。面板本就不是 key
+    /// 时（点击外部、失焦路径）直接 orderOut，无额外动作。
     private func orderOutAvoidingKeyProposal(_ panel: NSPanel) {
-        cancelPendingOrderOut()
         guard panel.isKeyWindow, let keyable = panel as? KeyablePanel else {
             panel.orderOut(nil)
             return
         }
-
-        panel.alphaValue = 0
-        // 隐身等待期不吃鼠标事件，避免用户紧接着点到"看不见的面板"
-        panel.ignoresMouseEvents = true
         keyable.refuseKey = true
         previousApp?.activate(options: [])
-
-        let finish: @MainActor () -> Void = { [weak panel, weak keyable] in
-            let shared = QuickPanelWindowController.shared
-            // 收尾状态已被清（show() 复用面板重新展示、或另一次 finish 先到）就让路，
-            // 否则迟到的 resign Task 会把刚重新展示的面板误关。
-            guard shared.isDismissPending else { return }
-            shared.cancelPendingOrderOut()
-            guard let panel else { return }
-            panel.orderOut(nil)
-            panel.ignoresMouseEvents = false
-            keyable?.refuseKey = QuickPanelWindowController.shared.isPinned
-            // 目标 App 已拿回 key，此刻发合成键才有归宿
-            shared.flushDismissSettledActions()
-        }
-        pendingOrderOutResignObserver = NotificationCenter.default.addObserver(
-            forName: NSWindow.didResignKeyNotification,
-            object: panel,
-            queue: .main
-        ) { _ in
-            Task { @MainActor in finish() }
-        }
-        let fallback = DispatchWorkItem { finish() }
-        pendingOrderOut = fallback
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: fallback)
-    }
-
-    private func cancelPendingOrderOut() {
-        if let obs = pendingOrderOutResignObserver {
-            NotificationCenter.default.removeObserver(obs)
-            pendingOrderOutResignObserver = nil
-        }
-        pendingOrderOut?.cancel()
-        pendingOrderOut = nil
+        panel.orderOut(nil)
+        // isPinned 在 dismiss 里已重置为 false；恢复可 makeKey 供下次 show 使用
+        keyable.refuseKey = isPinned
     }
 
     func dismissAndPaste(_ item: ClipItem, clipboardManager: ClipboardManager, addNewLine: Bool = false) {
@@ -365,19 +289,16 @@ final class QuickPanelWindowController {
 
         // 延迟 orderOut 机制下 dismiss 返回时面板可能仍持有 key，立刻发合成 ⌘V 会落空
         // （1.7.12-beta.1 回归：升级后粘贴无效）。排到关闭落地后执行；置顶（未 dismiss）时立即执行。
-        performAfterDismissSettled {
-            if let app = appToRestore {
-                app.activate()
-                clipboardManager.simulatePaste(forceNewLine: addNewLine)
-            }
+        // ⌘V 用 postToPid 直投目标进程（见 simulatePaste），不依赖窗口服务器的键盘路由，
+        // dismiss 一返回立即粘贴——零附加延迟。
+        if let app = appToRestore {
+            app.activate()
+            clipboardManager.simulatePaste(forceNewLine: addNewLine, targetApp: app)
         }
     }
 
     var isVisible: Bool {
-        // 延迟 orderOut 等待期内面板在窗口服务器上仍是 visible，但对用户已消失；
-        // 报 false 让开关热键在这个窗口期内按下时走"重新打开"而不是"再关一次"。
-        guard let panel, panel.isVisible else { return false }
-        return !isDismissPending
+        panel?.isVisible ?? false
     }
 
     // MARK: - Panel Construction
