@@ -59,11 +59,12 @@ enum QuickPanelGlassStyle: String, CaseIterable {
     case translucent
     case opaque
 
-    /// NSGlassEffectView.tintColor 的透明度：半透明压到 0.5 保证列表可读，
-    /// 不透明拉满(1.0)。
+    /// NSGlassEffectView.tintColor 的透明度：半透明 0.65——0.5 在「面板外观与
+    /// 背后内容明暗错配」时（浅色外观叠深色终端，或反过来）会被背景带偏成灰雾，
+    /// 0.65 让面板守住自身底色、玻璃高光仍在；不透明拉满(1.0)。
     var tintAlpha: CGFloat {
         switch self {
-        case .translucent: 0.5
+        case .translucent: 0.65
         case .opaque: 1.0
         }
     }
