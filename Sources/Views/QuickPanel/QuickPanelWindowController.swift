@@ -248,7 +248,12 @@ final class QuickPanelWindowController {
         NotificationCenter.default.post(name: .quickPanelWillDismiss, object: nil)
         panel.contentView?.layoutSubtreeIfNeeded()
         panel.displayIfNeeded()
-        orderOutAvoidingKeyProposal(panel)
+        // 焦点交还只发生在用户主动关闭（Esc/热键，force=true）。点击外部时
+        // （force=false）系统正在激活用户点的 App，我们再 activate(previousApp)
+        // 会跟它抢前台——两个激活来回切就是「面板消失时闪来闪去」，且竞态赢了
+        // 还会把焦点从用户点的 App 拉回旧 App。粘贴路径不依赖这里：
+        // dismissAndPaste 自己 activate 目标 App。
+        orderOutAvoidingKeyProposal(panel, restoreFocus: force)
         HotkeyManager.shared.isQuickPanelVisible = false
     }
 
@@ -257,15 +262,18 @@ final class QuickPanelWindowController {
     /// 等待回复；对非激活 App 的 nonactivating 面板，提议得不到应答，主线程干等约 0.4s
     /// 超时——Esc 关闭面板肉眼可见地卡住。行为探测（探针实测）发现：先把面板置为
     /// `refuseKey`（canBecomeKey=false）再 orderOut，协调器不再发起提议，orderOut 即刻
-    /// 返回。附带把焦点显式交还目标 App（复用置顶模式的既有做法）。面板本就不是 key
-    /// 时（点击外部、失焦路径）直接 orderOut，无额外动作。
-    private func orderOutAvoidingKeyProposal(_ panel: NSPanel) {
+    /// 返回。`restoreFocus` 为 true（用户主动关闭）时顺带把焦点交还目标 App；点击
+    /// 外部触发的 dismiss 传 false——mouseDown 全局监视器早于系统完成「点击激活目标
+    /// App」，此刻面板往往仍是 key，这里再 activate(previousApp) 会跟系统抢前台。
+    private func orderOutAvoidingKeyProposal(_ panel: NSPanel, restoreFocus: Bool) {
         guard panel.isKeyWindow, let keyable = panel as? KeyablePanel else {
             panel.orderOut(nil)
             return
         }
         keyable.refuseKey = true
-        previousApp?.activate(options: [])
+        if restoreFocus {
+            previousApp?.activate(options: [])
+        }
         panel.orderOut(nil)
         // isPinned 在 dismiss 里已重置为 false；恢复可 makeKey 供下次 show 使用
         keyable.refuseKey = isPinned
