@@ -349,21 +349,35 @@ final class QuickPanelWindowController {
         titlebarCover.view = coverView
         panel.addTitlebarAccessoryViewController(titlebarCover)
 
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight))
-        container.wantsLayer = true
-        container.layer?.cornerRadius = 16
-        container.layer?.masksToBounds = true
-
-        let visualEffect = NSVisualEffectView(frame: container.bounds)
-        visualEffect.material = .headerView
-        visualEffect.blendingMode = .behindWindow
-        visualEffect.state = .active
-        visualEffect.autoresizingMask = [.width, .height]
-        container.addSubview(visualEffect)
-
         let hostingView = hosting.view
         hostingView.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(hostingView)
+
+        let container: NSView
+        if #available(macOS 26.0, *) {
+            let glass = NSGlassEffectView(frame: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight))
+            glass.cornerRadius = 16
+            // Damp the glass transparency: a large content-dense surface needs the
+            // backdrop pushed toward the window background or list text becomes
+            // unreadable over busy wallpapers/windows.
+            glass.tintColor = NSColor.windowBackgroundColor.withAlphaComponent(0.5)
+            glass.contentView = hostingView
+            container = glass
+        } else {
+            let legacy = NSView(frame: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight))
+            legacy.wantsLayer = true
+            legacy.layer?.cornerRadius = 16
+            legacy.layer?.masksToBounds = true
+
+            let visualEffect = NSVisualEffectView(frame: legacy.bounds)
+            visualEffect.material = .headerView
+            visualEffect.blendingMode = .behindWindow
+            visualEffect.state = .active
+            visualEffect.autoresizingMask = [.width, .height]
+            legacy.addSubview(visualEffect)
+
+            legacy.addSubview(hostingView)
+            container = legacy
+        }
         NSLayoutConstraint.activate([
             hostingView.topAnchor.constraint(equalTo: container.topAnchor),
             hostingView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
