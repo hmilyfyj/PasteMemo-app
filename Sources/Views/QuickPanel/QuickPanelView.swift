@@ -94,6 +94,10 @@ struct QuickPanelView: View {
     /// 打开后一拍才到达并把列表重排——用户还没动过时选中应跟随新的第一条，
     /// 否则预览停留在旧首条、与列表顶部不一致（1.7.12-beta 用户实测反馈）。
     @State private var userInteractedSinceShow = false
+    /// 瀑布流网格的两级焦点：false = 焦点在分类标签（←→ 切分类，↓ 进入网格）；
+    /// true = 焦点在图片（←→↑↓ 四向移动，顶行按 ↑ 退回标签级）。
+    /// 没有这层状态时，→ 移到「图片」分类的瞬间方向键就被网格吞掉，分类切换"卡死"。
+    @State private var isGridFocused = false
     @State private var cachedGroupedItems: [GroupedItem<ClipItem>] = []
     @State private var cachedHistoryRows: [ClipHistoryListBuilder.Row] = []
     @State private var cachedHistoryRowIndexByID: [PersistentIdentifier: Int] = [:]
@@ -213,6 +217,8 @@ struct QuickPanelView: View {
 
     private func handleItemClick(_ id: PersistentIdentifier) {
         userInteractedSinceShow = true
+        // 鼠标点选图片 = 直接进入网格焦点级，后续方向键在图片间移动
+        if isImageGridActive { isGridFocused = true }
         let now = Date()
         let isDoubleClick = lastClickedID == id && now.timeIntervalSince(lastClickTime) < 0.3
 
@@ -274,7 +280,8 @@ struct QuickPanelView: View {
         ZStack(alignment: .top) {
         VStack(spacing: 0) {
             searchBar
-            tabBar
+            // 标签条排除背景拖拽：否则点分类标签时窗口跟着微拖「晃动」
+            NonDraggableArea { tabBar }
             Divider().opacity(0.3)
             if filteredItems.isEmpty {
                 emptyStateView
@@ -367,6 +374,7 @@ struct QuickPanelView: View {
             suggestionsArmed = false
             userTypedSlash = false
             userInteractedSinceShow = false
+            isGridFocused = false
             // 延后一小会儿再放开建议浮层，给 SwiftUI 一次 tick 把状态提交到渲染树，
             // 避免刚 orderFrontRegardless 时显示上一次的 `/` 建议面板。
             // 代价：打开 80ms 内如果立即输入 `/`，这一帧的建议不会渲染，
@@ -425,6 +433,8 @@ struct QuickPanelView: View {
         .onChange(of: selectedFilter) {
             // 始终记录最近一次主筛选；恢复与否由 rememberLastFilter 在显示时决定。
             lastFilterStorage = selectedFilter.storageString
+            // 切分类回到标签级焦点：←→ 继续切分类，↓ 才进入网格
+            isGridFocused = false
             applyFiltersToStore()
         }
         .onChange(of: pill) { applyFiltersToStore() }
@@ -971,7 +981,8 @@ struct QuickPanelView: View {
             columnCount: imageGridColumnCount,
             columnWidth: imageGridColumnWidth,
             selectedItemIDs: selectedItemIDs,
-            focusedItemID: lastNavigatedID ?? selectedItemIDs.first,
+            // 标签级焦点时隐藏图片焦点环（此时方向键切分类，不该看起来像在选图）
+            focusedItemID: isGridFocused ? (lastNavigatedID ?? selectedItemIDs.first) : nil,
             showCommandPalette: showCommandPalette,
             onTap: { id in handleItemClick(id) },
             onCommandPaletteDismiss: {
@@ -1359,11 +1370,13 @@ struct QuickPanelView: View {
 
     /// 瀑布流网格的四向键盘移动。用与渲染相同的 `imageGridColumnCount` 建布局，
     /// 取目标方向上视觉最近的格子，更新焦点 + 单选（粘贴/复制照旧读 selectedItemIDs）。
-    private func moveGrid(_ direction: MasonryLayout.Direction) {
+    /// - Returns: 是否真的移动了（边缘无相邻格时返回 false；↑ 用它判断"到顶了，该退回标签级"）。
+    @discardableResult
+    private func moveGrid(_ direction: MasonryLayout.Direction) -> Bool {
         let items = displayOrderItems
-        guard !items.isEmpty else { return }
+        guard !items.isEmpty else { return false }
         let cursorID = lastNavigatedID ?? selectedItemIDs.first ?? items.first?.persistentModelID
-        guard let cursorID else { return }
+        guard let cursorID else { return false }
         // 必须与渲染用同一对 (列数, 列宽)：列分配受常量间距影响，列宽不同会算出不同布局。
         let layout = MasonryLayout(
             items: items,
@@ -1371,10 +1384,11 @@ struct QuickPanelView: View {
             columnWidth: imageGridColumnWidth,
             spacing: Self.imageGridSpacing
         )
-        guard let targetID = layout.neighbor(of: cursorID, direction) else { return }
+        guard let targetID = layout.neighbor(of: cursorID, direction) else { return false }
         lastNavigatedID = targetID
         selectedItemIDs = [targetID]
         selectionAnchor = nil
+        return true
     }
 
     /// 网格里用 space 切换某项的多选（加入/移出），焦点不变。
@@ -1470,16 +1484,33 @@ struct QuickPanelView: View {
                 return nil
             }
 
-            // 图片瀑布流模式：↑↓←→ 全部用来在图片间四向移动光标，space 切多选。
+            // 图片瀑布流模式的两级焦点：
+            // 标签级（默认）——←→ 继续切分类、↓ 进入网格；
+            // 图片级——←→↑↓ 四向移动、space 切多选、顶行 ↑ 退回标签级。
             // 切换类型（Tab=48）、粘贴（Enter=36）、Cmd+C/删除/数字 等仍落到下面共享 switch。
             if isImageGridActive {
-                switch Int(event.keyCode) {
-                case 126: moveGrid(.up); return nil
-                case 125: moveGrid(.down); return nil
-                case 123: moveGrid(.left); return nil
-                case 124: moveGrid(.right); return nil
-                case 49: toggleFocusedInSelection(); return nil // Space
-                default: break
+                if isGridFocused {
+                    switch Int(event.keyCode) {
+                    case 126: // ↑ 顶行时退出网格，焦点回到「图片」标签
+                        if !moveGrid(.up) { isGridFocused = false }
+                        return nil
+                    case 125: moveGrid(.down); return nil
+                    case 123: moveGrid(.left); return nil
+                    case 124: moveGrid(.right); return nil
+                    case 49: toggleFocusedInSelection(); return nil // Space
+                    default: break
+                    }
+                } else {
+                    switch Int(event.keyCode) {
+                    case 125: // ↓ 进入网格：第一张图获取焦点
+                        if let first = displayOrderItems.first?.persistentModelID {
+                            isGridFocused = true
+                            selectItem(first)
+                        }
+                        return nil
+                    case 126: return nil // 标签级 ↑ 无操作（不落到列表 moveSelection）
+                    default: break // ←→ 落到共享 switch 继续切分类
+                    }
                 }
             }
 
@@ -1503,7 +1534,11 @@ struct QuickPanelView: View {
             case 40: // Cmd+K
                 if hasCmd {
                     showCommandPalette.toggle()
-                    if showCommandPalette { isSearchFocused = false }
+                    if showCommandPalette {
+                        isSearchFocused = false
+                        // 网格模式下命令面板锚在焦点格上，标签级时先落焦到当前选中图
+                        if isImageGridActive { isGridFocused = true }
+                    }
                     return nil
                 }
                 return event
