@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F97316"/>
+      <stop offset="100%" stop-color="#EA580C"/>
+    </linearGradient>
+    <linearGradient id="front" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFF7ED"/>
+      <stop offset="100%" stop-color="#FFEDD5"/>
+    </linearGradient>
+  </defs>
+  <!-- 旧图 824 版面 → 1024 全出血：绕中心放大 1.243，投影交给 Liquid Glass -->
+  <g transform="translate(512,512) scale(1.243) translate(-512,-512)">
+    <rect x="300" y="290" width="380" height="480" rx="24" fill="url(#front)"/>
+    <g fill="url(#accent)">
+      <rect x="380" y="370" width="70" height="320" rx="8"/>
+      <path d="M 415 370
+               H 520
+               C 620 370, 620 530, 520 530
+               H 450
+               V 460
+               H 500
+               C 540 460, 540 440, 500 440
+               H 450
+               V 370
+               Z"/>
+    </g>
+    <rect x="600" y="640" width="60" height="8" rx="4" fill="#FDBA74"/>
+    <rect x="600" y="660" width="40" height="8" rx="4" fill="#FED7AA"/>
+  </g>
+</svg>

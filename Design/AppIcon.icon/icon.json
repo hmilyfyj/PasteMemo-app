@@ -1,0 +1,47 @@
+{
+  "fill" : {
+    "automatic-gradient" : "srgb:1.00000,1.00000,1.00000,1.00000"
+  },
+  "groups" : [
+    {
+      "name" : "front-paper",
+      "layers" : [
+        {
+          "image-name" : "paper-front.svg",
+          "name" : "paper-front"
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.4
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.25
+      }
+    },
+    {
+      "name" : "back-papers",
+      "layers" : [
+        {
+          "image-name" : "papers-back.svg",
+          "name" : "papers-back"
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.4
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.25
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}
