@@ -145,6 +145,21 @@ enum CommandAction: Hashable {
     }
 }
 
+/// macOS 26 上把 popover 的系统默认背景换成更通透的玻璃材质（与快捷面板本体的
+/// Liquid Glass 呼应）；presentationBackground 的替换内容由 NSPopover 按自身外形
+/// （含指向箭头）裁剪，不会破坏气泡形状。旧系统保持系统默认材质。
+/// 注：完整 glassEffect 需要自定义形状、盖不住系统画的指向箭头，popover 形态下
+/// ultraThinMaterial 是能做到的最大通透度。
+private struct PaletteGlassBackground: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content.presentationBackground(.ultraThinMaterial)
+        } else {
+            content
+        }
+    }
+}
+
 // MARK: - Command Palette Content (popover body)
 
 struct CommandPaletteContent: View {
@@ -279,6 +294,7 @@ struct CommandPaletteContent: View {
         }
         .padding(5)
         .frame(width: 200)
+        .modifier(PaletteGlassBackground())
         .onAppear {
             installKeyMonitor()
             installFlagsMonitor()
