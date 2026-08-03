@@ -32,15 +32,31 @@ struct PasteMemoApp: App {
         ud.set(true, forKey: migrationKey)
     }
 
+    /// Settings scene 的兜底内容:被意外呈现时立即关掉自己并转到 AppKit 设置窗口。
+    private struct SettingsSceneRedirect: View {
+        @Environment(\.dismiss) private var dismiss
+
+        var body: some View {
+            Color.clear
+                .frame(width: 1, height: 1)
+                .onAppear {
+                    dismiss()
+                    showSettingsWindowAppKit()
+                }
+        }
+    }
+
     var body: some Scene {
         // 主管理器 / 自动化管理器不再用 SwiftUI `Window` scene:登录自启时 App 在
         // 后台启动,SwiftUI 不创建任何窗口,依赖视图 onAppear 注册的开窗闭包永远
         // 不会注册,状态栏「管理器/设置」点了没反应(issue #66)。两个窗口改走
         // AppKit WindowManager(见 WindowHelper.swift),闭包在 AppDelegate 启动时注册。
+        // Settings scene 正常不可达(Cmd+, 已指到 AppKit 窗口,showSettingsWindow:
+        // 自 Sonoma 起不再创建此窗口)。真实设置 UI 已是 NavigationSplitView,放进
+        // Settings scene 会触发尺寸爆炸——万一未来某处加了 SettingsLink 把 scene
+        // 呈现出来,这里只重定向到 AppKit 设置窗口,不承载真实 UI。
         Settings {
-            SettingsView()
-                .environmentObject(ClipboardManager.shared)
-                .modelContainer(Self.sharedModelContainer)
+            SettingsSceneRedirect()
         }
         .commands {
             // 「设置…」(Cmd+,)指到 AppKit 设置窗口 —— Settings scene 的
