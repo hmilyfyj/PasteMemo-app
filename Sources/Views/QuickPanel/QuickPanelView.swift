@@ -980,8 +980,9 @@ struct QuickPanelView: View {
             items: displayOrderItems,
             columnCount: imageGridColumnCount,
             columnWidth: imageGridColumnWidth,
-            selectedItemIDs: selectedItemIDs,
-            // 标签级焦点时隐藏图片焦点环（此时方向键切分类，不该看起来像在选图）
+            // 标签级焦点时隐藏选中/焦点描边（此时方向键切分类，不该看起来像在选图）；
+            // 选中状态本身保留——回车仍能直接粘贴当前选中项。
+            selectedItemIDs: isGridFocused ? selectedItemIDs : [],
             focusedItemID: isGridFocused ? (lastNavigatedID ?? selectedItemIDs.first) : nil,
             showCommandPalette: showCommandPalette,
             onTap: { id in handleItemClick(id) },
