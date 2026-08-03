@@ -1944,14 +1944,18 @@ struct QuickPanelView: View {
         QuickPanelWindowController.shared.dismiss()
 
         guard let app = appToRestore else { return }
-        app.activate()
-        Task { @MainActor in
-            for _ in 0..<20 {
+        // 先等面板关闭落地（key 已交还），再走原有的前台确认等待——否则合成键会打在
+        // 仍持有 key 的隐身面板上（1.7.12-beta.1 回归）
+        QuickPanelWindowController.shared.performAfterDismissSettled {
+            app.activate()
+            Task { @MainActor in
+                for _ in 0..<20 {
+                    try? await Task.sleep(for: .milliseconds(50))
+                    if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier { break }
+                }
                 try? await Task.sleep(for: .milliseconds(50))
-                if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier { break }
+                action(app)
             }
-            try? await Task.sleep(for: .milliseconds(50))
-            action(app)
         }
     }
 
@@ -2320,14 +2324,16 @@ struct QuickPanelView: View {
         QuickPanelWindowController.shared.dismiss()
 
         if let app = appToRestore {
-            app.activate()
-            Task { @MainActor in
-                for _ in 0..<20 {
+            QuickPanelWindowController.shared.performAfterDismissSettled {
+                app.activate()
+                Task { @MainActor in
+                    for _ in 0..<20 {
+                        try? await Task.sleep(for: .milliseconds(50))
+                        if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier { break }
+                    }
                     try? await Task.sleep(for: .milliseconds(50))
-                    if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier { break }
+                    clipboardManager.pasteAsPlainText(item)
                 }
-                try? await Task.sleep(for: .milliseconds(50))
-                clipboardManager.pasteAsPlainText(item)
             }
         }
     }
@@ -2348,8 +2354,10 @@ struct QuickPanelView: View {
             SoundManager.playPaste()
             QuickPanelWindowController.shared.dismiss()
             if let app = appToRestore {
-                app.activate()
-                clipboardManager.simulatePaste()
+                QuickPanelWindowController.shared.performAfterDismissSettled {
+                    app.activate()
+                    clipboardManager.simulatePaste()
+                }
             } else {
                 ToastCenter.shared.show(ToastDescriptor(message: L10n.tr("action.copied"), icon: .success))
             }
@@ -2369,7 +2377,9 @@ struct QuickPanelView: View {
                 ToastCenter.shared.show(ToastDescriptor(message: L10n.tr("action.copied"), icon: .success))
                 return
             }
-            clipboardManager.pasteAsPlainText(text)
+            QuickPanelWindowController.shared.performAfterDismissSettled {
+                clipboardManager.pasteAsPlainText(text)
+            }
         }
     }
 
@@ -2487,14 +2497,16 @@ struct QuickPanelView: View {
         QuickPanelWindowController.shared.dismiss()
 
         if let app = appToRestore {
-            app.activate()
-            Task { @MainActor in
-                for _ in 0..<20 {
+            QuickPanelWindowController.shared.performAfterDismissSettled {
+                app.activate()
+                Task { @MainActor in
+                    for _ in 0..<20 {
+                        try? await Task.sleep(for: .milliseconds(50))
+                        if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier { break }
+                    }
                     try? await Task.sleep(for: .milliseconds(50))
-                    if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier { break }
+                    clipboardManager.simulatePaste()
                 }
-                try? await Task.sleep(for: .milliseconds(50))
-                clipboardManager.simulatePaste()
             }
         }
     }
@@ -2512,14 +2524,16 @@ struct QuickPanelView: View {
         QuickPanelWindowController.shared.dismiss()
 
         if let app = appToRestore {
-            app.activate()
-            Task { @MainActor in
-                for _ in 0..<20 {
+            QuickPanelWindowController.shared.performAfterDismissSettled {
+                app.activate()
+                Task { @MainActor in
+                    for _ in 0..<20 {
+                        try? await Task.sleep(for: .milliseconds(50))
+                        if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier { break }
+                    }
                     try? await Task.sleep(for: .milliseconds(50))
-                    if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier { break }
+                    clipboardManager.simulatePaste()
                 }
-                try? await Task.sleep(for: .milliseconds(50))
-                clipboardManager.simulatePaste()
             }
         }
     }
@@ -2558,8 +2572,10 @@ struct QuickPanelView: View {
             ClipItemStore.saveAndNotifyLastUsed(ctx)
         }
         SoundManager.playPaste()
-        targetApp?.activate()
-        clipboardManager.simulatePaste()
+        panelController.performAfterDismissSettled {
+            targetApp?.activate()
+            clipboardManager.simulatePaste()
+        }
 
         let modelCtx = modelContext
         Task { @MainActor in

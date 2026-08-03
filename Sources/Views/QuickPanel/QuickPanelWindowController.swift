@@ -105,6 +105,28 @@ final class QuickPanelWindowController {
         pendingOrderOut != nil || pendingOrderOutResignObserver != nil
     }
 
+    /// 关闭落地（面板 resign key、orderOut 完成）后才能执行的动作队列。
+    /// 发合成 ⌘V 的粘贴路径都必须经此排队：延迟 orderOut 机制下 dismiss 返回时
+    /// key 转移还在飞，立刻发键会打在仍持有 key 的面板上而丢失。
+    private var dismissSettledActions: [@MainActor () -> Void] = []
+
+    /// dismiss 后需要「目标 App 已拿回键盘焦点」的动作（发合成 ⌘V / 回车等）从这里走：
+    /// 关闭还在延迟收尾期就排队，收尾完成后统一执行；否则立即执行。
+    func performAfterDismissSettled(_ action: @escaping @MainActor () -> Void) {
+        if isDismissPending {
+            dismissSettledActions.append(action)
+        } else {
+            action()
+        }
+    }
+
+    private func flushDismissSettledActions() {
+        guard !dismissSettledActions.isEmpty else { return }
+        let actions = dismissSettledActions
+        dismissSettledActions = []
+        for action in actions { action() }
+    }
+
     private var panelWidth: CGFloat {
         let saved = UserDefaults.standard.double(forKey: "\(SIZE_KEY).width")
         return saved > 0 ? max(saved, MIN_WIDTH) : DEFAULT_WIDTH
@@ -167,6 +189,8 @@ final class QuickPanelWindowController {
                 // 上次关闭的延迟 orderOut 还没落地（面板仅仅是 alpha=0 隐身），
                 // 对用户而言它已经关了：取消收尾、复用在屏面板直接重新展示。
                 cancelPendingOrderOut()
+                // 排队中的粘贴动作丢弃：面板即将重新成为 key，此刻发 ⌘V 会打进面板自己
+                dismissSettledActions = []
                 (existing as? KeyablePanel)?.refuseKey = false
                 existing.ignoresMouseEvents = false
             } else {
@@ -299,6 +323,8 @@ final class QuickPanelWindowController {
             panel.orderOut(nil)
             panel.ignoresMouseEvents = false
             keyable?.refuseKey = QuickPanelWindowController.shared.isPinned
+            // 目标 App 已拿回 key，此刻发合成键才有归宿
+            shared.flushDismissSettledActions()
         }
         pendingOrderOutResignObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didResignKeyNotification,
@@ -337,9 +363,13 @@ final class QuickPanelWindowController {
             previousApp = nil
         }
 
-        if let app = appToRestore {
-            app.activate()
-            clipboardManager.simulatePaste(forceNewLine: addNewLine)
+        // 延迟 orderOut 机制下 dismiss 返回时面板可能仍持有 key，立刻发合成 ⌘V 会落空
+        // （1.7.12-beta.1 回归：升级后粘贴无效）。排到关闭落地后执行；置顶（未 dismiss）时立即执行。
+        performAfterDismissSettled {
+            if let app = appToRestore {
+                app.activate()
+                clipboardManager.simulatePaste(forceNewLine: addNewLine)
+            }
         }
     }
 
