@@ -7,7 +7,10 @@ struct SettingsView: View {
     @State private var selection: SettingsCategory? = .general
 
     var body: some View {
-        HStack(spacing: 0) {
+        // NavigationSplitView 让侧边栏拿到系统原生质感(macOS 26 上即悬浮
+        // Liquid Glass)。窗口不再随内容自适应高度,改为固定尺寸+面板内滚动
+        // (Form(.grouped) 自带滚动),与系统设置一致。
+        NavigationSplitView {
             List(selection: $selection) {
                 Section {
                     ForEach(SettingsCategory.functionGroup.filter(isVisible)) { sidebarRow($0) }
@@ -19,23 +22,11 @@ struct SettingsView: View {
                     ForEach(SettingsCategory.aboutGroup) { sidebarRow($0) }
                 }
             }
-            .listStyle(.sidebar)
-            .scrollContentBackground(.hidden)
-            .scrollDisabled(true)
-            .frame(width: 184)
-            .background(SidebarMaterial().ignoresSafeArea())
-
-            Divider()
-
-            // scrollDisabled：让面板内容把窗口撑高，而不是出现滚动条
-            //（沿用旧版 TabView 的"内容自适应、永不滚动"语义）。
+            .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 230)
+        } detail: {
             detailView(for: selection ?? .general)
-                .scrollDisabled(true)
-                .frame(width: 536, alignment: .top)
         }
-        // 高度跟随当前面板内容；下限保证侧边栏所有条目完整可见、无需滚动。
-        .frame(minHeight: 470)
-        .fixedSize(horizontal: false, vertical: true)
+        .frame(minWidth: 700, minHeight: 460)
         .localized()
     }
 
@@ -54,9 +45,8 @@ struct SettingsView: View {
         switch category {
         case .general: GeneralPane()
         case .appearance: AppearancePane()
-        case .preferences: PreferencesPane()
+        case .quickPanel: QuickPanelPane()
         case .preview: PreviewPane()
-        case .ocr: OCRPane()
         case .shortcuts: ShortcutsTab()
         case .relay: RelayTab()
         case .privacy: PrivacyTab()
@@ -72,15 +62,15 @@ struct SettingsView: View {
 // MARK: - Settings Category
 
 enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
-    case general, appearance, preferences, preview, ocr
+    case general, appearance, quickPanel, preview
     case shortcuts, relay, privacy, aiAgents, automation, data
     case sponsor, about
 
     var id: String { rawValue }
 
-    /// 功能设置：基础(通用/外观) → 快捷面板(快捷键/偏好/链接预览/OCR) → 进阶(接力/AI/自动化)。
+    /// 功能设置：基础(通用/外观) → 快捷面板(快捷键/面板/预览与识别) → 进阶(接力/AI/自动化)。
     static let functionGroup: [SettingsCategory] =
-        [.general, .appearance, .shortcuts, .preferences, .preview, .ocr,
+        [.general, .appearance, .shortcuts, .quickPanel, .preview,
          .relay, .aiAgents, .automation]
 
     /// 数据与隐私。
@@ -93,9 +83,8 @@ enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .general: return "settings.general"
         case .appearance: return "settings.appearance"
-        case .preferences: return "settings.preferences"
-        case .preview: return "settings.linkPreview"
-        case .ocr: return "settings.ocr"
+        case .quickPanel: return "settings.quickPanel"
+        case .preview: return "settings.previewRecognition"
         case .shortcuts: return "settings.shortcuts"
         case .relay: return "relay.tab"
         case .privacy: return "settings.privacy"
@@ -111,9 +100,8 @@ enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .general: return "gear"
         case .appearance: return "paintbrush"
-        case .preferences: return "slider.horizontal.3"
-        case .preview: return "eye"
-        case .ocr: return "text.viewfinder"
+        case .quickPanel: return "list.bullet.rectangle"
+        case .preview: return "text.viewfinder"
         case .shortcuts: return "keyboard"
         case .relay: return "arrow.forward"
         case .privacy: return "lock.shield"
@@ -126,22 +114,6 @@ enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
     }
 }
 
-// MARK: - Sidebar Material
-
-/// 系统设置侧边栏的半透明材质背景（macOS 26 上即 Liquid Glass 质感）。
-/// 手搓的 List 侧边栏拿不到这层质感，需要显式垫一个 NSVisualEffectView。
-private struct SidebarMaterial: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = .sidebar
-        view.blendingMode = .behindWindow
-        view.state = .active
-        return view
-    }
-
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
-}
-
 // MARK: - General Pane
 
 struct GeneralPane: View {
@@ -151,10 +123,14 @@ struct GeneralPane: View {
     @AppStorage("soundEnabled") private var soundEnabled = true
     @AppStorage("copySoundName") private var copySoundName = "custom:sound2"
     @AppStorage("pasteSoundName") private var pasteSoundName = "custom:sound1"
+    @AppStorage("clipboardMonitoringEnabled") private var clipboardMonitoringEnabled = true
+    @ObservedObject private var languageManager = LanguageManager.shared
+    @State private var previousLanguage = LanguageManager.shared.current
 
     var body: some View {
         Form {
             Section(L10n.tr("settings.general")) {
+                Toggle(L10n.tr("settings.clipboardMonitoring"), isOn: $clipboardMonitoringEnabled)
                 Toggle(L10n.tr("settings.launchAtLogin"), isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) {
                         if launchAtLogin {
@@ -190,6 +166,16 @@ struct GeneralPane: View {
                 Text(L10n.tr("settings.hideDockIcon.hint"))
                     .font(.callout)
                     .foregroundStyle(.tertiary)
+                Picker(L10n.tr("settings.language"), selection: $languageManager.current) {
+                    ForEach(L10n.supportedLanguages, id: \.code) { lang in
+                        Text(lang.name).tag(lang.code)
+                    }
+                }
+                .onChange(of: languageManager.current) {
+                    guard languageManager.current != previousLanguage else { return }
+                    previousLanguage = languageManager.current
+                    showLanguageRestartAlert()
+                }
             }
 
             Section(L10n.tr("settings.sound")) {
@@ -241,6 +227,27 @@ struct GeneralPane: View {
             SoundManager.preview(.from(storageKey: selection.wrappedValue))
         }
     }
+
+    private func showLanguageRestartAlert() {
+        let alert = NSAlert()
+        alert.messageText = L10n.tr("settings.language.restart_title")
+        alert.informativeText = L10n.tr("settings.language.restart_message")
+        alert.addButton(withTitle: L10n.tr("settings.language.restart_now"))
+        alert.addButton(withTitle: L10n.tr("settings.language.restart_later"))
+        if alert.runModal() == .alertFirstButtonReturn {
+            relaunchApp()
+        }
+    }
+
+    private func relaunchApp() {
+        let path = Bundle.main.bundleURL.path
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/sh")
+        task.arguments = ["-c", "sleep 1 && open \"\(path)\""]
+        task.launch()
+        AppDelegate.shouldReallyQuit = true
+        NSApp.terminate(nil)
+    }
 }
 
 // MARK: - Appearance Pane
@@ -249,8 +256,7 @@ struct AppearancePane: View {
     @AppStorage("appearanceMode") private var appearanceMode = "system"
     @AppStorage("menuBarIconStyle") private var menuBarIconStyle = "outline"
     @AppStorage(MenuBarLeftClickAction.storageKey) private var menuBarLeftClickActionRaw = MenuBarLeftClickAction.menu.rawValue
-    @ObservedObject private var languageManager = LanguageManager.shared
-    @State private var previousLanguage = LanguageManager.shared.current
+    @AppStorage(QuickPanelSettings.glassStyleKey) private var quickPanelGlassStyle = QuickPanelGlassStyle.translucent.rawValue
 
     var body: some View {
         Form {
@@ -290,40 +296,17 @@ struct AppearancePane: View {
                 }
                 .help(L10n.tr("settings.menuBar.leftClickAction.help"))
 
-                Picker(L10n.tr("settings.language"), selection: $languageManager.current) {
-                    ForEach(L10n.supportedLanguages, id: \.code) { lang in
-                        Text(lang.name).tag(lang.code)
+                // 快捷面板玻璃背景仅 macOS 26+ 存在(旧系统走 NSVisualEffectView 路径)。
+                if #available(macOS 26.0, *) {
+                    Picker(L10n.tr("settings.quickPanelGlass"), selection: $quickPanelGlassStyle) {
+                        ForEach(QuickPanelGlassStyle.allCases, id: \.rawValue) { style in
+                            Text(L10n.tr(style.titleKey)).tag(style.rawValue)
+                        }
                     }
-                }
-                .onChange(of: languageManager.current) {
-                    guard languageManager.current != previousLanguage else { return }
-                    previousLanguage = languageManager.current
-                    showLanguageRestartAlert()
                 }
             }
         }
         .formStyle(.grouped)
-    }
-
-    private func showLanguageRestartAlert() {
-        let alert = NSAlert()
-        alert.messageText = L10n.tr("settings.language.restart_title")
-        alert.informativeText = L10n.tr("settings.language.restart_message")
-        alert.addButton(withTitle: L10n.tr("settings.language.restart_now"))
-        alert.addButton(withTitle: L10n.tr("settings.language.restart_later"))
-        if alert.runModal() == .alertFirstButtonReturn {
-            relaunchApp()
-        }
-    }
-
-    private func relaunchApp() {
-        let path = Bundle.main.bundleURL.path
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/bin/sh")
-        task.arguments = ["-c", "sleep 1 && open \"\(path)\""]
-        task.launch()
-        AppDelegate.shouldReallyQuit = true
-        NSApp.terminate(nil)
     }
 }
 
@@ -472,12 +455,11 @@ struct ShortcutsTab: View {
     }
 }
 
-// MARK: - Preferences Pane
+// MARK: - Quick Panel Pane
 
-struct PreferencesPane: View {
+struct QuickPanelPane: View {
     @AppStorage("quickPanelAutoPaste") private var quickPanelAutoPaste = true
     @AppStorage("addNewLineAfterPaste") private var addNewLineAfterPaste = false
-    @AppStorage("clipboardMonitoringEnabled") private var clipboardMonitoringEnabled = true
     @AppStorage(QuickPanelSettings.launchAnimationEnabledKey) private var quickPanelLaunchAnimationEnabled = true
     @AppStorage(QuickPanelSettings.secondaryRowKey) private var quickPanelSecondaryRow = QuickPanelSecondaryRow.types.rawValue
     @AppStorage(QuickPanelSettings.rememberLastFilterKey) private var quickPanelRememberLastFilter = false
@@ -576,7 +558,6 @@ struct PreferencesPane: View {
             }
 
             Section(L10n.tr("settings.behavior")) {
-                Toggle(L10n.tr("settings.clipboardMonitoring"), isOn: $clipboardMonitoringEnabled)
                 Toggle(L10n.tr("settings.autoPaste"), isOn: $quickPanelAutoPaste)
                 Toggle(L10n.tr("settings.addNewLine"), isOn: $addNewLineAfterPaste)
                 Toggle(L10n.tr("settings.quickPanelLaunchAnimation"), isOn: $quickPanelLaunchAnimationEnabled)
@@ -678,14 +659,7 @@ struct PreviewPane: View {
                     .foregroundStyle(.secondary)
             }
             .disabled(offlineModeEnabled)
-        }
-        .formStyle(.grouped)
-    }
-}
 
-struct OCRPane: View {
-    var body: some View {
-        Form {
             OCRSettingsSection()
         }
         .formStyle(.grouped)

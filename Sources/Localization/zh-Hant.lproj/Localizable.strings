@@ -147,6 +147,11 @@
 "settings.quickPanelSpecifiedScreen" = "指定顯示器";
 "settings.behavior" = "行為";
 "settings.preferences" = "偏好";
+"settings.quickPanel" = "快捷面板";
+"settings.previewRecognition" = "預覽與識別";
+"settings.quickPanelGlass" = "快捷面板背景";
+"settings.quickPanelGlass.translucent" = "液態玻璃（推薦）";
+"settings.quickPanelGlass.opaque" = "不透明";
 "settings.showLinkURL" = "連結顯示原始網址而非頁面標題";
 "settings.webPreview" = "網頁預覽";
 "settings.imageLinkPreview" = "圖片連結預覽";

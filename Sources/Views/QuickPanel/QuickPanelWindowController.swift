@@ -73,6 +73,8 @@ final class QuickPanelWindowController {
     /// 置顶期间跟踪前台 App 切换，让粘贴目标跟随当前 App
     private var pinnedActivationObserver: Any?
     private var resizeObserver: Any?
+    private weak var glassView: NSView?  // NSGlassEffectView（macOS 26+）；类型收窄在使用点做
+    private var glassStyleObserver: Any?
     private(set) var previousApp: NSRunningApplication?
     private var isWarmedUp = false
     var isPinned = false {
@@ -358,10 +360,25 @@ final class QuickPanelWindowController {
             glass.cornerRadius = 16
             // Damp the glass transparency: a large content-dense surface needs the
             // backdrop pushed toward the window background or list text becomes
-            // unreadable over busy wallpapers/windows.
-            glass.tintColor = NSColor.windowBackgroundColor.withAlphaComponent(0.5)
+            // unreadable over busy wallpapers/windows. Alpha follows the user's
+            // 外观 → 快捷面板背景 setting (translucent 0.5 / opaque 1.0).
+            glass.tintColor = NSColor.windowBackgroundColor
+                .withAlphaComponent(QuickPanelGlassStyle.current.tintAlpha)
             glass.contentView = hostingView
             container = glass
+            glassView = glass
+
+            // 设置变更即时生效（面板只 warmUp 一次，不重建）。
+            if let previous = glassStyleObserver {
+                NotificationCenter.default.removeObserver(previous)
+            }
+            glassStyleObserver = NotificationCenter.default.addObserver(
+                forName: UserDefaults.didChangeNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in self?.applyGlassStyle() }
+            }
         } else {
             let legacy = NSView(frame: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight))
             legacy.wantsLayer = true
@@ -408,6 +425,15 @@ final class QuickPanelWindowController {
         }
 
         return panel
+    }
+
+    /// 把「外观 → 快捷面板背景」设置应用到已存在的玻璃背景（半透明 / 不透明）。
+    private func applyGlassStyle() {
+        guard #available(macOS 26.0, *),
+              let glass = glassView as? NSGlassEffectView else { return }
+        let alpha = QuickPanelGlassStyle.current.tintAlpha
+        guard glass.tintColor?.alphaComponent != alpha else { return }
+        glass.tintColor = NSColor.windowBackgroundColor.withAlphaComponent(alpha)
     }
 
     private func positionPanel(_ panel: NSPanel) {

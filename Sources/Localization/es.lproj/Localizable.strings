@@ -176,6 +176,11 @@
 "settings.quickPanelSpecifiedScreen" = "Monitor específico";
 "settings.behavior" = "Comportamiento";
 "settings.preferences" = "Preferencias";
+"settings.quickPanel" = "Pegado rápido";
+"settings.previewRecognition" = "Vista previa y reconocimiento";
+"settings.quickPanelGlass" = "Fondo del pegado rápido";
+"settings.quickPanelGlass.translucent" = "Liquid Glass (recomendado)";
+"settings.quickPanelGlass.opaque" = "Opaco";
 "settings.showLinkURL" = "Mostrar URL en lugar del título para enlaces";
 "settings.webPreview" = "Vista previa web";
 "settings.imageLinkPreview" = "Vista previa de enlace de imagen";

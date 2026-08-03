@@ -32,10 +32,13 @@ func showSettingsWindowAppKit() {
     WindowManager.shared.show(
         id: "settings",
         title: L10n.tr("menu.settings"),
-        size: NSSize(width: 720, height: 470),
+        size: NSSize(width: 760, height: 520),
         floating: false,
-        styleMask: [.titled, .closable, .miniaturizable],
-        autoResizesToContent: true
+        styleMask: [.titled, .closable, .miniaturizable, .resizable],
+        frameAutosaveName: "SettingsWindow",
+        // NavigationSplitView 侧边栏通顶需要 fullSizeContentView(同主管理器/
+        // 自动化窗口),窗口不再随内容自适应高度,面板内容自行滚动。
+        bridgeToolbar: true
     ) {
         SettingsView()
             .environmentObject(ClipboardManager.shared)
