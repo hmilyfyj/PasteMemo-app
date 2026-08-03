@@ -1897,6 +1897,18 @@ struct QuickPanelView: View {
         }
     }
 
+    /// 粘贴类动作统一的「已使用」标记：bump `lastUsedAt` 让该条回到「全部」第一条，
+    /// 与回车粘贴（`dismissAndPaste`）行为一致。此前 ⌘↩ 粘贴路径 / 粘贴图片 / 纯文本 /
+    /// OCR / 存文件夹 都漏了这一步，用户粘完重开面板发现条目不在顶部。
+    /// 置顶连续快粘时不动（列表重排会打乱 ⌘1–9 编号），同 `dismissAndPaste`。
+    private func markItemUsed(_ item: ClipItem) {
+        guard !QuickPanelWindowController.shared.isPinned else { return }
+        item.lastUsedAt = Date()
+        if let context = item.modelContext {
+            ClipItemStore.saveAndNotifyLastUsed(context)
+        }
+    }
+
     /// Bump `lastUsedAt` for multiple items while preserving their current display order.
     /// `items` are expected to be in display order (top = most recently used); staggered
     /// sub-millisecond timestamps break the DESC sort tie so the top selection stays on top.
@@ -2330,6 +2342,7 @@ struct QuickPanelView: View {
 
     private func handlePlainTextPaste(_ item: ClipItem) {
         let appToRestore = QuickPanelWindowController.shared.previousApp
+        markItemUsed(item)
         QuickPanelWindowController.shared.dismiss()
 
         if let app = appToRestore {
@@ -2348,6 +2361,7 @@ struct QuickPanelView: View {
     /// concurrently, and paste.
     private func pasteOCRText(for item: ClipItem) {
         let appToRestore = QuickPanelWindowController.shared.previousApp
+        markItemUsed(item)
 
         if let cached = item.ocrText, !cached.isEmpty {
             writeStringToPasteboard(cached)
@@ -2396,6 +2410,7 @@ struct QuickPanelView: View {
         guard let savedURL = clipboardManager.saveTextToFolder(item.content, folder: folder, fileExtension: ext) else { return }
 
         let appToRestore = QuickPanelWindowController.shared.previousApp
+        markItemUsed(item)
         QuickPanelWindowController.shared.dismiss()
 
         if let app = appToRestore {
@@ -2419,6 +2434,7 @@ struct QuickPanelView: View {
         let linkTitle = item.linkTitle
         let cm = clipboardManager
         let appToRestore = QuickPanelWindowController.shared.previousApp
+        markItemUsed(item)
         QuickPanelWindowController.shared.dismiss()
 
         Task { @MainActor in
@@ -2490,6 +2506,7 @@ struct QuickPanelView: View {
         SoundManager.playPaste()
 
         let appToRestore = QuickPanelWindowController.shared.previousApp
+        markItemUsed(item)
         QuickPanelWindowController.shared.dismiss()
 
         if let app = appToRestore {
@@ -2508,6 +2525,7 @@ struct QuickPanelView: View {
         SoundManager.playPaste()
 
         let appToRestore = QuickPanelWindowController.shared.previousApp
+        markItemUsed(item)
         QuickPanelWindowController.shared.dismiss()
 
         if let app = appToRestore {
@@ -2623,6 +2641,7 @@ struct QuickPanelView: View {
         }
 
         let appToRestore = QuickPanelWindowController.shared.previousApp
+        markItemUsed(item)
         QuickPanelWindowController.shared.dismiss()
 
         if let app = appToRestore {
