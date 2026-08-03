@@ -277,13 +277,15 @@ final class ClipboardManager: ObservableObject {
             let paths = fileURLs.map(\.path)
             let content = paths.joined(separator: "\n")
             let fileType = detectFileType(paths)
-            // For single image files, generate a small thumbnail for UI preview only.
-            // Paste writes the original file URL — target apps read full resolution
-            // from disk, so storing the original bytes here would just bloat the DB
-            // (RAW exports / TIFFs can be GBs) and the next backup encode pass.
+            // For image files, generate a small thumbnail (of the first file) for UI
+            // preview only — multi-image copies need it too, otherwise the image-grid
+            // tile has nothing to render. Paste writes the original file URLs — target
+            // apps read full resolution from disk, so storing the original bytes here
+            // would just bloat the DB (RAW exports / TIFFs can be GBs) and the next
+            // backup encode pass.
             var imageData: Data?
-            if fileType == .image, paths.count == 1 {
-                imageData = Self.generateImageFileThumbnail(at: fileURLs[0])
+            if fileType == .image, let firstImage = fileURLs.first {
+                imageData = Self.generateImageFileThumbnail(at: firstImage)
             }
             return ClipItem(content: content, contentType: fileType, imageData: imageData, sourceApp: sourceApp)
         }

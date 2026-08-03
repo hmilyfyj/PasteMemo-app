@@ -183,6 +183,12 @@ private struct ImageGridCell<Menu: View, Palette: View>: View {
 
     @State private var isHovered = false
 
+    /// 文件型图片条目的文件数（"[Image]" 原始图片恒为 1）
+    private var fileCount: Int {
+        guard item.content != "[Image]" else { return 1 }
+        return item.content.components(separatedBy: "\n").filter { !$0.isEmpty }.count
+    }
+
     var body: some View {
         let aspect = ImageAspectCache.aspect(for: item)
         let height = width / aspect
@@ -195,7 +201,9 @@ private struct ImageGridCell<Menu: View, Palette: View>: View {
             // 正好覆盖 2x 屏；之前传 width×2 会再 ×2 = 4 倍过采样，单张位图浪费 4 倍内存。
             maxPixelSize: max(width, 160),
             cornerRadius: 0,
-            thumbnailSize: max(width, 160)
+            thumbnailSize: max(width, 160),
+            // 多图文件条目（imageData 为 nil 的老数据）从磁盘读第一张兜底，不再显示灰块
+            fallbackFileURL: item.imageData == nil ? item.sourceImageFileURL : nil
         )
         .frame(width: width, height: height)
         .clipped()
@@ -204,6 +212,19 @@ private struct ImageGridCell<Menu: View, Palette: View>: View {
         .allowsHitTesting(false)
         .overlay(alignment: .bottom) {
             if showName { nameOverlay.allowsHitTesting(false) }
+        }
+        .overlay(alignment: .topTrailing) {
+            // 多图条目角标：样式与列表行图标的数量角标一致
+            if fileCount > 1 {
+                Text("\(fileCount)")
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1.5)
+                    .background(Color.accentColor, in: Capsule())
+                    .padding(5)
+                    .allowsHitTesting(false)
+            }
         }
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .overlay(
