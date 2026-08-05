@@ -342,6 +342,12 @@ struct QuickPanelView: View {
             store.isActive = false
         }
         .onReceive(NotificationCenter.default.publisher(for: .quickPanelWillDismiss)) { _ in
+            // isActive 必须在这里归位，不能只靠 onDisappear：面板隐藏走的是
+            // orderOut，视图仍留在窗口层级里，onDisappear 不会触发。isActive
+            // 悬在 true 会让隐藏期间的每次复制都同步跑全量 performRefresh
+            // （20k 条实测每次 ~40-90ms），而设计上的惰性路径（标记
+            // needsRefresh、下次打开时 refreshIfNeeded 消费）形同虚设。
+            store.isActive = false
             // 关闭前清空 "/" 触发的分组建议及相关状态，避免下次打开首帧闪现
             searchText = ""
             groupSuggestionIndex = -1
