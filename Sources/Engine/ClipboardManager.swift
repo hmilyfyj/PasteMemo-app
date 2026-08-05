@@ -849,7 +849,10 @@ final class ClipboardManager: ObservableObject {
     }
 
     private func isLatestDuplicate(_ newItem: ClipItem, in context: ModelContext) -> Bool {
-        let descriptor = FetchDescriptor<ClipItem>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
+        // fetchLimit 必须有：这里只看最新一条，没有 limit 会把全表（万条级）物化到
+        // 内存，每次复制都在主线程卡数百毫秒（11k 条实测 ~220ms vs 4ms）。
+        var descriptor = FetchDescriptor<ClipItem>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
+        descriptor.fetchLimit = 1
         guard let latest = try? context.fetch(descriptor).first else { return false }
         return matchesDuplicateCandidate(latest, with: newItem)
     }
