@@ -116,7 +116,16 @@ struct ClipRow: View {
                 .aspectRatio(contentMode: .fit)
                 .frame(width: thumbSize, height: thumbSize)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
-                .overlay(alignment: .bottomTrailing) { imageFormatBadge }
+                .overlay(alignment: .bottomTrailing) {
+                    // 多图文件条目：右下角与其他多文件条目一致放数量角标；
+                    // 格式角标只描述第一张，对多文件条目反而误导，让位。
+                    if !compact, item.isMultiFileImage {
+                        multiFileCountBadge
+                            .offset(x: 2, y: 2)
+                    } else {
+                        imageFormatBadge
+                    }
+                }
         } else if item.contentType == .link, imageLinkPreviewEnabled,
                   let data = item.imageData,
                   let img = ImageCache.shared.thumbnail(for: data, key: item.itemID) {
@@ -213,12 +222,7 @@ struct ClipRow: View {
                     .aspectRatio(contentMode: .fit)
                     .frame(width: thumbSize, height: thumbSize)
                 if !compact {
-                    Text("\(paths.count)")
-                        .font(.system(size: 9, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 3)
-                        .padding(.vertical, 1)
-                        .background(Color.accentColor, in: Capsule())
+                    multiFileCountBadge
                         .offset(x: 2, y: 2)
                 }
             }
@@ -464,6 +468,17 @@ struct ClipRow: View {
         item.contentType.isFileBased
             && item.content.contains("\n")
             && item.content != "[Image]"
+    }
+
+    /// 多文件条目的数量角标（文件图标缩略图与多图缩略图共用同一款）
+    private var multiFileCountBadge: some View {
+        let count = item.content.components(separatedBy: "\n").filter { !$0.isEmpty }.count
+        return Text("\(count)")
+            .font(.system(size: 9, weight: .bold, design: .rounded))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 3)
+            .padding(.vertical, 1)
+            .background(Color.accentColor, in: Capsule())
     }
 
 }

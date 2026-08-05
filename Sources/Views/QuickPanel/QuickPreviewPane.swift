@@ -23,7 +23,9 @@ struct QuickPreviewPane: View {
     }
 
     private var isContentImage: Bool {
-        item.contentType == .image && item.imageData != nil
+        // 多图文件条目虽然带（第一张的）缩略图，但必须落到 previewContent 的
+        // 文件列表分支，不能被这里的单图快速路径短路（否则预览只显示第一张，误导）。
+        item.contentType == .image && item.imageData != nil && !item.isMultiFileImage
     }
 
     private var isSingleFile: Bool {

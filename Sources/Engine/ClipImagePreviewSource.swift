@@ -39,8 +39,19 @@ extension ClipItem {
     /// Single-path file-backed image clip (Finder copy).
     var isSingleFileBackedImage: Bool {
         guard contentType == .image, content != "[Image]" else { return false }
-        let paths = content.components(separatedBy: "\n").filter { !$0.isEmpty }
-        return paths.count == 1
+        return fileBackedImagePathCount == 1
+    }
+
+    /// Finder 多选图片一次复制：contentType 判成 .image，content 是多行文件路径。
+    /// 列表角标 / 预览分支都要用它把「多图条目」从单图快速路径里摘出来——这类条目
+    /// 带第一张图的缩略图（imageData != nil），只按 imageData 判断必然误入单图渲染。
+    var isMultiFileImage: Bool {
+        guard contentType == .image, content != "[Image]" else { return false }
+        return fileBackedImagePathCount > 1
+    }
+
+    private var fileBackedImagePathCount: Int {
+        content.components(separatedBy: "\n").filter { !$0.isEmpty }.count
     }
 
     /// Link clip that should render as zoomable bitmap instead of WebView.
