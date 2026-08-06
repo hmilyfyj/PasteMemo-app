@@ -120,7 +120,8 @@ struct GeneralPane: View {
     @AppStorage("launchAtLogin") private var launchAtLogin = false
     @AppStorage("hideDockIcon") private var hideDockIcon = false
     @State private var showHideDockConfirm = false
-    @AppStorage("soundEnabled") private var soundEnabled = true
+    // 默认值必须与 SoundManager.isEnabled 的兜底一致（false），否则界面显示开、播放层读到关
+    @AppStorage("soundEnabled") private var soundEnabled = false
     @AppStorage("copySoundName") private var copySoundName = "custom:sound2"
     @AppStorage("pasteSoundName") private var pasteSoundName = "custom:sound1"
     @AppStorage("clipboardMonitoringEnabled") private var clipboardMonitoringEnabled = true
@@ -211,17 +212,26 @@ struct GeneralPane: View {
     }
 
     private func soundPicker(label: String, selection: Binding<String>) -> some View {
-        Picker(label, selection: selection) {
-            Section(L10n.tr("settings.sound.section.custom")) {
-                ForEach(SoundManager.CUSTOM_SOUNDS, id: \.storageKey) { source in
-                    Text(source.displayName).tag(source.storageKey)
+        HStack {
+            Picker(label, selection: selection) {
+                Section(L10n.tr("settings.sound.section.custom")) {
+                    ForEach(SoundManager.CUSTOM_SOUNDS, id: \.storageKey) { source in
+                        Text(source.displayName).tag(source.storageKey)
+                    }
+                }
+                Section(L10n.tr("settings.sound.section.system")) {
+                    ForEach(SoundManager.SYSTEM_SOUNDS, id: \.storageKey) { source in
+                        Text(source.displayName).tag(source.storageKey)
+                    }
                 }
             }
-            Section(L10n.tr("settings.sound.section.system")) {
-                ForEach(SoundManager.SYSTEM_SOUNDS, id: \.storageKey) { source in
-                    Text(source.displayName).tag(source.storageKey)
-                }
+            Button {
+                SoundManager.preview(.from(storageKey: selection.wrappedValue))
+            } label: {
+                Image(systemName: "play.circle")
             }
+            .buttonStyle(.borderless)
+            .pointerCursor()
         }
         .onChange(of: selection.wrappedValue) {
             SoundManager.preview(.from(storageKey: selection.wrappedValue))
