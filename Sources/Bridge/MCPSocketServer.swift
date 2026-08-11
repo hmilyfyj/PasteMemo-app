@@ -123,41 +123,60 @@ final class MCPSocketServer {
         return source
     }
 
-    /// 每个 client 一个独立 detached task,串行处理它的 NDJSON 行。
-    /// nonisolated static —— 不引用任何 MainActor isolated 状态,
-    /// 安全从后台 dispatch queue 调用。read/send 都跑在 detached task 上(后台线程),
-    /// 不阻塞主线程;只有路由 JSON-RPC 时才 hop 到 MainActor。
-    nonisolated private static func spawnClientReadLoop(fd: Int32) {
-        Task.detached {
-            await Self.readLoop(fd: fd)
-        }
+    /// 单个客户端连接的 NDJSON 读缓冲。只在该连接的串行 queue 上访问,
+    /// 并发安全由 queue 的串行性保证,故 @unchecked Sendable。
+    private final class ClientReadState: @unchecked Sendable {
+        var buffer = Data()
     }
 
-    /// nonisolated —— 阻塞 recv/send 必须在后台线程跑,绝不能在 MainActor 上。
-    /// 每个连接维护一份 MCPClientContext,生命周期跟 readLoop 绑死;
-    /// initialize 阶段会把 clientInfo.name 写进去,后续 tools/call 给 SetClipboardTool 用。
-    nonisolated private static func readLoop(fd: Int32) async {
-        let context = MCPClientContext()
-        var buffer = Data()
-        var buf = [UInt8](repeating: 0, count: 65536)
-        while !Task.isCancelled {
+    /// 每个 client 一个事件驱动的读取管线:DispatchSourceRead(有数据才回调,零线程
+    /// 占用)把完整的 NDJSON 行喂进 AsyncStream,一个消费 Task 逐行串行处理。
+    ///
+    /// ⚠️ 不能用「Task.detached + 阻塞 recv 循环」:detached task 跑在 Swift
+    /// Concurrency 协作线程池上,池宽 = CPU 核心数,阻塞式 recv 会把线程永久钉死。
+    /// 空闲连接数 ≥ 核心数时(每个 Claude Code 会话挂一条长连接,很容易攒够),
+    /// 池子被占满,App 内所有 async 任务停摆——菜单打不开、窗口不呈现、面板关闭
+    /// 卡兜底超时。消费 Task 里的 `for await` 挂起时会让出线程,没有这个问题。
+    nonisolated private static func spawnClientReadLoop(fd: Int32) {
+        let queue = DispatchQueue(label: "com.lifedever.pastememo.mcp.client")
+        let source = DispatchSource.makeReadSource(fileDescriptor: fd, queue: queue)
+        let (lines, continuation) = AsyncStream.makeStream(of: Data.self)
+        let state = ClientReadState()
+
+        // event handler 强持有 source(自保活);cancel 后 libdispatch 会释放
+        // 所有 handler block,打破循环引用。
+        source.setEventHandler {
+            var buf = [UInt8](repeating: 0, count: 65536)
             let n = buf.withUnsafeMutableBufferPointer { ptr in
                 Darwin.recv(fd, ptr.baseAddress, ptr.count, 0)
             }
-            if n <= 0 {
-                Darwin.close(fd)
+            guard n > 0 else {
+                source.cancel()
                 return
             }
-            buffer.append(buf, count: n)
+            state.buffer.append(buf, count: n)
             // NDJSON: 每行一条 JSON-RPC 消息
-            while let nl = buffer.firstIndex(of: 0x0A) {
-                let line = buffer.subdata(in: 0..<nl)
-                buffer.removeSubrange(0...nl)
+            while let nl = state.buffer.firstIndex(of: 0x0A) {
+                let line = state.buffer.subdata(in: 0..<nl)
+                state.buffer.removeSubrange(0...nl)
                 guard !line.isEmpty else { continue }
+                continuation.yield(line)
+            }
+        }
+        source.setCancelHandler {
+            continuation.finish()
+            Darwin.close(fd)
+        }
+        source.resume()
+
+        // 每个连接维护一份 MCPClientContext,生命周期跟连接绑死;
+        // initialize 阶段会把 clientInfo.name 写进去,后续 tools/call 给 SetClipboardTool 用。
+        Task.detached {
+            let context = MCPClientContext()
+            for await line in lines {
                 await processLine(line, fd: fd, context: context)
             }
         }
-        Darwin.close(fd)
     }
 
     /// nonisolated —— 解析 JSON 在后台,只在 router.handle 那一步 hop 到 MainActor。
