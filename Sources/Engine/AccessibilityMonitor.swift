@@ -62,9 +62,16 @@ final class AccessibilityMonitor: ObservableObject {
     }
 
     private static func permissionFlowBundleAvailable() -> Bool {
-        let path = Bundle.main.bundleURL
-            .appendingPathComponent("PermissionFlow_PermissionFlow.bundle").path
-        return FileManager.default.fileExists(atPath: path)
+        // Mirror PermissionFlow's own resolver: signed builds keep the bundle
+        // in Contents/Resources, legacy ad-hoc builds at the .app root.
+        // Checking only the root made every signed build show the
+        // "reinstall required" alert (v1.7.15-beta.1 false positive).
+        let name = "PermissionFlow_PermissionFlow.bundle"
+        let candidates: [URL?] = [Bundle.main.resourceURL, Bundle.main.bundleURL]
+        return candidates.contains { candidate in
+            guard let url = candidate?.appendingPathComponent(name) else { return false }
+            return FileManager.default.fileExists(atPath: url.path)
+        }
     }
 
     private static func showReinstallRequiredAlert() {

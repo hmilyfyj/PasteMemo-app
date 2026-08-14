@@ -34,7 +34,7 @@ final class HighlightEngine {
     ]
 
     private init() {
-        guard let url = Bundle.module.url(
+        guard let url = Bundle.pasteMemoResources.url(
             forResource: "highlight.min",
             withExtension: "js",
             subdirectory: "Resources"

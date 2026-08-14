@@ -137,7 +137,7 @@ enum SoundManager {
 
     private static func playCustomSound(_ name: String) {
         let fileName = mapCustomFileName(name)
-        guard let url = Bundle.module.url(
+        guard let url = Bundle.pasteMemoResources.url(
             forResource: fileName,
             withExtension: "wav",
             subdirectory: "Resources/Sounds"

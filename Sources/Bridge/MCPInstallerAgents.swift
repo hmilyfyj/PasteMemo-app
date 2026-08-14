@@ -225,7 +225,7 @@ enum MCPAgentRegistry {
             return url
         }
         #if SWIFT_PACKAGE
-        if let url = Bundle.module.url(forResource: "SKILL",
+        if let url = Bundle.pasteMemoResources.url(forResource: "SKILL",
                                        withExtension: "md",
                                        subdirectory: "skills/pastememo") {
             return url
