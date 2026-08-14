@@ -12,3 +12,4 @@ DerivedData/
 
 .superpowers/
 .worktrees/
+.claude/settings.local.json
