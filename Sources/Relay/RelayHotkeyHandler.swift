@@ -6,6 +6,43 @@ private let DEFAULT_RELAY_KEY_CODE = 0x09 // V
 private let RIGHT_ARROW_KEY_CODE = 0x7C
 private let LEFT_ARROW_KEY_CODE = 0x7B
 
+/// Carbon hotkey callback. File-scope `nonisolated` for the same reason as
+/// `hotkeyEventHandler` in HotkeyManager.swift: a closure literal formed in
+/// a @MainActor context gets a dynamic executor check injected into its
+/// C-function thunk, which crashes on macOS 26/27 betas when Carbon
+/// re-enters mid-drain (v1.7.13 crash report, 2026-08-12).
+private nonisolated func relayHotkeyEventHandler(
+    _ nextHandler: EventHandlerCallRef?,
+    _ event: EventRef?,
+    _ userData: UnsafeMutableRawPointer?
+) -> OSStatus {
+    var hotKeyID = EventHotKeyID()
+    GetEventParameter(
+        event,
+        UInt32(kEventParamDirectObject),
+        UInt32(typeEventHotKeyID),
+        nil,
+        MemoryLayout<EventHotKeyID>.size,
+        nil,
+        &hotKeyID
+    )
+    // Only respond to our own hotkey signature; other handlers
+    // (e.g. quick panel) use the same id space with different signatures.
+    guard hotKeyID.signature == RELAY_HOTKEY_SIGNATURE else {
+        return OSStatus(eventNotHandledErr)
+    }
+    Task { @MainActor in
+        switch hotKeyID.id {
+        case 1: RelayHotkeyHandler.current?.onPaste?()
+        case 2: RelayHotkeyHandler.current?.onSkip?()
+        case 3: RelayHotkeyHandler.current?.onPrevious?()
+        case 4: RelayHotkeyHandler.current?.onPasteAll?()
+        default: break
+        }
+    }
+    return noErr
+}
+
 @MainActor
 final class RelayHotkeyHandler {
 
@@ -73,33 +110,7 @@ final class RelayHotkeyHandler {
 
         InstallEventHandler(
             GetApplicationEventTarget(),
-            { _, event, _ -> OSStatus in
-                var hotKeyID = EventHotKeyID()
-                GetEventParameter(
-                    event,
-                    UInt32(kEventParamDirectObject),
-                    UInt32(typeEventHotKeyID),
-                    nil,
-                    MemoryLayout<EventHotKeyID>.size,
-                    nil,
-                    &hotKeyID
-                )
-                // Only respond to our own hotkey signature; other handlers
-                // (e.g. quick panel) use the same id space with different signatures.
-                guard hotKeyID.signature == RELAY_HOTKEY_SIGNATURE else {
-                    return OSStatus(eventNotHandledErr)
-                }
-                Task { @MainActor in
-                    switch hotKeyID.id {
-                    case 1: RelayHotkeyHandler.current?.onPaste?()
-                    case 2: RelayHotkeyHandler.current?.onSkip?()
-                    case 3: RelayHotkeyHandler.current?.onPrevious?()
-                    case 4: RelayHotkeyHandler.current?.onPasteAll?()
-                    default: break
-                    }
-                }
-                return noErr
-            },
+            relayHotkeyEventHandler,
             1,
             &eventType,
             nil,

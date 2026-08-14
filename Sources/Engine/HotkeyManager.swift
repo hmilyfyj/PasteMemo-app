@@ -17,6 +17,42 @@ private let QUICK_PASTE_DIGIT_KEYCODES: [Int] = [
     kVK_ANSI_6, kVK_ANSI_7, kVK_ANSI_8, kVK_ANSI_9,
 ]
 
+/// Carbon hotkey callback. Deliberately a file-scope `nonisolated` function,
+/// not a closure literal inside the @MainActor class: Swift infers MainActor
+/// isolation for such closures and injects a dynamic executor check into the
+/// C-function thunk. On macOS 26/27 betas that check can dereference a stale
+/// executor record when Carbon re-enters the main thread mid-drain →
+/// EXC_BAD_ACCESS in swift_task_isMainExecutorImpl (v1.7.13 crash report,
+/// 2026-08-12). A nonisolated function gets no injected check; the hop to
+/// the main actor stays explicit via Task { @MainActor }.
+private nonisolated func hotkeyEventHandler(
+    _ nextHandler: EventHandlerCallRef?,
+    _ event: EventRef?,
+    _ userData: UnsafeMutableRawPointer?
+) -> OSStatus {
+    var hotKeyID = EventHotKeyID()
+    GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil, MemoryLayout<EventHotKeyID>.size, nil, &hotKeyID)
+    Task { @MainActor in
+        switch hotKeyID.id {
+        case HOTKEY_ID_QUICK_PANEL:
+            HotkeyManager.shared.toggleQuickPanel()
+        case HOTKEY_ID_MANAGER:
+            AppAction.shared.openMainWindow?()
+        case HOTKEY_ID_RELAY:
+            RelayManager.shared.activate()
+        case HOTKEY_ID_QUICK_PASTE_DIGIT_BASE...(HOTKEY_ID_QUICK_PASTE_DIGIT_BASE + 8):
+            // 置顶连续快粘：把 1–9 交给 QuickPanelView 粘贴对应项（不关面板）
+            let index = Int(hotKeyID.id - HOTKEY_ID_QUICK_PASTE_DIGIT_BASE) + 1
+            NotificationCenter.default.post(
+                name: .quickPanelPasteDigit, object: nil, userInfo: ["index": index]
+            )
+        default:
+            break
+        }
+    }
+    return noErr
+}
+
 @MainActor
 final class HotkeyManager: ObservableObject {
     static let shared = HotkeyManager()
@@ -164,29 +200,7 @@ final class HotkeyManager: ObservableObject {
 
         InstallEventHandler(
             GetApplicationEventTarget(),
-            { _, event, _ -> OSStatus in
-                var hotKeyID = EventHotKeyID()
-                GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil, MemoryLayout<EventHotKeyID>.size, nil, &hotKeyID)
-                Task { @MainActor in
-                    switch hotKeyID.id {
-                    case HOTKEY_ID_QUICK_PANEL:
-                        HotkeyManager.shared.toggleQuickPanel()
-                    case HOTKEY_ID_MANAGER:
-                        AppAction.shared.openMainWindow?()
-                    case HOTKEY_ID_RELAY:
-                        RelayManager.shared.activate()
-                    case HOTKEY_ID_QUICK_PASTE_DIGIT_BASE...(HOTKEY_ID_QUICK_PASTE_DIGIT_BASE + 8):
-                        // 置顶连续快粘：把 1–9 交给 QuickPanelView 粘贴对应项（不关面板）
-                        let index = Int(hotKeyID.id - HOTKEY_ID_QUICK_PASTE_DIGIT_BASE) + 1
-                        NotificationCenter.default.post(
-                            name: .quickPanelPasteDigit, object: nil, userInfo: ["index": index]
-                        )
-                    default:
-                        break
-                    }
-                }
-                return noErr
-            },
+            hotkeyEventHandler,
             1,
             &eventType,
             nil,
