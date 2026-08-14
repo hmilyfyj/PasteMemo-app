@@ -12,21 +12,32 @@ import Foundation
 extension Bundle {
     nonisolated static let pasteMemoResources: Bundle = {
         let name = "PasteMemo_PasteMemo.bundle"
+        let main = Bundle.main
+        let executableDir = main.executableURL?.deletingLastPathComponent()
         let candidates: [URL?] = [
             // Signed .app layout: Contents/Resources/
-            Bundle.main.resourceURL,
-            // Legacy ad-hoc .app layout: bundle root
-            Bundle.main.bundleURL,
+            main.resourceURL,
+            main.bundleURL.appendingPathComponent("Contents/Resources"),
+            executableDir?.appendingPathComponent("../Resources").standardized,
+            // Legacy ad-hoc / Bundle.module layout: next to the .app root
+            main.bundleURL,
+            executableDir?.appendingPathComponent("../..").standardized,
             // CLI / `swift run` / test runners: next to the executable
-            Bundle.main.executableURL?.deletingLastPathComponent(),
+            executableDir,
         ]
         for candidate in candidates {
-            if let url = candidate?.appendingPathComponent(name),
-               let bundle = Bundle(url: url) {
+            guard let url = candidate?.appendingPathComponent(name) else { continue }
+            if let bundle = Bundle(url: url) ?? Bundle(path: url.path) {
                 return bundle
             }
         }
-        // Dev fallback: the generated accessor knows the local build dir.
-        return .module
+        // Last resort: only touch the generated accessor when it can actually load.
+        // Calling `.module` from a signed .app SIGTRAPs if the baked build-dir
+        // path is gone (issue #38).
+        let moduleURL = executableDir?.appendingPathComponent(name)
+        if let moduleURL, let bundle = Bundle(url: moduleURL) {
+            return bundle
+        }
+        fatalError("PasteMemo resource bundle not found. Searched around \(main.bundleURL.path)")
     }()
 }

@@ -38,6 +38,8 @@ resolve_version() {
 }
 
 VERSION="$(resolve_version)"
+IFS='.' read -r _major _minor _patch _extra <<< "${VERSION}.0.0.0"
+BUILD_NUMBER="$((10#${_major:-0} * 1000 + 10#${_minor:-0} * 100 + 10#${_patch:-0}))"
 APP_DIR="$DIST_DIR/${APP_NAME}.app"
 DMG_PATH="$DIST_DIR/${APP_NAME}-${VERSION}-${ARCH}.dmg"
 STAGING_DIR="$DIST_DIR/.dmg-staging"
@@ -70,7 +72,7 @@ cp "$PRODUCT_BINARY" "$APP_DIR/Contents/MacOS/$EXECUTABLE_NAME"
 chmod +x "$APP_DIR/Contents/MacOS/$EXECUTABLE_NAME"
 cp "$ICON_FILE" "$APP_DIR/Contents/Resources/AppIcon.icns"
 for bundle in "${RESOURCE_BUNDLES[@]}"; do
-  cp -R "$bundle" "$APP_DIR/"
+  cp -R "$bundle" "$APP_DIR/Contents/Resources/"
 done
 
 CURRENT_YEAR="$(date +%Y)"
@@ -99,7 +101,7 @@ cat > "$APP_DIR/Contents/Info.plist" <<EOF
   <key>CFBundleShortVersionString</key>
   <string>${VERSION}</string>
   <key>CFBundleVersion</key>
-  <string>${VERSION}</string>
+  <string>${BUILD_NUMBER}</string>
   <key>LSMinimumSystemVersion</key>
   <string>${MIN_SYSTEM_VERSION}</string>
   <key>LSUIElement</key>

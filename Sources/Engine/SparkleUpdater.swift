@@ -20,6 +20,7 @@ final class SparkleUpdater: ObservableObject {
             userDriverDelegate: nil
         )
         updater = updaterController.updater
+        updater.automaticallyDownloadsUpdates = false
 
         canCheckForUpdates = true
     }
