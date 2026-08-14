@@ -146,6 +146,9 @@
 "settings.retentionDays.cleanConfirm" = "%d items beyond the retention period will be deleted";
 "settings.retentionDays.cleanWarning" = "This action cannot be undone. Are you sure?";
 "settings.display" = "Display";
+"settings.quickPanelStyle" = "Quick Paste Style";
+"settings.quickPanelStyle.classic" = "Classic Panel";
+"settings.quickPanelStyle.bottomFloating" = "Bottom Floating";
 "settings.quickPanelPosition" = "Quick Panel Position";
 "settings.quickPanelPosition.remembered" = "Remember Last Position";
 "settings.quickPanelPosition.cursor" = "Cursor";

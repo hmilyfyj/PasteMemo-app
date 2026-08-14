@@ -172,6 +172,9 @@
 "settings.retentionDays.cleanConfirm" = "保持期間を超えた%d件の項目が削除されます";
 "settings.retentionDays.cleanWarning" = "この操作は元に戻せません。続行しますか？";
 "settings.display" = "表示";
+"settings.quickPanelStyle" = "クイックペーストのスタイル";
+"settings.quickPanelStyle.classic" = "クラシックパネル";
+"settings.quickPanelStyle.bottomFloating" = "下部フローティング";
 "settings.quickPanelPosition" = "クイックパネルの位置";
 "settings.quickPanelPosition.remembered" = "前回の位置を記憶";
 "settings.quickPanelPosition.cursor" = "カーソル";

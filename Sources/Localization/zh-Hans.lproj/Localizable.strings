@@ -146,6 +146,9 @@
 "settings.retentionDays.cleanConfirm" = "将删除 %d 条超出保留期的记录";
 "settings.retentionDays.cleanWarning" = "此操作不可恢复，确定要继续吗？";
 "settings.display" = "显示";
+"settings.quickPanelStyle" = "快捷粘贴样式";
+"settings.quickPanelStyle.classic" = "经典面板";
+"settings.quickPanelStyle.bottomFloating" = "底部悬浮";
 "settings.quickPanelPosition" = "快捷面板位置";
 "settings.quickPanelPosition.remembered" = "记住上次位置";
 "settings.quickPanelPosition.cursor" = "光标";

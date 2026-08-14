@@ -136,6 +136,9 @@
 "settings.retentionDays.cleanConfirm" = "%d item di luar periode penyimpanan akan dihapus";
 "settings.retentionDays.cleanWarning" = "Tindakan ini tidak dapat dibatalkan. Lanjutkan?";
 "settings.display" = "Tampilan";
+"settings.quickPanelStyle" = "Gaya tempel cepat";
+"settings.quickPanelStyle.classic" = "Panel klasik";
+"settings.quickPanelStyle.bottomFloating" = "Mengambang bawah";
 "settings.quickPanelPosition" = "Posisi panel cepat";
 "settings.quickPanelPosition.remembered" = "Ingat posisi terakhir";
 "settings.quickPanelPosition.cursor" = "Kursor";

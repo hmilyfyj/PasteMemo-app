@@ -164,6 +164,9 @@
 "settings.retentionDays.cleanConfirm" = "보관 기간을 초과한 %d개 항목이 삭제됩니다";
 "settings.retentionDays.cleanWarning" = "이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?";
 "settings.display" = "표시";
+"settings.quickPanelStyle" = "빠른 붙여넣기 스타일";
+"settings.quickPanelStyle.classic" = "클래식 패널";
+"settings.quickPanelStyle.bottomFloating" = "하단 플로팅";
 "settings.quickPanelPosition" = "빠른 패널 위치";
 "settings.quickPanelPosition.remembered" = "마지막 위치 기억";
 "settings.quickPanelPosition.cursor" = "커서";

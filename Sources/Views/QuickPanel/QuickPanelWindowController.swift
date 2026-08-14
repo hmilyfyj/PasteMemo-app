@@ -97,12 +97,29 @@ final class QuickPanelWindowController {
     var suppressDismiss = false
     private var snapGuide: SnapGuideWindow?
 
+    private var panelStyle: QuickPanelStyle { QuickPanelStyle.stored }
+
+    private var currentBottomMode: QuickPanelBottomMode {
+        QuickPanelBottomMode(rawValue: UserDefaults.standard.string(forKey: QuickPanelBottomDefaults.modeStorageKey) ?? "") ?? .compact
+    }
+
     private var panelWidth: CGFloat {
+        if panelStyle == .bottomFloating {
+            let screen = NSScreen.screenWithMouse ?? NSScreen.main
+            let frame = screen?.frame ?? .zero
+            return QuickPanelBottomDefaults.storedWidth() ?? QuickPanelBottomGeometry.panelWidth(for: frame)
+        }
         let saved = UserDefaults.standard.double(forKey: "\(SIZE_KEY).width")
         return saved > 0 ? max(saved, MIN_WIDTH) : DEFAULT_WIDTH
     }
 
     private var panelHeight: CGFloat {
+        if panelStyle == .bottomFloating {
+            let screen = NSScreen.screenWithMouse ?? NSScreen.main
+            let visible = screen?.visibleFrame ?? .zero
+            return QuickPanelBottomDefaults.storedHeight(for: currentBottomMode)
+                ?? QuickPanelBottomGeometry.defaultHeight(for: currentBottomMode, visibleFrame: visible)
+        }
         let saved = UserDefaults.standard.double(forKey: "\(SIZE_KEY).height")
         return saved > 0 ? max(saved, MIN_HEIGHT) : DEFAULT_HEIGHT
     }
@@ -168,11 +185,15 @@ final class QuickPanelWindowController {
 
         guard let panel else { return }
 
-        positionPanel(panel)
-
         let shouldAnimate = isLaunchAnimationEnabled
+        if panelStyle == .bottomFloating {
+            positionBottomFloating(panel, animated: shouldAnimate)
+        } else {
+            positionPanel(panel)
+        }
 
-        if shouldAnimate {
+        let useClassicMotion = shouldAnimate && panelStyle != .bottomFloating
+        if useClassicMotion {
             // 起始状态：alpha 0 + scale 0.995（极轻微缩放）
             panel.alphaValue = 0
             if let layer = panel.contentView?.layer {
@@ -182,7 +203,7 @@ final class QuickPanelWindowController {
                 layer.transform = CATransform3DMakeScale(0.995, 0.995, 1)
                 CATransaction.commit()
             }
-        } else {
+        } else if panelStyle != .bottomFloating {
             panel.alphaValue = 1
             if let layer = panel.contentView?.layer {
                 CATransaction.begin()
@@ -196,7 +217,7 @@ final class QuickPanelWindowController {
         panel.orderFrontRegardless()
         panel.makeKey()
 
-        if shouldAnimate {
+        if useClassicMotion {
             // 动画到 alpha 1 + scale 1.0（仅作轻微空间引导，时长 0.1s）
             NSAnimationContext.runAnimationGroup { ctx in
                 ctx.duration = 0.1
@@ -234,7 +255,9 @@ final class QuickPanelWindowController {
         }
         removeMoveObserver()
         snapGuide?.orderOut(nil)
-        savePosition(panel)
+        if panelStyle != .bottomFloating {
+            savePosition(panel)
+        }
         // 命令面板是 SwiftUI `.popover`（NSPopover 子窗口）。下面 layoutSubtreeIfNeeded 会同步把
         // showCommandPalette=false 刷下去、触发 NSPopover.close() 的 ~200ms 关闭动画——粘贴瞬间完成、
         // 浮层还在淡出，就成了"先粘后关"。teardown 时先把子窗口无动画 orderOut，等会触发 close() 时
@@ -387,7 +410,14 @@ final class QuickPanelWindowController {
         container.layoutSubtreeIfNeeded()
 
         panel.contentView = container
-        panel.minSize = NSSize(width: MIN_WIDTH, height: MIN_HEIGHT)
+        if panelStyle == .bottomFloating {
+            panel.minSize = NSSize(
+                width: QuickPanelBottomGeometry.minimumWidth,
+                height: QuickPanelBottomGeometry.minimumHeight(for: currentBottomMode)
+            )
+        } else {
+            panel.minSize = NSSize(width: MIN_WIDTH, height: MIN_HEIGHT)
+        }
 
         // Save size when resized. warmUp runs once so registering here is safe;
         // we still track the token so a future rebuild path wouldn't duplicate writes.
@@ -401,13 +431,69 @@ final class QuickPanelWindowController {
         ) { [weak panel, weak state] _ in
             Task { @MainActor in
                 guard let size = panel?.frame.size else { return }
-                UserDefaults.standard.set(Double(size.width), forKey: "\(SIZE_KEY).width")
-                UserDefaults.standard.set(Double(size.height), forKey: "\(SIZE_KEY).height")
+                if QuickPanelStyle.stored == .bottomFloating {
+                    let screen = panel.flatMap { win in
+                        NSScreen.screens.first(where: { $0.frame.intersects(win.frame) })
+                    } ?? NSScreen.main
+                    let mode = QuickPanelBottomMode(
+                        rawValue: UserDefaults.standard.string(forKey: QuickPanelBottomDefaults.modeStorageKey) ?? ""
+                    ) ?? .compact
+                    QuickPanelBottomDefaults.persist(size: size, mode: mode, screenFrame: screen?.frame ?? .zero)
+                } else {
+                    UserDefaults.standard.set(Double(size.width), forKey: "\(SIZE_KEY).width")
+                    UserDefaults.standard.set(Double(size.height), forKey: "\(SIZE_KEY).height")
+                }
                 state?.width = size.width
             }
         }
 
         return panel
+    }
+
+    func handleStyleChange(to style: QuickPanelStyle) {
+        dismiss(force: true)
+        isWarmedUp = false
+        panel = nil
+        layoutState = nil
+        _ = style
+    }
+
+    func applyBottomMode(_ mode: QuickPanelBottomMode) {
+        UserDefaults.standard.set(mode.rawValue, forKey: QuickPanelBottomDefaults.modeStorageKey)
+        guard let panel, panel.isVisible, panelStyle == .bottomFloating else { return }
+        positionBottomFloating(panel, animated: true, mode: mode)
+    }
+
+    private func positionBottomFloating(_ panel: NSPanel, animated: Bool, mode: QuickPanelBottomMode? = nil) {
+        let resolvedMode = mode ?? currentBottomMode
+        let screen = NSScreen.screenWithMouse ?? NSScreen.main ?? NSScreen.screens.first
+        guard let screen else { return }
+        let target = QuickPanelBottomGeometry.frame(
+            screenFrame: screen.frame,
+            visibleFrame: screen.visibleFrame,
+            mode: resolvedMode,
+            preferredWidth: QuickPanelBottomDefaults.storedWidth(),
+            preferredHeight: QuickPanelBottomDefaults.storedHeight(for: resolvedMode)
+        )
+        panel.minSize = NSSize(
+            width: QuickPanelBottomGeometry.minimumWidth,
+            height: QuickPanelBottomGeometry.minimumHeight(for: resolvedMode)
+        )
+        if animated {
+            var start = target
+            start.origin.y -= min(target.height - 24, target.height)
+            panel.alphaValue = 0.94
+            panel.setFrame(start, display: true)
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.22
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                panel.animator().setFrame(target, display: true)
+                panel.animator().alphaValue = 1
+            }
+        } else {
+            panel.setFrame(target, display: true)
+            panel.alphaValue = 1
+        }
     }
 
     private func positionPanel(_ panel: NSPanel) {

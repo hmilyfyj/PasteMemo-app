@@ -164,6 +164,9 @@
 "settings.retentionDays.cleanConfirm" = "%d Einträge außerhalb des Aufbewahrungszeitraums werden gelöscht";
 "settings.retentionDays.cleanWarning" = "Dieser Vorgang kann nicht rückgängig gemacht werden. Fortfahren?";
 "settings.display" = "Anzeige";
+"settings.quickPanelStyle" = "Schnell-Einfüge-Stil";
+"settings.quickPanelStyle.classic" = "Klassisches Panel";
+"settings.quickPanelStyle.bottomFloating" = "Unten schwebend";
 "settings.quickPanelPosition" = "Position des Schnellpanels";
 "settings.quickPanelPosition.remembered" = "Letzte Position merken";
 "settings.quickPanelPosition.cursor" = "Cursor";

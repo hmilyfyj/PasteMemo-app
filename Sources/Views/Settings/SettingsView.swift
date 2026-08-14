@@ -456,6 +456,7 @@ struct ShortcutsTab: View {
 
 struct QuickPanelPane: View {
     @AppStorage("quickPanelAutoPaste") private var quickPanelAutoPaste = true
+    @AppStorage(QuickPanelStyle.storageKey) private var quickPanelStyle = QuickPanelStyle.classic.rawValue
     @AppStorage("addNewLineAfterPaste") private var addNewLineAfterPaste = false
     @AppStorage(QuickPanelSettings.launchAnimationEnabledKey) private var quickPanelLaunchAnimationEnabled = true
     @AppStorage(QuickPanelSettings.secondaryRowKey) private var quickPanelSecondaryRow = QuickPanelSecondaryRow.types.rawValue
@@ -477,6 +478,19 @@ struct QuickPanelPane: View {
     var body: some View {
         Form {
             Section(L10n.tr("settings.display")) {
+                Picker(L10n.tr("settings.quickPanelStyle"), selection: $quickPanelStyle) {
+                    Text(L10n.tr("settings.quickPanelStyle.classic")).tag(QuickPanelStyle.classic.rawValue)
+                    Text(L10n.tr("settings.quickPanelStyle.bottomFloating")).tag(QuickPanelStyle.bottomFloating.rawValue)
+                }
+                .onChange(of: quickPanelStyle) {
+                    let newStyle = QuickPanelStyle(rawValue: quickPanelStyle) ?? .classic
+                    if newStyle == .bottomFloating {
+                        QuickPanelBottomDefaults.resetStoredSizing()
+                    } else {
+                        QuickPanelBottomDefaults.resetClassicSizing()
+                    }
+                    QuickPanelWindowController.shared.handleStyleChange(to: newStyle)
+                }
                 Picker(L10n.tr("settings.quickPanelSecondaryRow"), selection: $quickPanelSecondaryRow) {
                     ForEach(QuickPanelSecondaryRow.allCases, id: \.rawValue) { option in
                         Text(L10n.tr(option.titleKey)).tag(option.rawValue)
