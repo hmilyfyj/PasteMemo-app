@@ -1,0 +1,190 @@
+#!/usr/bin/env zsh
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+BUILD_CONFIGURATION="${PASTEMEMO_BUILD_CONFIGURATION:-debug}"
+BUILD_DIR="$ROOT_DIR/.build/arm64-apple-macosx/$BUILD_CONFIGURATION"
+DEFAULT_APP_DIR="$ROOT_DIR/.dist/PasteMemo.app"
+APP_DIR="${PASTEMEMO_APP_DIR:-$DEFAULT_APP_DIR}"
+APP_CONTENTS_DIR="$APP_DIR/Contents"
+APP_BINARY="$BUILD_DIR/PasteMemo"
+APP_BUNDLE="$BUILD_DIR/PasteMemo_PasteMemo.bundle"
+APP_EXECUTABLE="$APP_CONTENTS_DIR/MacOS/PasteMemo"
+APP_ICON="$APP_BUNDLE/Resources/AppIcon.icns"
+BUNDLE_ID="${PASTEMEMO_BUNDLE_ID:-com.lifedever.PasteMemo}"
+SIGNING_IDENTITY="${PASTEMEMO_SIGNING_IDENTITY:-}"
+FRAMEWORK_RPATH="@executable_path/../Frameworks"
+SOURCE_INFO_PLIST="$ROOT_DIR/Sources/Resources/Info.plist"
+OPEN_APP="${PASTEMEMO_OPEN_APP:-1}"
+KILL_EXISTING="${PASTEMEMO_KILL_EXISTING:-1}"
+
+plist_value() {
+  local key="$1"
+  /usr/libexec/PlistBuddy -c "Print :$key" "$SOURCE_INFO_PLIST" 2>/dev/null || true
+}
+
+latest_git_version() {
+  git tag --list 'v*' --sort=-version:refname | sed -n '1s/^v//p'
+}
+
+VERSION="${PASTEMEMO_VERSION:-$(latest_git_version)}"
+if [[ -z "$VERSION" ]]; then
+  VERSION="$(plist_value CFBundleShortVersionString)"
+fi
+
+BUILD_NUMBER="${PASTEMEMO_BUILD_NUMBER:-}"
+if [[ -z "$BUILD_NUMBER" ]]; then
+  BUILD_NUMBER="${VERSION//./}"
+fi
+if [[ -z "$BUILD_NUMBER" ]]; then
+  BUILD_NUMBER="$(plist_value CFBundleVersion)"
+fi
+
+if [[ -z "$SIGNING_IDENTITY" ]]; then
+  SIGNING_IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(.*\)"/\1/p' | head -n 1 || true)"
+fi
+
+echo "==> 切换到项目目录"
+cd "$ROOT_DIR"
+
+echo "==> 开始 Swift 构建"
+if [[ "$BUILD_CONFIGURATION" == "release" ]]; then
+  swift build -c release
+else
+  swift build
+fi
+
+if [[ ! -f "$APP_BINARY" ]]; then
+  echo "未找到构建产物: $APP_BINARY" >&2
+  exit 1
+fi
+
+if [[ ! -d "$APP_BUNDLE" ]]; then
+  echo "未找到资源包: $APP_BUNDLE" >&2
+  exit 1
+fi
+
+echo "==> 重建应用包"
+rm -rf "$APP_DIR"
+mkdir -p "$APP_CONTENTS_DIR/MacOS" "$APP_CONTENTS_DIR/Resources" "$APP_CONTENTS_DIR/Frameworks"
+
+cat > "$APP_CONTENTS_DIR/Info.plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleDisplayName</key>
+    <string>PasteMemo</string>
+    <key>CFBundleExecutable</key>
+    <string>PasteMemo</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundleIdentifier</key>
+    <string>$BUNDLE_ID</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>PasteMemo</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>$VERSION</string>
+    <key>CFBundleVersion</key>
+    <string>$BUILD_NUMBER</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>SUFeedURL</key>
+    <string>https://raw.githubusercontent.com/hmilyfyj/PasteMemo-app/main/appcast.xml</string>
+    <key>SUPublicEDKey</key>
+    <string>gdCKVVE0vuVdqw4SS5eN7Q0F9wVoVjb+Grd6FyGUAbs=</string>
+</dict>
+</plist>
+EOF
+
+cp "$APP_BINARY" "$APP_EXECUTABLE"
+cp -R "$APP_BUNDLE" "$APP_CONTENTS_DIR/Resources/"
+
+if [[ -f "$APP_ICON" ]]; then
+  cp "$APP_ICON" "$APP_CONTENTS_DIR/Resources/AppIcon.icns"
+fi
+
+echo "==> 复制 Sparkle.framework"
+SPARKLE_FRAMEWORK="$BUILD_DIR/Sparkle.framework"
+if [[ -d "$SPARKLE_FRAMEWORK" ]]; then
+  cp -R "$SPARKLE_FRAMEWORK" "$APP_CONTENTS_DIR/Frameworks/"
+  echo "Sparkle.framework 已复制"
+else
+  echo "警告: 未找到 Sparkle.framework，尝试从 artifacts 目录查找"
+  SPARKLE_ARTIFACTS="$ROOT_DIR/.build/artifacts/sparkle/Sparkle/Sparkle.framework"
+  if [[ -d "$SPARKLE_ARTIFACTS" ]]; then
+    cp -R "$SPARKLE_ARTIFACTS" "$APP_CONTENTS_DIR/Frameworks/"
+    echo "Sparkle.framework 已从 artifacts 复制"
+  else
+    echo "错误: 未找到 Sparkle.framework"
+    echo "请运行: swift build"
+    exit 1
+  fi
+fi
+
+echo "==> 修正运行时库搜索路径"
+if ! otool -l "$APP_EXECUTABLE" | grep -Fq "$FRAMEWORK_RPATH"; then
+  install_name_tool -add_rpath "$FRAMEWORK_RPATH" "$APP_EXECUTABLE"
+  echo "已添加 rpath: $FRAMEWORK_RPATH"
+else
+  echo "rpath 已存在: $FRAMEWORK_RPATH"
+fi
+
+echo "==> 重新签名"
+if [[ -n "$SIGNING_IDENTITY" ]]; then
+  codesign --force --deep --sign "$SIGNING_IDENTITY" "$APP_DIR"
+else
+  echo "未找到可用代码签名证书，回退到 adhoc 签名"
+  echo "提示: adhoc 签名会导致辅助功能权限在重建后经常失效"
+  codesign --force --deep --sign - "$APP_DIR"
+fi
+
+if [[ "$KILL_EXISTING" == "1" ]]; then
+  echo "==> 关闭旧进程"
+  pkill -f "$APP_EXECUTABLE" 2>/dev/null || true
+
+  for _ in {1..20}; do
+    if ! pgrep -f "$APP_EXECUTABLE" >/dev/null 2>&1; then
+      break
+    fi
+    sleep 0.2
+  done
+else
+  echo "==> 跳过关闭旧进程"
+fi
+
+if [[ "$OPEN_APP" == "1" ]]; then
+  echo "==> 打开新应用"
+  if ! open -n "$APP_DIR"; then
+    echo "open 失败，1 秒后重试"
+    sleep 1
+    if ! open -n "$APP_DIR"; then
+      echo "LaunchServices 仍未响应，改为直接启动可执行文件"
+      "$APP_EXECUTABLE" >/tmp/pastememo-launch.log 2>&1 &
+      disown
+    fi
+  fi
+else
+  echo "==> 跳过启动应用"
+fi
+
+echo
+echo "完成"
+echo "应用路径: $APP_DIR"
+echo "Bundle ID: $BUNDLE_ID"
+echo "Build Configuration: $BUILD_CONFIGURATION"
+if [[ -n "$SIGNING_IDENTITY" ]]; then
+  echo "Signing Identity: $SIGNING_IDENTITY"
+else
+  echo "Signing Identity: adhoc"
+fi
+echo "Version: $VERSION ($BUILD_NUMBER)"

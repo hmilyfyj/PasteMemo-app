@@ -117,9 +117,28 @@ cat > "$APP_DIR/Contents/Info.plist" <<EOF
     <key>NSAllowsArbitraryLoads</key>
     <true/>
   </dict>
+  <key>SUFeedURL</key>
+  <string>https://raw.githubusercontent.com/hmilyfyj/PasteMemo-app/main/appcast.xml</string>
+  <key>SUPublicEDKey</key>
+  <string>gdCKVVE0vuVdqw4SS5eN7Q0F9wVoVjb+Grd6FyGUAbs=</string>
 </dict>
 </plist>
 EOF
+
+printf '[package] copying Sparkle.framework\n'
+mkdir -p "$APP_DIR/Contents/Frameworks"
+SPARKLE_FRAMEWORK="$BUILD_DIR/Sparkle.framework"
+if [[ ! -d "$SPARKLE_FRAMEWORK" ]]; then
+  SPARKLE_FRAMEWORK="$ROOT_DIR/.build/artifacts/sparkle/Sparkle/Sparkle.framework"
+fi
+if [[ ! -d "$SPARKLE_FRAMEWORK" ]]; then
+  echo "Sparkle.framework not found" >&2
+  exit 1
+fi
+cp -R "$SPARKLE_FRAMEWORK" "$APP_DIR/Contents/Frameworks/"
+if ! otool -l "$APP_DIR/Contents/MacOS/$EXECUTABLE_NAME" | grep -Fq '@executable_path/../Frameworks'; then
+  install_name_tool -add_rpath '@executable_path/../Frameworks' "$APP_DIR/Contents/MacOS/$EXECUTABLE_NAME"
+fi
 
 if [[ -n "${CODESIGN_IDENTITY:-}" ]]; then
   printf '[package] codesigning app bundle\n'

@@ -625,10 +625,6 @@ struct OnboardingView: View {
             }
         }
 
-        // Start update checks
-        Task {
-            await UpdateChecker.shared.checkForUpdates()
-            UpdateChecker.shared.startPeriodicChecks()
-        }
+        SparkleUpdater.shared.checkForUpdatesInBackground()
     }
 }

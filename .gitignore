@@ -1,7 +1,9 @@
 .build/
 .dev-build/
 .release/
+.dist/
 dist/
+sparkle_private_key.pem
 .swiftpm/
 *.xcodeproj
 *.xcworkspace

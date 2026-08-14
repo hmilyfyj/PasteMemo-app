@@ -69,7 +69,7 @@ struct PasteMemoApp: App {
             }
             CommandGroup(after: .appInfo) {
                 Button(L10n.tr("menu.checkForUpdates")) {
-                    Task { await UpdateChecker.shared.checkForUpdates(userInitiated: true) }
+                    SparkleUpdater.shared.checkForUpdates()
                 }
                 Divider()
             }
@@ -131,7 +131,7 @@ struct PasteMemoApp: App {
                     showHelpWindow()
                 }
                 Divider()
-                Link(L10n.tr("menu.reportIssue"), destination: URL(string: "https://github.com/lifedever/PasteMemo-app/issues")!)
+                Link(L10n.tr("menu.reportIssue"), destination: URL(string: "https://github.com/hmilyfyj/PasteMemo-app/issues")!)
             }
         }
 

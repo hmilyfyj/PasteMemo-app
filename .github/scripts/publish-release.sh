@@ -17,6 +17,10 @@ set -euo pipefail
 TAG="${1:?Usage: $0 <tag>}"
 VERSION="${TAG#v}"
 REPO="${REPO:-lifedever/PasteMemo-app}"
+if [[ "$REPO" != "lifedever/PasteMemo-app" ]]; then
+  echo "Refusing to publish from $REPO — this script only ships lifedever/PasteMemo-app." >&2
+  exit 1
+fi
 SITE_REPO="lifedever/PasteMemo"
 SITE_REPO_GITEE="lifedever/pastememo"
 TAP_REPO="lifedever/homebrew-tap"

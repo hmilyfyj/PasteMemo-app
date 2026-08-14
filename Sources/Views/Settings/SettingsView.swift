@@ -53,7 +53,6 @@ struct SettingsView: View {
         case .aiAgents: AIAgentIntegrationView()
         case .automation: AutomationTab()
         case .data: DataTab()
-        case .sponsor: SponsorTab()
         case .about: AboutTab()
         }
     }
@@ -64,7 +63,7 @@ struct SettingsView: View {
 enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
     case general, appearance, quickPanel, preview
     case shortcuts, relay, privacy, aiAgents, automation, data
-    case sponsor, about
+    case about
 
     var id: String { rawValue }
 
@@ -77,7 +76,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
     static let dataPrivacyGroup: [SettingsCategory] = [.privacy, .data]
 
     /// 应用信息。
-    static let aboutGroup: [SettingsCategory] = [.sponsor, .about]
+    static let aboutGroup: [SettingsCategory] = [.about]
 
     var titleKey: String {
         switch self {
@@ -91,7 +90,6 @@ enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
         case .aiAgents: return "settings.tab.aiAgents"
         case .automation: return "settings.automation"
         case .data: return "dataPorter.section"
-        case .sponsor: return "settings.sponsor"
         case .about: return "settings.about"
         }
     }
@@ -108,7 +106,6 @@ enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
         case .aiAgents: return "sparkles.rectangle.stack"
         case .automation: return "gearshape.2"
         case .data: return "externaldrive"
-        case .sponsor: return "heart"
         case .about: return "info.circle"
         }
     }
@@ -955,53 +952,10 @@ struct AutomationTab: View {
 
 }
 
-// MARK: - Pro Tab
-
-struct SponsorTab: View {
-    var body: some View {
-        Form {
-            Section {
-                VStack(spacing: 12) {
-                    Image(systemName: "heart.circle.fill")
-                        .font(.system(size: 40))
-                        .foregroundStyle(.pink)
-
-                    Text(L10n.tr("sponsor.title"))
-                        .font(.headline)
-
-                    Text(L10n.tr("sponsor.desc"))
-                        .foregroundStyle(.secondary)
-                        .font(.callout)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-            }
-
-            Section {
-                Link(destination: URL(string: "https://www.lifedever.com")!) {
-                    Label(L10n.tr("sponsor.donate"), systemImage: "cup.and.saucer")
-                }
-                Link(destination: URL(string: "https://github.com/lifedever/PasteMemo-app")!) {
-                    Label(L10n.tr("sponsor.star"), systemImage: "star")
-                }
-                Link(destination: URL(string: "https://github.com/lifedever/PasteMemo-app/issues")!) {
-                    Label(L10n.tr("sponsor.feedback"), systemImage: "bubble.left")
-                }
-            }
-        }
-        .formStyle(.grouped)
-        .scrollDisabled(true)
-    }
-}
-
 // MARK: - About Tab
 
 struct AboutTab: View {
-    @ObservedObject private var updateChecker = UpdateChecker.shared
-    @AppStorage("autoCheckUpdates") private var autoCheckUpdates = true
-    @AppStorage("updateCheckInterval") private var updateCheckInterval = 24
-    @AppStorage("includeBetaChannel") private var includeBetaChannel = false
+    @ObservedObject private var sparkleUpdater = SparkleUpdater.shared
 
     var body: some View {
         Form {
@@ -1030,47 +984,15 @@ struct AboutTab: View {
                         .foregroundStyle(.secondary)
                 }
                 Button(L10n.tr("menu.checkForUpdates")) {
-                    Task { await updateChecker.checkForUpdates(userInitiated: true) }
+                    sparkleUpdater.checkForUpdates()
                 }
-                .disabled(updateChecker.isChecking)
-                Toggle(L10n.tr("settings.autoCheckUpdates"), isOn: $autoCheckUpdates)
-                    .onChange(of: autoCheckUpdates) {
-                        if autoCheckUpdates {
-                            updateChecker.startPeriodicChecks()
-                        } else {
-                            updateChecker.stopPeriodicChecks()
-                        }
-                    }
-                if autoCheckUpdates {
-                    Picker(L10n.tr("settings.updateCheckInterval"), selection: $updateCheckInterval) {
-                        Text(L10n.tr("settings.updateCheckInterval.6h")).tag(6)
-                        Text(L10n.tr("settings.updateCheckInterval.12h")).tag(12)
-                        Text(L10n.tr("settings.updateCheckInterval.24h")).tag(24)
-                        Text(L10n.tr("settings.updateCheckInterval.72h")).tag(72)
-                    }
-                    .onChange(of: updateCheckInterval) {
-                        updateChecker.startPeriodicChecks()
-                    }
-                }
-                VStack(alignment: .leading, spacing: 4) {
-                    Toggle(L10n.tr("settings.includeBetaChannel"), isOn: $includeBetaChannel)
-                        .onChange(of: includeBetaChannel) {
-                            // Switching channels should give immediate feedback —
-                            // wait-for-next-poll feels broken. Treat as a user-
-                            // initiated check so dev builds also run it.
-                            Task { await updateChecker.checkForUpdates(userInitiated: true) }
-                        }
-                    Text(L10n.tr("settings.includeBetaChannel.hint"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                .disabled(!sparkleUpdater.canCheckForUpdates)
             }
 
             Section {
                 Link(L10n.tr("about.website"), destination: URL(string: "https://www.lifedever.com/PasteMemo/")!)
                 Link(L10n.tr("about.help"), destination: URL(string: "https://www.lifedever.com/PasteMemo/help/")!)
-                Link(L10n.tr("menu.reportIssue"), destination: URL(string: "https://github.com/lifedever/PasteMemo-app/issues")!)
+                Link(L10n.tr("menu.reportIssue"), destination: URL(string: "https://github.com/hmilyfyj/PasteMemo-app/issues")!)
             }
 
             Section {
@@ -1080,7 +1002,7 @@ struct AboutTab: View {
                     Text("GPL-3.0")
                         .foregroundStyle(.secondary)
                 }
-                Link(L10n.tr("about.sourceCode"), destination: URL(string: "https://github.com/lifedever/PasteMemo-app")!)
+                Link(L10n.tr("about.sourceCode"), destination: URL(string: "https://github.com/hmilyfyj/PasteMemo-app")!)
             }
 
             Section {

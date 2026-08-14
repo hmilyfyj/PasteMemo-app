@@ -1,0 +1,563 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <channel>
+        <title>PasteMemo Changelog</title>
+        <link>https://raw.githubusercontent.com/hmilyfyj/PasteMemo-app/main/appcast.xml</link>
+        <description>Most recent changes with links to updates.</description>
+        <language>en</language>
+        <item>
+            <title>Version 1.3.23</title>
+            <pubDate>Tue, 14 Apr 2026 11:17:53 +0800</pubDate>
+            <sparkle:version>1323</sparkle:version>
+            <sparkle:shortVersionString>1.3.23</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <h2>优化悬浮框置顶卡片展示与滚动定位</h2>
+                <h3>🎉 新功能</h3>
+                <ul>
+                    <li>优化悬浮框置顶卡片展示与滚动定位</li>
+                </ul>
+                <h3>📝 技术改进</h3>
+                <ul>
+                    <li>性能优化</li>
+                    <li>稳定性改进</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/hmilyfyj/PasteMemo-app/releases/download/v1.3.23/PasteMemo-1.3.23.dmg"
+                sparkle:edSignature="TIM1dM/bKionOxr6qO+zh8okf6hD7bA4Luf1vbmziCwA7UVMtgfa3mlzBPB2Xx/HfhAZLaYVTg+5FMaX95CVCw=="
+                length="5372432"
+                type="application/octet-stream"
+            />
+        </item>
+        <item>
+            <title>Version 1.3.22</title>
+            <pubDate>Tue, 14 Apr 2026 10:41:45 +0800</pubDate>
+            <sparkle:version>1322</sparkle:version>
+            <sparkle:shortVersionString>1.3.22</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <h2>修复悬浮框剪贴板列表复制后排序与自动滚动定位问题</h2>
+                <h3>🎉 新功能</h3>
+                <ul>
+                    <li>修复悬浮框剪贴板列表复制后排序与自动滚动定位问题</li>
+                </ul>
+                <h3>📝 技术改进</h3>
+                <ul>
+                    <li>性能优化</li>
+                    <li>稳定性改进</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/hmilyfyj/PasteMemo-app/releases/download/v1.3.22/PasteMemo-1.3.22.dmg"
+                sparkle:edSignature="4wTRskaVuttPY40zi4Eh7Rx4aZRpDrBalOloWCbk33n6NVFfRFnPlqsx9q0HSup4TF/nJnwuE9FejHL2bmGaCQ=="
+                length="5366633"
+                type="application/octet-stream"
+            />
+        </item>
+        <item>
+            <title>Version 1.3.21</title>
+            <pubDate>Wed, 08 Apr 2026 12:15:32 +0800</pubDate>
+            <sparkle:version>1321</sparkle:version>
+            <sparkle:shortVersionString>1.3.21</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <h2></h2>
+                <h3>🎉 新功能</h3>
+                <ul>
+                    <li></li>
+                </ul>
+                <h3>📝 技术改进</h3>
+                <ul>
+                    <li>性能优化</li>
+                    <li>稳定性改进</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/hmilyfyj/PasteMemo-app/releases/download/v1.3.21/PasteMemo-1.3.21.dmg"
+                sparkle:edSignature="n3QGx/LZL/c/ZwvwPi/heqsbFQwrUwhgziNDS3TH29OzFA+KSfaL+eni1p1w3DS86zhzkM4lGgSZWH1hcV1bCQ=="
+                length="5356746"
+                type="application/octet-stream"
+            />
+        </item>
+        <item>
+            <title>Version 1.3.20</title>
+            <pubDate>Tue, 07 Apr 2026 20:29:35 +0800</pubDate>
+            <sparkle:version>1320</sparkle:version>
+            <sparkle:shortVersionString>1.3.20</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <h2></h2>
+                <h3>🎉 新功能</h3>
+                <ul>
+                    <li></li>
+                </ul>
+                <h3>📝 技术改进</h3>
+                <ul>
+                    <li>性能优化</li>
+                    <li>稳定性改进</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/hmilyfyj/PasteMemo-app/releases/download/v1.3.20/PasteMemo-1.3.20.dmg"
+                sparkle:edSignature="sv0jZoUa2T7Vq9sJ86URA6OaJ0SzVy+uIBqKlXXq8SqByiOpFlEQqKEgsIplQekhCcwmIcjG33iWxWYAh2svAg=="
+                length="5356291"
+                type="application/octet-stream"
+            />
+        </item>
+        <item>
+            <title>Version 1.3.18</title>
+            <pubDate>Tue, 07 Apr 2026 09:39:02 +0800</pubDate>
+            <sparkle:version>1318</sparkle:version>
+            <sparkle:shortVersionString>1.3.18</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <h2></h2>
+                <h3>🎉 新功能</h3>
+                <ul>
+                    <li></li>
+                </ul>
+                <h3>📝 技术改进</h3>
+                <ul>
+                    <li>性能优化</li>
+                    <li>稳定性改进</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/hmilyfyj/PasteMemo-app/releases/download/v1.3.18/PasteMemo-1.3.18.dmg"
+                sparkle:edSignature="66kNCUvPg9nZy2xww3slWqU6kK946RAtT/+HkPSr8so2aK3kiDX0+c9S/HS+5fNEW9aa4SDdPDFyZKi2rruWBA=="
+                length="5352020"
+                type="application/octet-stream"
+            />
+        </item>
+        <item>
+            <title>Version 1.3.17</title>
+            <pubDate>Tue, 07 Apr 2026 09:08:29 +0800</pubDate>
+            <sparkle:version>1317</sparkle:version>
+            <sparkle:shortVersionString>1.3.17</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <h2></h2>
+                <h3>🎉 新功能</h3>
+                <ul>
+                    <li></li>
+                </ul>
+                <h3>📝 技术改进</h3>
+                <ul>
+                    <li>性能优化</li>
+                    <li>稳定性改进</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/hmilyfyj/PasteMemo-app/releases/download/v1.3.17/PasteMemo-1.3.17.dmg"
+                sparkle:edSignature="xf5LBljRA8RGh7q8brgGhFTQ+W2bGhQWrjLN9FVGX7sVRYp05cHVFrawiMcVzj9WxWoLg6SQyhxFwa417ySuCw=="
+                length="5342684"
+                type="application/octet-stream"
+            />
+        </item>
+        <item>
+            <title>Version 1.3.16</title>
+            <pubDate>Tue, 07 Apr 2026 08:42:08 +0800</pubDate>
+            <sparkle:version>1316</sparkle:version>
+            <sparkle:shortVersionString>1.3.16</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <h2></h2>
+                <h3>🎉 新功能</h3>
+                <ul>
+                    <li></li>
+                </ul>
+                <h3>📝 技术改进</h3>
+                <ul>
+                    <li>性能优化</li>
+                    <li>稳定性改进</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/hmilyfyj/PasteMemo-app/releases/download/v1.3.16/PasteMemo-1.3.16.dmg"
+                sparkle:edSignature="QO+3v7I9c55McKoQ87qJwjQHsGELMKkDO7eeLLWEiwyImJLYBGZ6slTYIg7LLwMEmBKsKmISKOussPp/7gcjBA=="
+                length="5342592"
+                type="application/octet-stream"
+            />
+        </item>
+        <item>
+            <title>Version 1.3.15</title>
+            <pubDate>Tue, 07 Apr 2026 08:41:49 +0800</pubDate>
+            <sparkle:version>1315</sparkle:version>
+            <sparkle:shortVersionString>1.3.15</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <h2></h2>
+                <h3>🎉 新功能</h3>
+                <ul>
+                    <li></li>
+                </ul>
+                <h3>📝 技术改进</h3>
+                <ul>
+                    <li>性能优化</li>
+                    <li>稳定性改进</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/hmilyfyj/PasteMemo-app/releases/download/v1.3.15/PasteMemo-1.3.15.dmg"
+                sparkle:edSignature="a025cYtgfabD5fE4eCaF6H0t2FtKvVoPdjzFjLpxtJ6Lcy8Ce5paVyXWB7cy78+8FFfZtlXVXIWDicEYiuY3Dg=="
+                length="5342768"
+                type="application/octet-stream"
+            />
+        </item>
+        <item>
+            <title>Version 1.3.14</title>
+            <pubDate>Tue, 07 Apr 2026 08:35:54 +0800</pubDate>
+            <sparkle:version>1314</sparkle:version>
+            <sparkle:shortVersionString>1.3.14</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <h2></h2>
+                <h3>🎉 新功能</h3>
+                <ul>
+                    <li></li>
+                </ul>
+                <h3>📝 技术改进</h3>
+                <ul>
+                    <li>性能优化</li>
+                    <li>稳定性改进</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/hmilyfyj/PasteMemo-app/releases/download/v1.3.14/PasteMemo-1.3.14.dmg"
+                sparkle:edSignature="P2CTo9DD7wubQLcIe1qMxbmYRbVyMBBuND0vmK/aU5OLdiC/aMMcEi6Y4VcTZU4UQetgHJ8p4eZFooFYZ2k0BA=="
+                length="5354681"
+                type="application/octet-stream"
+            />
+        </item>
+        <item>
+            <title>Version 1.3.12</title>
+            <pubDate>Mon, 06 Apr 2026 22:58:36 +0800</pubDate>
+            <sparkle:version>1312</sparkle:version>
+            <sparkle:shortVersionString>1.3.12</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <h2></h2>
+                <h3>🎉 新功能</h3>
+                <ul>
+                    <li></li>
+                </ul>
+                <h3>📝 技术改进</h3>
+                <ul>
+                    <li>性能优化</li>
+                    <li>稳定性改进</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/hmilyfyj/PasteMemo-app/releases/download/v1.3.12/PasteMemo-1.3.12.dmg"
+                sparkle:edSignature="9CSqmCKgacZ9yHLp8uAnJtlhHBBMqnAn3cBsJplCzJ5xQjChiWVZ8OOLla3MVyzx3i0CFMiwqDQil75CBLJVDw=="
+                length="5354821"
+                type="application/octet-stream"
+            />
+        </item>
+        <item>
+            <title>Version 1.3.10</title>
+            <pubDate>Mon, 06 Apr 2026 22:47:22 +0800</pubDate>
+            <sparkle:version>1310</sparkle:version>
+            <sparkle:shortVersionString>1.3.10</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <h2></h2>
+                <h3>🎉 新功能</h3>
+                <ul>
+                    <li></li>
+                </ul>
+                <h3>📝 技术改进</h3>
+                <ul>
+                    <li>性能优化</li>
+                    <li>稳定性改进</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/hmilyfyj/PasteMemo-app/releases/download/v1.3.10/PasteMemo-1.3.10.dmg"
+                sparkle:edSignature="pPF+y5To/FJBGEipzLl8wNen5JG4nPkqRbEdyqk/oIBI7uePnEoM9sh+2L65x9L2FUCbM2VcCJ3E4FB6wN2OAQ=="
+                length="5352973"
+                type="application/octet-stream"
+            />
+        </item>
+        <item>
+            <title>Version 1.3.9</title>
+            <pubDate>Mon, 06 Apr 2026 22:41:30 +0800</pubDate>
+            <sparkle:version>139</sparkle:version>
+            <sparkle:shortVersionString>1.3.9</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <h2></h2>
+                <h3>🎉 新功能</h3>
+                <ul>
+                    <li></li>
+                </ul>
+                <h3>📝 技术改进</h3>
+                <ul>
+                    <li>性能优化</li>
+                    <li>稳定性改进</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/hmilyfyj/PasteMemo-app/releases/download/v1.3.9/PasteMemo-1.3.9.dmg"
+                sparkle:edSignature="zh672fFnELGnbFE20nLK4XR1pmXVdcNZNDrkTWia1lJIhsc2etT99Sgd6cE53fRUWDFqHaAcI9hFHELXZG5CCw=="
+                length="5352973"
+                type="application/octet-stream"
+            />
+        </item>
+        <item>
+            <title>Version 1.3.8</title>
+            <pubDate>Mon, 06 Apr 2026 22:33:40 +0800</pubDate>
+            <sparkle:version>138</sparkle:version>
+            <sparkle:shortVersionString>1.3.8</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <h2></h2>
+                <h3>🎉 新功能</h3>
+                <ul>
+                    <li></li>
+                </ul>
+                <h3>📝 技术改进</h3>
+                <ul>
+                    <li>性能优化</li>
+                    <li>稳定性改进</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/hmilyfyj/PasteMemo-app/releases/download/v1.3.8/PasteMemo-1.3.8.dmg"
+                sparkle:edSignature="5Kc0q7mz64jIltQ7wu5GZmnEyEcfoypeA9UoXua9Dos8Dh/HQ7I8/2MlRqjuJlEJp/1O1uHyeWUCNqjKxuDmBQ=="
+                length="5349122"
+                type="application/octet-stream"
+            />
+        </item>
+        <item>
+            <title>Version 1.3.7</title>
+            <pubDate>Mon, 06 Apr 2026 22:23:24 +0800</pubDate>
+            <sparkle:version>137</sparkle:version>
+            <sparkle:shortVersionString>1.3.7</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <h2></h2>
+                <h3>🎉 新功能</h3>
+                <ul>
+                    <li></li>
+                </ul>
+                <h3>📝 技术改进</h3>
+                <ul>
+                    <li>性能优化</li>
+                    <li>稳定性改进</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/hmilyfyj/PasteMemo-app/releases/download/v1.3.7/PasteMemo-1.3.7.dmg"
+                sparkle:edSignature="e0/qHCBAt4LvUJU8HyYpKjpY7vU4vxSxJ4x9DRbde1l0FBTTMcqfIx2H5VgdlrXIGumKXM3lANSDaT2e3yW0DQ=="
+                length="7796550"
+                type="application/octet-stream"
+            />
+        </item>        <item>
+            <title>Version 1.3.6</title>
+            <pubDate>Mon, 06 Apr 2026 22:17:31 </pubDate>
+            <sparkle:version>136</sparkle:version>
+            <sparkle:shortVersionString>1.3.6</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <h2></h2>
+                <h3>🎉 新功能</h3>
+                <ul>
+                    <li></li>
+                </ul>
+                <h3>📝 技术改进</h3>
+                <ul>
+                    <li>性能优化</li>
+                    <li>稳定性改进</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/hmilyfyj/PasteMemo-app/releases/download/v1.3.6/PasteMemo-1.3.6.dmg"
+                sparkle:edSignature="nAbxm8yktpTwpL4CimEVEA5/eKXB3jpb/ZBcoOuwJ4jFaWHaZERwM9ND9xI8Kt0jwO5OT1f7YwSxokJve3x0AQ=="
+                length="7796512"
+                type="application/octet-stream"
+            />
+        </item>
+        <item>
+            <title>Version 1.3.5</title>
+            <pubDate>Mon, 06 Apr 2026 22:15:40 </pubDate>
+            <sparkle:version>135</sparkle:version>
+            <sparkle:shortVersionString>1.3.5</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <h2></h2>
+                <h3>🎉 新功能</h3>
+                <ul>
+                    <li></li>
+                </ul>
+                <h3>📝 技术改进</h3>
+                <ul>
+                    <li>性能优化</li>
+                    <li>稳定性改进</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/hmilyfyj/PasteMemo-app/releases/download/v1.3.5/PasteMemo-1.3.5.dmg"
+                sparkle:edSignature="+vjY2l5TGgAijiSIzXaFJ2pBi5YOSwdVSNbWfraIK8SU+Rww4VbyQwV8Qr9AdfSOI/gbcuYLficMaU8qpj02Bg=="
+                length="7796534"
+                type="application/octet-stream"
+            />
+        </item>
+        <item>
+            <title>Version 1.3.4</title>
+            <pubDate>Mon, 06 Apr 2026 22:09:13 </pubDate>
+            <sparkle:version>134</sparkle:version>
+            <sparkle:shortVersionString>1.3.4</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <h2>test</h2>
+                <h3>🎉 新功能</h3>
+                <ul>
+                    <li>test</li>
+                </ul>
+                <h3>📝 技术改进</h3>
+                <ul>
+                    <li>性能优化</li>
+                    <li>稳定性改进</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/hmilyfyj/PasteMemo-app/releases/download/v1.3.4/PasteMemo-1.3.4.dmg"
+                sparkle:edSignature="OQIL3hZQnynZubbTDiOB159pZyWqawMKfVIfNCibXjO5Y7uUsCzO2vTTremQZBbGEEK5Zihv/PEHU5RIgt+NDA=="
+                length="7796526"
+                type="application/octet-stream"
+            />
+        </item>
+        <item>
+            <title>Version 1.3.3</title>
+            <pubDate>Mon, 06 Apr 2026 22:06:49 </pubDate>
+            <sparkle:version>133</sparkle:version>
+            <sparkle:shortVersionString>1.3.3</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <h2>Fixed release script parameter check</h2>
+                <h3>🎉 新功能</h3>
+                <ul>
+                    <li>Fixed release script parameter check</li>
+                </ul>
+                <h3>📝 技术改进</h3>
+                <ul>
+                    <li>性能优化</li>
+                    <li>稳定性改进</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/hmilyfyj/PasteMemo-app/releases/download/v1.3.3/PasteMemo-1.3.3.dmg"
+                sparkle:edSignature="Msz/Xu+WSmZqGB5L8Gbn9UQPNfsHJZVwZJ60yXOqi+LEdHKaC0IpGfIVwCH5ZY3/rmi/fgboSO8D9KliTZZABg=="
+                length="7933377"
+                type="application/octet-stream"
+            />
+        </item>
+
+        <item>
+            <title>Version 1.3.2</title>
+            <pubDate>Sun, 06 Apr 2026 21:48:00 +0800</pubDate>
+            <sparkle:version>132</sparkle:version>
+            <sparkle:shortVersionString>1.3.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <h2>Release Script Improvements</h2>
+                <h3>🎉 新功能</h3>
+                <ul>
+                    <li>Fixed release script to automatically update appcast.xml</li>
+                    <li>Improved release workflow automation</li>
+                </ul>
+                <h3>📝 技术改进</h3>
+                <ul>
+                    <li>性能优化</li>
+                    <li>稳定性改进</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/hmilyfyj/PasteMemo-app/releases/download/v1.3.2/PasteMemo-1.3.2.dmg"
+                sparkle:edSignature="ZGQjHULJg0npaUDOWvWzOmQcWvFl8wE/uE+cu1DoKoFxc5HGZrDzTFY4bHLno4fnK0nXUFX1UoSXNlhEFbzYBw=="
+                length="7933311"
+                type="application/octet-stream"
+            />
+        </item>
+        <item>
+            <title>Version 1.3.1</title>
+            <pubDate>Mon, 06 Apr 2026 21:37:09 +0800</pubDate>
+            <sparkle:version>131</sparkle:version>
+            <sparkle:shortVersionString>1.3.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <h2>Bug Fixes and Improvements</h2>
+                <h3>🐛 Bug Fixes</h3>
+                <ul>
+                    <li>Fixed Sparkle auto-update integration issues</li>
+                    <li>Improved application stability</li>
+                </ul>
+                <h3>📝 Technical Changes</h3>
+                <ul>
+                    <li>Updated Sparkle framework configuration</li>
+                    <li>Improved release workflow</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/hmilyfyj/PasteMemo-app/releases/download/v1.3.1/PasteMemo-1.3.1.dmg"
+                sparkle:edSignature="l+V4fvwXBOpJlr2eHVox2zQRYwmPcWfZttxaOqkLx2NuIN1215y0xhvDiRBj4jrECrtnY4N4gZZUxHqL7CX1Cw=="
+                length="7933311"
+                type="application/octet-stream"
+            />
+        </item>
+        <item>
+            <title>Version 1.3.0</title>
+            <pubDate>Sun, 06 Apr 2026 21:25:00 +0800</pubDate>
+            <sparkle:version>130</sparkle:version>
+            <sparkle:shortVersionString>1.3.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <h2>Sparkle Auto-Update Integration</h2>
+                <h3>🎉 New Features</h3>
+                <ul>
+                    <li>✨ Integrate Sparkle 2.9.1 for automatic app updates</li>
+                    <li>🔐 EdDSA signature verification for secure updates</li>
+                    <li>🔄 Automatic background update checking</li>
+                    <li>💫 Improved update user experience</li>
+                </ul>
+                <h3>📝 Technical Changes</h3>
+                <ul>
+                    <li>Replace custom UpdateChecker with Sparkle framework</li>
+                    <li>Add SparkleUpdater class for update management</li>
+                    <li>Configure appcast.xml for update feed</li>
+                    <li>Add GitHub Actions workflow for automated releases</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/hmilyfyj/PasteMemo-app/releases/download/v1.3.0/PasteMemo-1.3.0.dmg"
+                sparkle:edSignature="D5PTUXb0mwzfnCxswWIL0vANi+O9uRtEZRYA7vrstFTwLAL1LMkAPRsVlgGdI3jp2NIzxx4mq5Uvdrc9qCHMDw=="
+                length="7933497"
+                type="application/octet-stream"
+            />
+        </item>
+        <item>
+            <title>Version 1.0.0</title>
+            <pubDate>Sat, 06 Apr 2026 00:00:00 +0800</pubDate>
+            <sparkle:version>1</sparkle:version>
+            <sparkle:shortVersionString>1.0.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <h2>Initial Release</h2>
+                <ul>
+                    <li>First public release of PasteMemo</li>
+                    <li>Basic clipboard management features</li>
+                    <li>Quick panel for fast access</li>
+                    <li>Search and organize clipboard items</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/hmilyfyj/PasteMemo-app/releases/download/v1.0.0/PasteMemo-1.0.0.dmg"
+                sparkle:edSignature=""
+                length="0"
+                type="application/octet-stream"
+            />
+        </item>
+    </channel>
+</rss>

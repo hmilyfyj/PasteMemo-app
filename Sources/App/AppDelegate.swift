@@ -94,10 +94,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             showAccessibilityPrompt()
         }
 
-        Task {
-            await UpdateChecker.shared.checkForUpdates()
-            UpdateChecker.shared.startPeriodicChecks()
-        }
+        // Fork updater: Sparkle + hmilyfyj appcast. Do not poll lifedever latest.json.
+        SparkleUpdater.shared.checkForUpdatesInBackground()
 
         BackupScheduler.shared.start(container: PasteMemoApp.sharedModelContainer)
 
