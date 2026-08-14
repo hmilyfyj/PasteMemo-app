@@ -35,9 +35,12 @@ fi
 
 BUILD_NUMBER="${PASTEMEMO_BUILD_NUMBER:-}"
 if [[ -z "$BUILD_NUMBER" ]]; then
-  BUILD_NUMBER="${VERSION//./}"
+  # Sparkle compares CFBundleVersion as an integer. 1.3.23 used 1323;
+  # `${VERSION//./}` would turn 1.8.0 into 180 and get "upgraded" back to 1.3.23.
+  IFS='.' read -r _major _minor _patch _extra <<< "${VERSION}.0.0.0"
+  BUILD_NUMBER="$((10#${_major:-0} * 1000 + 10#${_minor:-0} * 100 + 10#${_patch:-0}))"
 fi
-if [[ -z "$BUILD_NUMBER" ]]; then
+if [[ -z "$BUILD_NUMBER" || "$BUILD_NUMBER" == "0" ]]; then
   BUILD_NUMBER="$(plist_value CFBundleVersion)"
 fi
 
@@ -63,6 +66,18 @@ fi
 if [[ ! -d "$APP_BUNDLE" ]]; then
   echo "未找到资源包: $APP_BUNDLE" >&2
   exit 1
+fi
+
+if [[ "$KILL_EXISTING" == "1" ]]; then
+  echo "==> 先关闭旧进程，避免占用安装包"
+  pkill -f "$APP_EXECUTABLE" 2>/dev/null || true
+  pkill -x PasteMemo 2>/dev/null || true
+  for _ in {1..20}; do
+    if ! pgrep -f "$APP_EXECUTABLE" >/dev/null 2>&1; then
+      break
+    fi
+    sleep 0.2
+  done
 fi
 
 echo "==> 重建应用包"
@@ -107,7 +122,13 @@ cat > "$APP_CONTENTS_DIR/Info.plist" <<EOF
 EOF
 
 cp "$APP_BINARY" "$APP_EXECUTABLE"
-cp -R "$APP_BUNDLE" "$APP_CONTENTS_DIR/Resources/"
+# Bundles must live under Contents/Resources. Putting them at the .app root
+# breaks codesign ("unsealed contents present in the bundle root").
+# Launch uses Bundle.pasteMemoResources, not the generated Bundle.module.
+for bundle in "$BUILD_DIR"/*.bundle; do
+  [[ -d "$bundle" ]] || continue
+  cp -R "$bundle" "$APP_CONTENTS_DIR/Resources/"
+done
 
 if [[ -f "$APP_ICON" ]]; then
   cp "$APP_ICON" "$APP_CONTENTS_DIR/Resources/AppIcon.icns"
