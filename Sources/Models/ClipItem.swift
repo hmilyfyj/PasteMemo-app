@@ -20,6 +20,9 @@ enum ClipContentType: String, Codable, CaseIterable {
     case document = "document"
     case archive = "archive"
     case application = "application"
+    /// Multiple independent representations in one clip (e.g. text + image + files).
+    /// Mirrors NSPasteboard multi-type semantics.
+    case mixed = "mixed"
     // Legacy types — kept for database compatibility, hidden from UI
     case code = "code"
     case color = "color"
@@ -33,6 +36,15 @@ enum ClipContentType: String, Codable, CaseIterable {
 
     static let defaultVisibleCases: [ClipContentType] = [
         .text, .code, .link, .image, .video, .audio, .document, .archive, .application, .color, .file
+    ]
+
+    /// Content types shown in the automation rule editor's content-type picker.
+    /// Grouped by semantic bucket (text → media → files) and omits legacy types
+    /// (`.email`, `.phone`) plus `.mixed` (too broad to target directly).
+    static let ruleEditorVisibleCases: [ClipContentType] = [
+        .text, .code, .link, .color,
+        .image, .video, .audio,
+        .document, .archive, .application, .file
     ]
 
     static var visibleCases: [ClipContentType] {
@@ -68,7 +80,7 @@ enum ClipContentType: String, Codable, CaseIterable {
     var isMergeable: Bool {
         switch self {
         case .text, .code, .link, .color, .email, .phone: return true
-        case .image, .file, .video, .audio, .document, .archive, .application: return false
+        case .image, .file, .video, .audio, .document, .archive, .application, .mixed: return false
         }
     }
 
@@ -87,6 +99,7 @@ enum ClipContentType: String, Codable, CaseIterable {
         case .color: return "paintpalette.fill"
         case .email: return "envelope"
         case .phone: return "phone"
+        case .mixed: return "square.stack.3d.up.fill"
         }
     }
 
@@ -106,6 +119,7 @@ enum ClipContentType: String, Codable, CaseIterable {
         case .color: return L10n.tr("type.color")
         case .email: return L10n.tr("type.email")
         case .phone: return L10n.tr("type.phone")
+        case .mixed: return L10n.tr("type.mixed")
         }
     }
 }
@@ -114,8 +128,27 @@ enum ClipContentType: String, Codable, CaseIterable {
 final class ClipItem {
     var itemID: String = UUID().uuidString
     var content: String
-    var contentType: ClipContentType
+    /// Stored as raw String to avoid SwiftData enum deserialization crash on zombie objects.
+    @Attribute(originalName: "contentType")
+    var contentTypeRaw: String = ClipContentType.text.rawValue
+    /// In-app image bytes:
+    /// - Raw clipboard images (screenshots, `content == "[Image]"`): a small downsampled JPEG
+    ///   **thumbnail**. The verbatim original lives on disk at `originalImageFilePath`.
+    /// - File-backed image clips (Finder copies): likewise a thumbnail; original is the user's file.
+    /// - Link data-URIs / `.mixed`: the relevant decoded/redundant bytes.
+    /// - Legacy raw clips captured before the cache-file split: still the full original here.
+    ///
+    /// This is for **UI rendering only** (list rows, preview/detail). Paste / save / relay / OCR
+    /// must go through `imageBytesForExport()` / `sourceImageFileURL`, NEVER this directly —
+    /// otherwise a big copied image would paste back as the low-res thumbnail.
     @Attribute(.externalStorage) var imageData: Data?
+    /// Path to the verbatim-original cache file for raw clipboard images. Written by us at
+    /// capture time to `App Support/<bundleID>/Originals/<uuid>.<ext>`; the bytes are exactly
+    /// what was on the pasteboard (no transcode). Drives `sourceImageFileURL`, so preview /
+    /// properties / paste / OCR all read the full original from disk and the list/preview only
+    /// ever touch the small `imageData` thumbnail → no main-thread fault on selection.
+    /// nil for file-backed clips (they reference the user's own file) and legacy raw clips.
+    var originalImageFilePath: String?
     var sourceApp: String?
     var sourceAppBundleID: String?
     var isFavorite: Bool
@@ -132,18 +165,30 @@ final class ClipItem {
     @Attribute(.externalStorage) var richTextData: Data?
     /// Original rich text format type: "rtf" or "html"
     var richTextType: String?
+    /// Newline-joined file paths when the clip contains file URLs alongside other representations
+    /// (used primarily by `.mixed` items). Nil for legacy items and non-file-carrying clips.
+    var filePaths: String?
+    /// Full NSPasteboard snapshot (binary plist of `[String: Data]`) captured when the source
+    /// exposed rich formatting. On paste, writing this back verbatim reproduces system-native
+    /// paste behaviour — the target app (Word, Mail, browsers, etc.) picks whichever UTI it
+    /// prefers. Nil for simple text/image/file clips where full-fidelity isn't needed.
+    @Attribute(.externalStorage) var pasteboardSnapshot: Data?
     var groupName: String?
     var ocrText: String?
     var ocrStatus: String = OCRStatus.skipped.rawValue
     var ocrUpdatedAt: Date?
     var ocrErrorMessage: String?
     var ocrVersion: Int = 1
+    /// Identifier of the AI Agent (MCP client) that wrote this item, e.g. "claude-code", "cursor".
+    /// Set when the clip originates from a `clipboard_set` MCP call. nil for normal user copies.
+    var agentSource: String?
 
     @MainActor
     init(
         content: String,
         contentType: ClipContentType = .text,
         imageData: Data? = nil,
+        originalImageFilePath: String? = nil,
         sourceApp: String? = nil,
         sourceAppBundleID: String? = nil,
         isFavorite: Bool = false,
@@ -152,11 +197,15 @@ final class ClipItem {
         lastUsedAt: Date = Date(),
         codeLanguage: String? = nil,
         richTextData: Data? = nil,
-        richTextType: String? = nil
+        richTextType: String? = nil,
+        filePaths: String? = nil,
+        pasteboardSnapshot: Data? = nil,
+        agentSource: String? = nil
     ) {
         self.content = content
-        self.contentType = contentType
+        self.contentTypeRaw = contentType.rawValue
         self.imageData = imageData
+        self.originalImageFilePath = originalImageFilePath
         self.sourceApp = sourceApp
         self.sourceAppBundleID = sourceAppBundleID
         self.isFavorite = isFavorite
@@ -166,10 +215,94 @@ final class ClipItem {
         self.codeLanguage = codeLanguage
         self.richTextData = richTextData
         self.richTextType = richTextType
-        self.displayTitle = Self.buildTitle(content: content, contentType: contentType, imageData: imageData)
-        if contentType == .image, imageData != nil {
+        self.filePaths = filePaths
+        self.pasteboardSnapshot = pasteboardSnapshot
+        self.agentSource = agentSource
+        self.displayTitle = Self.buildTitle(content: content, contentType: contentType, imageData: imageData, filePaths: filePaths)
+        if (contentType == .image || contentType == .mixed), imageData != nil {
             self.ocrStatus = OCRStatus.pending.rawValue
         }
+    }
+
+    /// Parsed file paths from `filePaths` (newline-separated). Empty array if nil/empty.
+    var resolvedFilePaths: [String] {
+        guard let raw = filePaths, !raw.isEmpty else { return [] }
+        return raw.components(separatedBy: "\n").filter { !$0.isEmpty }
+    }
+
+    /// The on-disk path this clip can reveal in Finder (⌘O), or nil when there's
+    /// nothing concrete to jump to. Two recognised shapes:
+    /// 1. File-style clips (`.file/.document/.archive/.application`) — the first
+    ///    path in `content` that still exists on disk. Media (`.image/.video/.audio`)
+    ///    is intentionally excluded: those keep Quick Look as their ⌘O action.
+    /// 2. Plain-text clips whose whole content is a single existing filesystem path
+    ///    — lets users jump to a path they copied as text even when capture-time
+    ///    detection classified it as `.text` (e.g. the file appeared afterwards).
+    /// A leading `~` is expanded; the returned path is always absolute so
+    /// `NSWorkspace.selectFile` resolves it correctly.
+    var revealableFinderPath: String? {
+        func existingAbsolutePath(_ raw: String) -> String? {
+            let expanded = (raw as NSString).expandingTildeInPath
+            return FileManager.default.fileExists(atPath: expanded) ? expanded : nil
+        }
+        switch contentType {
+        case .file, .document, .archive, .application:
+            guard content != "[Image]" else { return nil }
+            let first = content.components(separatedBy: "\n").first { !$0.isEmpty }
+            return first.flatMap(existingAbsolutePath)
+        case .text:
+            let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, !trimmed.contains("\n"),
+                  trimmed.hasPrefix("/") || trimmed.hasPrefix("~") else { return nil }
+            return existingAbsolutePath(trimmed)
+        default:
+            return nil
+        }
+    }
+
+    /// On-disk URL of the original image bytes, if available. Two kinds:
+    /// 1. Raw clipboard images (screenshots): our own cache file at `originalImageFilePath`.
+    /// 2. File-backed clips (Finder copies): the user's source file referenced by `content`.
+    /// Returns nil if neither exists on disk (legacy raw clips, or a moved/deleted file).
+    ///
+    /// Anything that wants the original (paste, save-to-folder, OCR) reads from this URL;
+    /// `imageData` only ever holds the small thumbnail.
+    var sourceImageFileURL: URL? {
+        guard contentType == .image else { return nil }
+        // Raw clipboard image whose verbatim original we cached to disk.
+        if let cached = originalImageFilePath, FileManager.default.fileExists(atPath: cached) {
+            return URL(fileURLWithPath: cached)
+        }
+        // File-backed clip (Finder copy) — content is the user's file path.
+        guard content != "[Image]" else { return nil }
+        let firstPath = content
+            .components(separatedBy: "\n")
+            .first(where: { !$0.isEmpty })
+        guard let path = firstPath, FileManager.default.fileExists(atPath: path) else { return nil }
+        return URL(fileURLWithPath: path)
+    }
+
+    /// Best image bytes to put on the pasteboard or write out as a new file — the **verbatim
+    /// original** whenever we have it. Reads the on-disk original via `sourceImageFileURL`
+    /// (our cache file for raw clips, the user's file for Finder copies); only when no original
+    /// file exists (legacy raw clips that still hold full bytes in `imageData`, or a cache file
+    /// that failed to write / was lost) does it fall back to `imageData`.
+    ///
+    /// Use this — NEVER `imageData` directly — anywhere bytes leave the app for paste, save-as,
+    /// or relay. For new raw clips `imageData` is only the thumbnail, so reading it directly
+    /// would paste a low-res image.
+    func imageBytesForExport() -> Data? {
+        if let url = sourceImageFileURL,
+           let original = ClipboardManager.loadOriginalImageData(at: url.path) {
+            return original
+        }
+        return imageData
+    }
+
+    /// Computed enum accessor — never crashes because contentTypeRaw is a plain String.
+    var contentType: ClipContentType {
+        get { ClipContentType(rawValue: contentTypeRaw) ?? .text }
+        set { contentTypeRaw = newValue.rawValue }
     }
 
     var resolvedOCRStatus: OCRStatus {
@@ -177,12 +310,17 @@ final class ClipItem {
     }
 
     func matchesOCROnly(searchText: String) -> Bool {
+        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
         guard contentType == .image else { return false }
         guard let ocrText, !ocrText.isEmpty else { return false }
-        guard SearchMatcher.matches(query: searchText, in: [content, displayTitle, linkTitle, ocrText]) else {
-            return false
-        }
-        return !SearchMatcher.matches(query: searchText, in: [content, displayTitle, linkTitle])
+
+        let query = trimmed.lowercased()
+        // Check non-OCR fields first; short-circuit if any matches
+        if content.localizedCaseInsensitiveContains(query) { return false }
+        if let t = displayTitle, t.localizedCaseInsensitiveContains(query) { return false }
+        if let t = linkTitle, t.localizedCaseInsensitiveContains(query) { return false }
+        return ocrText.localizedCaseInsensitiveContains(query)
     }
 
     /// Resolved code language — uses stored override if available, otherwise auto-detects.
@@ -200,12 +338,33 @@ final class ClipItem {
         return "txt"
     }
 
+    /// Openable/loadable URL for a `.link` clip — bare domains get an `https://`
+    /// scheme. Scheme-resolution lives in `URL.fromLinkString`; storage keeps the
+    /// raw content untouched (the list still shows `jp.evoxt.lifedever.com`).
+    var resolvedURL: URL? { URL.fromLinkString(content) }
+
+    /// 多文件条目的统一标题：首个文件名（超长截断）+「等N个文件」。
+    /// `.file/.archive` 等类型与「全是图片的多文件复制」（contentType 判成 .image）共用，
+    /// 避免后者只显示第一张图的文件名（用户误以为条目只有一个文件）。
     @MainActor
-    static func buildTitle(content: String, contentType: ClipContentType, imageData: Data? = nil) -> String {
+    private static func fileListTitle(paths: [String]) -> String {
+        let firstName = URL(fileURLWithPath: paths.first ?? "").lastPathComponent
+        guard paths.count > 1 else { return firstName }
+        let suffix = L10n.tr("file.multiTitle", paths.count)
+        let maxNameLen = 12
+        let name = firstName.count > maxNameLen
+            ? String(firstName.prefix(maxNameLen)) + "..."
+            : firstName
+        return name + suffix
+    }
+
+    @MainActor
+    static func buildTitle(content: String, contentType: ClipContentType, imageData: Data? = nil, filePaths: String? = nil) -> String {
         switch contentType {
         case .image:
             if content != "[Image]" {
-                return URL(fileURLWithPath: content.components(separatedBy: "\n").first ?? "").lastPathComponent
+                let paths = content.components(separatedBy: "\n").filter { !$0.isEmpty }
+                return fileListTitle(paths: paths)
             }
             if let data = imageData, let img = NSImage(data: data) {
                 return "Image (\(Int(img.size.width))×\(Int(img.size.height)))"
@@ -213,20 +372,36 @@ final class ClipItem {
             return "[Image]"
         case .file, .video, .audio, .document, .archive, .application:
             let paths = content.components(separatedBy: "\n").filter { !$0.isEmpty }
-            let firstName = URL(fileURLWithPath: paths.first ?? "").lastPathComponent
-            if paths.count > 1 {
-                let suffix = L10n.tr("file.multiTitle", paths.count)
-                let maxNameLen = 12
-                let name = firstName.count > maxNameLen
-                    ? String(firstName.prefix(maxNameLen)) + "..."
-                    : firstName
-                return name + suffix
-            }
-            return firstName
+            return fileListTitle(paths: paths)
         case .link:
+            // base64 data URIs can be megabytes long — store a short marker as the
+            // display title so SwiftData doesn't materialize a giant string for
+            // every list render. The full URI stays in `content` for paste-back.
+            if DataImageURI.isDataImageURI(content) {
+                if let format = DataImageURI.formatLabel(in: content) {
+                    return "[Data Image: \(format)]"
+                }
+                return "[Data Image]"
+            }
             return content
         case .color:
             return content
+        case .mixed:
+            // Prefer text content; fallback to first file name; finally [Mixed]
+            let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedContent.isEmpty, trimmedContent != "[Image]" {
+                let prefix = String(trimmedContent.prefix(200))
+                let normalized = prefix.components(separatedBy: .whitespacesAndNewlines)
+                    .filter { !$0.isEmpty }.joined(separator: " ")
+                if !normalized.isEmpty { return normalized }
+            }
+            if let raw = filePaths, !raw.isEmpty {
+                let paths = raw.components(separatedBy: "\n").filter { !$0.isEmpty }
+                if let first = paths.first {
+                    return URL(fileURLWithPath: first).lastPathComponent
+                }
+            }
+            return "[Mixed]"
         default:
             let prefix = String(content.prefix(200))
             let trimmed = prefix.components(separatedBy: .whitespacesAndNewlines)

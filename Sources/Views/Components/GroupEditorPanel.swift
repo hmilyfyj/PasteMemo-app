@@ -4,75 +4,15 @@ import SwiftUI
 /// Modal panel for creating/editing a group (name + categorized icon picker)
 @MainActor
 final class GroupEditorPanel {
-    private static var activePanels: [NSPanel] = []
 
     struct Result {
         let name: String
         let icon: String
+        let preservesItems: Bool
     }
 
-    static func show(name: String = "", icon: String = "folder") -> Result? {
-        let viewModel = GroupEditorViewModel(name: name, icon: icon)
-        let hostingView = NSHostingView(rootView: GroupEditorView(viewModel: viewModel))
-        hostingView.frame = NSRect(x: 0, y: 0, width: 380, height: 420)
-        var submittedResult: Result?
-
-        let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 380, height: 420),
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: true
-        )
-        panel.title = name.isEmpty ? L10n.tr("action.newGroup") : L10n.tr("action.editGroup")
-        panel.contentView = hostingView
-        panel.center()
-        panel.isReleasedWhenClosed = false
-        panel.isFloatingPanel = true
-        panel.level = .modalPanel
-        panel.hidesOnDeactivate = false
-        panel.becomesKeyOnlyIfNeeded = false
-
-        viewModel.onDismiss = {
-            DispatchQueue.main.async {
-                panel.makeFirstResponder(nil)
-                panel.endEditing(for: nil)
-                NSApp.stopModal(withCode: .cancel)
-                panel.orderOut(nil)
-                panel.close()
-            }
-        }
-
-        viewModel.onConfirm = {
-            DispatchQueue.main.async {
-                panel.makeFirstResponder(nil)
-                panel.endEditing(for: nil)
-                let resultName = viewModel.name.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !resultName.isEmpty else { return }
-                submittedResult = Result(name: resultName, icon: viewModel.selectedIcon)
-                NSApp.stopModal(withCode: .OK)
-                panel.orderOut(nil)
-                panel.close()
-            }
-        }
-
-        NSApp.activate(ignoringOtherApps: true)
-        panel.orderFrontRegardless()
-        panel.makeKey()
-
-        DispatchQueue.main.async {
-            panel.makeFirstResponder(hostingView)
-        }
-
-        _ = NSApp.runModal(for: panel)
-        return submittedResult
-    }
-
-    static func showAsync(
-        name: String = "",
-        icon: String = "folder",
-        onComplete: @escaping (Result?) -> Void
-    ) {
-        let viewModel = GroupEditorViewModel(name: name, icon: icon)
+    static func show(name: String = "", icon: String = "folder", preservesItems: Bool = false) -> Result? {
+        let viewModel = GroupEditorViewModel(name: name, icon: icon, preservesItems: preservesItems)
         let hostingView = NSHostingView(rootView: GroupEditorView(viewModel: viewModel))
         hostingView.frame = NSRect(x: 0, y: 0, width: 380, height: 420)
 
@@ -85,43 +25,53 @@ final class GroupEditorPanel {
         panel.title = name.isEmpty ? L10n.tr("action.newGroup") : L10n.tr("action.editGroup")
         panel.contentView = hostingView
         panel.center()
-        panel.isReleasedWhenClosed = false
         panel.isFloatingPanel = true
         panel.level = .modalPanel
-        panel.hidesOnDeactivate = false
-        panel.becomesKeyOnlyIfNeeded = false
+        let session = ModalSession(panel: panel)
+        panel.delegate = session
 
-        func cleanupPanel() {
-            panel.orderOut(nil)
-            panel.close()
-            activePanels.removeAll { $0 === panel }
+        viewModel.onDismiss = { session.cancel() }
+        viewModel.onConfirm = { session.confirm() }
+
+        let response = NSApp.runModal(for: panel)
+        guard response == .OK else { return nil }
+        let resultName = viewModel.name.trimmingCharacters(in: .whitespaces)
+        guard !resultName.isEmpty else { return nil }
+        return Result(name: resultName, icon: viewModel.selectedIcon, preservesItems: viewModel.preservesItems)
+    }
+}
+
+@MainActor
+private final class ModalSession: NSObject, NSWindowDelegate {
+    private weak var panel: NSPanel?
+    private var response: NSApplication.ModalResponse?
+
+    init(panel: NSPanel) {
+        self.panel = panel
+    }
+
+    func confirm() {
+        finish(.OK)
+    }
+
+    func cancel() {
+        finish(.cancel)
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        let finalResponse = response ?? .cancel
+        response = finalResponse
+        NSApp.stopModal(withCode: finalResponse)
+    }
+
+    private func finish(_ modalResponse: NSApplication.ModalResponse) {
+        guard response == nil else { return }
+        response = modalResponse
+        guard let panel else {
+            NSApp.stopModal(withCode: modalResponse)
+            return
         }
-
-        viewModel.onDismiss = {
-            panel.makeFirstResponder(nil)
-            panel.endEditing(for: nil)
-            cleanupPanel()
-            onComplete(nil)
-        }
-
-        viewModel.onConfirm = {
-            panel.makeFirstResponder(nil)
-            panel.endEditing(for: nil)
-            let resultName = viewModel.name.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !resultName.isEmpty else { return }
-            let result = Result(name: resultName, icon: viewModel.selectedIcon)
-            cleanupPanel()
-            onComplete(result)
-        }
-
-        activePanels.append(panel)
-        NSApp.activate(ignoringOtherApps: true)
-        panel.orderFrontRegardless()
-        panel.makeKey()
-
-        DispatchQueue.main.async {
-            panel.makeFirstResponder(hostingView)
-        }
+        panel.close()
     }
 }
 
@@ -131,15 +81,17 @@ final class GroupEditorPanel {
 private class GroupEditorViewModel {
     var name: String
     var selectedIcon: String
+    var preservesItems: Bool
     var iconSearchText = ""
     var selectedCategory: IconCategory
 
     var onDismiss: (() -> Void)?
     var onConfirm: (() -> Void)?
 
-    init(name: String, icon: String) {
+    init(name: String, icon: String, preservesItems: Bool) {
         self.name = name
         self.selectedIcon = icon
+        self.preservesItems = preservesItems
         self.selectedCategory = IconCategory.all[0]
     }
 
@@ -259,7 +211,6 @@ private struct IconCategory: Identifiable, Hashable {
 
 private struct GroupEditorView: View {
     @Bindable var viewModel: GroupEditorViewModel
-    @FocusState private var isNameFieldFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -270,25 +221,30 @@ private struct GroupEditorView: View {
             footerSection
         }
         .frame(width: 380, height: 420)
-        .onAppear {
-            // Auto-focus on name field when view appears
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                isNameFieldFocused = true
-            }
-        }
     }
 
     private var headerSection: some View {
-        HStack(spacing: 12) {
-            Image(systemName: viewModel.selectedIcon)
-                .font(.system(size: 28))
-                .foregroundStyle(.secondary)
-                .frame(width: 48, height: 48)
-                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
-            TextField(L10n.tr("automation.action.assignGroup.placeholder"), text: $viewModel.name)
-                .textFieldStyle(.roundedBorder)
-                .font(.system(size: 14))
-                .focused($isNameFieldFocused)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Image(systemName: viewModel.selectedIcon)
+                    .font(.system(size: 28))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 48, height: 48)
+                    .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+                TextField(L10n.tr("automation.action.assignGroup.placeholder"), text: $viewModel.name)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 14))
+            }
+
+            Toggle(isOn: $viewModel.preservesItems) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L10n.tr("group.preserveItems"))
+                    Text(L10n.tr("group.preserveItems.help"))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .toggleStyle(.switch)
         }
         .padding(16)
     }

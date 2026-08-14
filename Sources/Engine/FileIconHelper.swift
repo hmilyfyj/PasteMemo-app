@@ -3,7 +3,44 @@ import SwiftUI
 struct FileIconInfo {
     let symbol: String
     let color: Color
+    var badge: String? = nil
 }
+
+func imageFormatLabel(forPath path: String) -> String? {
+    let ext = URL(fileURLWithPath: path).pathExtension.lowercased()
+    return imageFormatBadges[ext]
+}
+
+func imageFormatLabel(fromData data: Data) -> String? {
+    guard data.count >= 12 else { return nil }
+    let b = [UInt8](data.prefix(12))
+    if b[0] == 0x89, b[1] == 0x50, b[2] == 0x4E, b[3] == 0x47 { return "PNG" }
+    if b[0] == 0xFF, b[1] == 0xD8, b[2] == 0xFF { return "JPG" }
+    if b[0] == 0x47, b[1] == 0x49, b[2] == 0x46 { return "GIF" }
+    if b[0] == 0x42, b[1] == 0x4D { return "BMP" }
+    if b[0] == 0x49, b[1] == 0x49, b[2] == 0x2A { return "TIFF" }
+    if b[0] == 0x4D, b[1] == 0x4D, b[2] == 0x00, b[3] == 0x2A { return "TIFF" }
+    if b[0] == 0x52, b[1] == 0x49, b[2] == 0x46, b[3] == 0x46,
+       b[8] == 0x57, b[9] == 0x45, b[10] == 0x42, b[11] == 0x50 { return "WEBP" }
+    // HEIC: ftyp box at offset 4, brand "heic"/"heix"/"mif1"
+    if b[4] == 0x66, b[5] == 0x74, b[6] == 0x79, b[7] == 0x70 { return "HEIC" }
+    if b[0] == 0x00, b[1] == 0x00, b[2] == 0x01, b[3] == 0x00 { return "ICO" }
+    // SVG: starts with "<?xml" or "<svg"
+    if b[0] == 0x3C { return "SVG" }
+    return nil
+}
+
+private let imageFormatBadges: [String: String] = [
+    "jpg": "JPG", "jpeg": "JPG",
+    "png": "PNG",
+    "gif": "GIF",
+    "bmp": "BMP",
+    "tiff": "TIFF", "tif": "TIFF",
+    "webp": "WEBP",
+    "heic": "HEIC", "heif": "HEIC",
+    "ico": "ICO",
+    "svg": "SVG",
+]
 
 func fileIconInfo(_ path: String) -> FileIconInfo {
     var isDir: ObjCBool = false
@@ -13,12 +50,11 @@ func fileIconInfo(_ path: String) -> FileIconInfo {
 
     let ext = URL(fileURLWithPath: path).pathExtension.lowercased()
 
+    if let badge = imageFormatBadges[ext] {
+        return FileIconInfo(symbol: "photo.fill", color: .gray, badge: badge)
+    }
+
     switch ext {
-    // Images
-    case "png", "jpg", "jpeg", "gif", "bmp", "tiff", "tif", "webp", "heic", "heif", "ico":
-        return FileIconInfo(symbol: "photo.fill", color: .green)
-    case "svg":
-        return FileIconInfo(symbol: "square.on.square", color: .green)
     case "psd":
         return FileIconInfo(symbol: "paintbrush.fill", color: .blue)
     case "sketch", "fig":
@@ -225,8 +261,13 @@ private func resolveAppIcon(bundleID: String?, name: String?) -> NSImage? {
     }
     if let name, !name.isEmpty {
         let fallbackBundleID = bundleId(for: name)
-        if let url = workspace.urlForApplication(withBundleIdentifier: fallbackBundleID)
-            ?? findAppByName(name) {
+        // Never feed "" to Launch Services — on some macOS versions it returns a
+        // cached/unrelated app URL, which short-circuits findAppByName and makes
+        // every fallback row in the sidebar show the same wrong icon (issue #52).
+        let lsURL = fallbackBundleID.isEmpty
+            ? nil
+            : workspace.urlForApplication(withBundleIdentifier: fallbackBundleID)
+        if let url = lsURL ?? findAppByName(name) {
             return workspace.icon(forFile: url.path)
         }
     }

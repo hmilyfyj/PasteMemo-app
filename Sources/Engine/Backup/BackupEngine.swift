@@ -11,14 +11,39 @@ enum BackupEngine {
     @MainActor
     static func performBackup(
         container: ModelContainer,
-        destination: BackupDestination
+        destination: BackupDestination,
+        progress: @MainActor @escaping (_ current: Int, _ total: Int, _ isFinalizing: Bool) -> Void = { _, _, _ in }
     ) async throws {
         let context = ModelContext(container)
-        let descriptor = FetchDescriptor<ClipItem>()
-        let clipItems = try context.fetch(descriptor)
+        let clipItems = try context.fetch(FetchDescriptor<ClipItem>())
+        let groups = (try? context.fetch(FetchDescriptor<SmartGroup>())) ?? []
+        let rules = (try? context.fetch(FetchDescriptor<AutomationRule>())) ?? []
 
-        let jsonData = try DataPorter.exportItems(clipItems)
-        let fileData = DataPorterCrypto.wrapPlaintext(jsonData)
+        let total = clipItems.count
+
+        // Stream-encode each ExportItem and stream-compress to a temp file. Avoids
+        // holding the full [ExportItem] array, encoded JSON Data, and zlib output
+        // buffer in memory simultaneously — peak memory used to scale ~4× with
+        // total clip bytes (issue #39).
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("pastememo-backup-\(UUID().uuidString).zlib")
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        try await DataPorter.encodeAndCompress(
+            clipItems: clipItems,
+            groups: groups,
+            rules: rules,
+            to: tempURL
+        ) { current, _ in
+            progress(current, total, false)
+        }
+        progress(total, total, true)
+
+        // Read the compressed file once + prepend the 6-byte plaintext envelope.
+        // upload(data:) still takes a Data; switching destinations to a streaming
+        // upload would cut peak further but is out of scope for this fix.
+        let compressedData = try Data(contentsOf: tempURL)
+        let fileData = DataPorterCrypto.wrapPlaintext(compressedData)
 
         let currentSlot = UserDefaults.standard.integer(forKey: "backupCurrentSlot")
         let nextSlot = (currentSlot % maxSlots) + 1
@@ -72,10 +97,19 @@ enum BackupEngine {
         let context = ModelContext(container)
 
         if strategy == .overwrite {
-            let descriptor = FetchDescriptor<ClipItem>()
-            let allItems = try context.fetch(descriptor)
-            for item in allItems {
+            // Wipe clips and groups entirely; keep built-in rules (owned by BuiltInRules),
+            // wipe user-defined ones.
+            for item in (try? context.fetch(FetchDescriptor<ClipItem>())) ?? [] {
                 context.delete(item)
+            }
+            for group in (try? context.fetch(FetchDescriptor<SmartGroup>())) ?? [] {
+                context.delete(group)
+            }
+            let userRules = (try? context.fetch(
+                FetchDescriptor<AutomationRule>(predicate: #Predicate { !$0.isBuiltIn })
+            )) ?? []
+            for rule in userRules {
+                context.delete(rule)
             }
         }
 

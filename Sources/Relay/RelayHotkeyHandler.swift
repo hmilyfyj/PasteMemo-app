@@ -6,6 +6,43 @@ private let DEFAULT_RELAY_KEY_CODE = 0x09 // V
 private let RIGHT_ARROW_KEY_CODE = 0x7C
 private let LEFT_ARROW_KEY_CODE = 0x7B
 
+/// Carbon hotkey callback. File-scope `nonisolated` for the same reason as
+/// `hotkeyEventHandler` in HotkeyManager.swift: a closure literal formed in
+/// a @MainActor context gets a dynamic executor check injected into its
+/// C-function thunk, which crashes on macOS 26/27 betas when Carbon
+/// re-enters mid-drain (v1.7.13 crash report, 2026-08-12).
+private nonisolated func relayHotkeyEventHandler(
+    _ nextHandler: EventHandlerCallRef?,
+    _ event: EventRef?,
+    _ userData: UnsafeMutableRawPointer?
+) -> OSStatus {
+    var hotKeyID = EventHotKeyID()
+    GetEventParameter(
+        event,
+        UInt32(kEventParamDirectObject),
+        UInt32(typeEventHotKeyID),
+        nil,
+        MemoryLayout<EventHotKeyID>.size,
+        nil,
+        &hotKeyID
+    )
+    // Only respond to our own hotkey signature; other handlers
+    // (e.g. quick panel) use the same id space with different signatures.
+    guard hotKeyID.signature == RELAY_HOTKEY_SIGNATURE else {
+        return OSStatus(eventNotHandledErr)
+    }
+    Task { @MainActor in
+        switch hotKeyID.id {
+        case 1: RelayHotkeyHandler.current?.onPaste?()
+        case 2: RelayHotkeyHandler.current?.onSkip?()
+        case 3: RelayHotkeyHandler.current?.onPrevious?()
+        case 4: RelayHotkeyHandler.current?.onPasteAll?()
+        default: break
+        }
+    }
+    return noErr
+}
+
 @MainActor
 final class RelayHotkeyHandler {
 
@@ -17,6 +54,7 @@ final class RelayHotkeyHandler {
     var onPaste: (() -> Void)?
     var onSkip: (() -> Void)?
     var onPrevious: (() -> Void)?
+    var onPasteAll: (() -> Void)?
 
     var pasteKeyCode: Int {
         guard UserDefaults.standard.object(forKey: "relayPasteKeyCode") != nil else { return DEFAULT_RELAY_KEY_CODE }
@@ -28,6 +66,17 @@ final class RelayHotkeyHandler {
         return UserDefaults.standard.integer(forKey: "relayPasteModifiers")
     }
 
+    /// Paste-all 默认 ⌥⌃V，复用 paste 的键码加 option 修饰键，跟单条粘贴语义对齐。
+    var pasteAllKeyCode: Int {
+        guard UserDefaults.standard.object(forKey: "relayPasteAllKeyCode") != nil else { return pasteKeyCode }
+        return UserDefaults.standard.integer(forKey: "relayPasteAllKeyCode")
+    }
+
+    var pasteAllModifiers: Int {
+        guard UserDefaults.standard.object(forKey: "relayPasteAllModifiers") != nil else { return optionKey | controlKey }
+        return UserDefaults.standard.integer(forKey: "relayPasteAllModifiers")
+    }
+
     func start() {
         installEventHandler()
         // ID 1: Paste (Ctrl+V)
@@ -36,6 +85,8 @@ final class RelayHotkeyHandler {
         registerHotKey(id: 2, keyCode: RIGHT_ARROW_KEY_CODE, modifiers: controlKey)
         // ID 3: Previous (Ctrl+Left)
         registerHotKey(id: 3, keyCode: LEFT_ARROW_KEY_CODE, modifiers: controlKey)
+        // ID 4: Paste All (Option+Ctrl+V)
+        registerHotKey(id: 4, keyCode: pasteAllKeyCode, modifiers: pasteAllModifiers)
     }
 
     func stop() {
@@ -59,27 +110,7 @@ final class RelayHotkeyHandler {
 
         InstallEventHandler(
             GetApplicationEventTarget(),
-            { _, event, _ -> OSStatus in
-                var hotKeyID = EventHotKeyID()
-                GetEventParameter(
-                    event,
-                    UInt32(kEventParamDirectObject),
-                    UInt32(typeEventHotKeyID),
-                    nil,
-                    MemoryLayout<EventHotKeyID>.size,
-                    nil,
-                    &hotKeyID
-                )
-                Task { @MainActor in
-                    switch hotKeyID.id {
-                    case 1: RelayHotkeyHandler.current?.onPaste?()
-                    case 2: RelayHotkeyHandler.current?.onSkip?()
-                    case 3: RelayHotkeyHandler.current?.onPrevious?()
-                    default: break
-                    }
-                }
-                return noErr
-            },
+            relayHotkeyEventHandler,
             1,
             &eventType,
             nil,

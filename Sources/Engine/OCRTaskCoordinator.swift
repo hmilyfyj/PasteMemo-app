@@ -11,6 +11,7 @@ final class OCRTaskCoordinator: ObservableObject {
     @Published var scanTotal = 0
     @Published var scanCompleted = 0
     @Published var isScanning = false
+    private var scanCancelRequested = false
 
     private init() {}
 
@@ -18,12 +19,21 @@ final class OCRTaskCoordinator: ObservableObject {
         self.modelContainer = modelContainer
     }
 
+    // 默认关：OCR 在后台用 Vision 识别图片（加载神经网络模型 + 解码图），内存开销较大。
+    // 新用户默认不开，需要的人在「设置 → 图片 OCR」手动启用（启用处有内存提示）。
     var isEnabled: Bool {
-        UserDefaults.standard.object(forKey: Self.enableOCRKey) as? Bool ?? true
+        UserDefaults.standard.object(forKey: Self.enableOCRKey) as? Bool ?? false
     }
 
     var autoProcessEnabled: Bool {
         UserDefaults.standard.object(forKey: Self.autoOCRKey) as? Bool ?? true
+    }
+
+    /// Whether OCR should emit layout-aware Markdown (paragraphs, lists, tables)
+    /// instead of plain text. Only effective on macOS 26+; the engine falls back
+    /// to plain text automatically below that, so this can stay on everywhere.
+    var markdownEnabled: Bool {
+        UserDefaults.standard.object(forKey: Self.markdownKey) as? Bool ?? true
     }
 
     func enqueue(itemID: String) {
@@ -31,13 +41,16 @@ final class OCRTaskCoordinator: ObservableObject {
         enqueueForce(itemID: itemID)
     }
 
+    /// Manual retry is a user-initiated action like "Paste OCR Text", so it
+    /// bypasses the `isEnabled` master toggle — that toggle only gates
+    /// background OCR. Without this, a stale cached result (e.g. produced by an
+    /// older engine) could never be refreshed while background OCR is off.
     func retry(itemID: String) {
-        guard isEnabled else { return }
         enqueueForce(itemID: itemID)
     }
 
     func canRetry(item: ClipItem) -> Bool {
-        isEnabled && item.contentType == .image && item.imageData != nil
+        item.contentType == .image && item.imageData != nil
     }
 
     func scanExistingImages() {
@@ -51,10 +64,12 @@ final class OCRTaskCoordinator: ObservableObject {
         isScanning = true
         scanTotal = pending.count
         scanCompleted = 0
+        scanCancelRequested = false
 
         let ids = pending.map { $0.itemID }
         Task {
             for id in ids {
+                if scanCancelRequested { break }
                 await withCheckedContinuation { continuation in
                     enqueueForceThen(itemID: id) {
                         continuation.resume()
@@ -63,7 +78,16 @@ final class OCRTaskCoordinator: ObservableObject {
                 self.scanCompleted += 1
             }
             self.isScanning = false
+            self.scanCancelRequested = false
         }
+    }
+
+    /// Stop the in-progress background scan after the item currently being
+    /// recognized finishes. Results already written are kept; remaining items
+    /// stay in their previous OCR state and can be scanned again later.
+    func cancelScan() {
+        guard isScanning else { return }
+        scanCancelRequested = true
     }
 
     private func enqueueForce(itemID: String) {
@@ -81,35 +105,38 @@ final class OCRTaskCoordinator: ObservableObject {
             }
             let context = container.mainContext
             guard let item = Self.fetchItem(id: itemID, context: context) else { return }
-            guard item.contentType == .image, let imageData = item.imageData else {
+            guard item.contentType == .image, item.imageData != nil else {
                 item.ocrStatus = OCRStatus.skipped.rawValue
                 item.ocrErrorMessage = nil
                 item.ocrUpdatedAt = Date()
-                ClipItemStore.saveAndNotify(context)
+                ClipItemStore.saveAndNotifyContent(context)
                 return
             }
 
+            let originalURL = Self.originalImageURL(for: item)
+            let imageData = item.imageData
+            let useMarkdown = markdownEnabled
+
             item.ocrStatus = OCRStatus.processing.rawValue
             item.ocrErrorMessage = nil
-            ClipItemStore.saveAndNotify(context)
+            ClipItemStore.saveAndNotifyContent(context)
 
             do {
-                let result = try await ImageOCRService.shared.recognizeText(from: imageData)
+                let result: OCRRecognitionResult
+                if let url = originalURL {
+                    result = try await ImageOCRService.shared.recognizeText(fileURL: url, markdown: useMarkdown)
+                } else if let data = imageData {
+                    result = try await ImageOCRService.shared.recognizeText(from: data, markdown: useMarkdown)
+                } else {
+                    throw ImageOCRError.invalidImage
+                }
                 await MainActor.run {
                     guard let refreshed = Self.fetchItem(id: itemID, context: context) else { return }
                     refreshed.ocrText = result.text.isEmpty ? nil : result.text
                     refreshed.ocrStatus = result.hasText ? OCRStatus.done.rawValue : OCRStatus.skipped.rawValue
                     refreshed.ocrUpdatedAt = Date()
                     refreshed.ocrErrorMessage = nil
-                    if let text = refreshed.ocrText, !text.isEmpty {
-                        let existing = refreshed.isSensitive
-                        refreshed.isSensitive = existing || SensitiveDetector.isSensitive(
-                            content: text,
-                            sourceAppBundleID: refreshed.sourceAppBundleID,
-                            contentType: .text
-                        )
-                    }
-                    ClipItemStore.saveAndNotify(context)
+                    ClipItemStore.saveAndNotifyContent(context)
                 }
             } catch {
                 await MainActor.run {
@@ -117,10 +144,67 @@ final class OCRTaskCoordinator: ObservableObject {
                     refreshed.ocrStatus = OCRStatus.failed.rawValue
                     refreshed.ocrUpdatedAt = Date()
                     refreshed.ocrErrorMessage = error.localizedDescription
-                    ClipItemStore.saveAndNotify(context)
+                    ClipItemStore.saveAndNotifyContent(context)
                 }
             }
         }
+    }
+
+    /// On-demand OCR that **bypasses** the `isEnabled` toggle. Backs the
+    /// "Copy OCR Text" command so it works even when auto-OCR is turned off.
+    /// Returns cached text when present; otherwise runs Vision once, persists
+    /// the result, and returns it. Returns nil when the item isn't an OCR-able
+    /// image or no text was found.
+    func recognizeOnDemand(itemID: String) async -> String? {
+        guard let container = modelContainer else { return nil }
+        let context = container.mainContext
+        guard let item = Self.fetchItem(id: itemID, context: context) else { return nil }
+        if let existing = item.ocrText, !existing.isEmpty { return existing }
+        guard item.contentType == .image, item.imageData != nil else { return nil }
+
+        let originalURL = Self.originalImageURL(for: item)
+        let imageData = item.imageData
+        let useMarkdown = markdownEnabled
+
+        item.ocrStatus = OCRStatus.processing.rawValue
+        item.ocrErrorMessage = nil
+        ClipItemStore.saveAndNotifyContent(context)
+
+        do {
+            let result: OCRRecognitionResult
+            if let url = originalURL {
+                result = try await ImageOCRService.shared.recognizeText(fileURL: url, markdown: useMarkdown)
+            } else if let data = imageData {
+                result = try await ImageOCRService.shared.recognizeText(from: data, markdown: useMarkdown)
+            } else {
+                return nil
+            }
+            let text = result.text.isEmpty ? nil : result.text
+            if let refreshed = Self.fetchItem(id: itemID, context: context) {
+                refreshed.ocrText = text
+                refreshed.ocrStatus = result.hasText ? OCRStatus.done.rawValue : OCRStatus.skipped.rawValue
+                refreshed.ocrUpdatedAt = Date()
+                refreshed.ocrErrorMessage = nil
+                ClipItemStore.saveAndNotifyContent(context)
+            }
+            return text
+        } catch {
+            if let refreshed = Self.fetchItem(id: itemID, context: context) {
+                refreshed.ocrStatus = OCRStatus.failed.rawValue
+                refreshed.ocrUpdatedAt = Date()
+                refreshed.ocrErrorMessage = error.localizedDescription
+                ClipItemStore.saveAndNotifyContent(context)
+            }
+            return nil
+        }
+    }
+
+    /// Image clips keep only a small thumbnail in `imageData`; OCR'ing that would miss small
+    /// text. Prefer the original on disk — our cache file for raw screenshots, or the user's
+    /// file for Finder copies (both resolved by `sourceImageFileURL`). Vision's URL handler
+    /// streams it without loading the whole image. nil → fall back to `imageData` (legacy clips).
+    private static func originalImageURL(for item: ClipItem) -> URL? {
+        item.sourceImageFileURL
     }
 
     private static func fetchItem(id: String, context: ModelContext) -> ClipItem? {
@@ -130,4 +214,5 @@ final class OCRTaskCoordinator: ObservableObject {
 
     static let enableOCRKey = "ocrEnabled"
     static let autoOCRKey = "ocrAutoProcessImages"
+    static let markdownKey = "ocrToMarkdown"
 }

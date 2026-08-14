@@ -1,360 +1,229 @@
 import SwiftUI
 import SwiftData
-import AppKit
+import Quartz
+
+/// tabBar 的主过滤维度：所有模式共用 pinned/aiAgent/all；类型模式下追加 .type，分组模式下追加 .group
+private enum QuickFilter: Equatable, Hashable {
+    case all
+    case pinned
+    case aiAgent
+    case type(ClipContentType)
+    case group(String)
+
+    /// 序列化成可写入 @AppStorage 的字符串。`.type`/`.group` 用 `前缀:值` 形式。
+    var storageString: String {
+        switch self {
+        case .all: return "all"
+        case .pinned: return "pinned"
+        case .aiAgent: return "aiAgent"
+        case .type(let t): return "type:\(t.rawValue)"
+        case .group(let name): return "group:\(name)"
+        }
+    }
+
+    /// 从 @AppStorage 字符串解析；无法识别返回 nil（调用方退回 `.all`）。
+    /// 按**第一个**冒号切分，组名本身含冒号也安全。
+    init?(storageString: String) {
+        switch storageString {
+        case "all": self = .all
+        case "pinned": self = .pinned
+        case "aiAgent": self = .aiAgent
+        default:
+            guard let colon = storageString.firstIndex(of: ":") else { return nil }
+            let prefix = String(storageString[..<colon])
+            let value = String(storageString[storageString.index(after: colon)...])
+            switch prefix {
+            case "type":
+                guard let t = ClipContentType(rawValue: value) else { return nil }
+                self = .type(t)
+            case "group":
+                guard !value.isEmpty else { return nil }
+                self = .group(value)
+            default:
+                return nil
+            }
+        }
+    }
+}
+
+/// `/` 下拉选择留下的次级过滤（以 pill 展示于搜索框）
+private enum PillSelection: Equatable {
+    case type(ClipContentType)
+    case group(String)
+    case app(String)
+}
+
+private let PANEL_WIDTH: CGFloat = 750
+private let PANEL_HEIGHT: CGFloat = 510
+private let LIST_WIDTH: CGFloat = 340
 
 struct QuickPanelView: View {
     @EnvironmentObject var clipboardManager: ClipboardManager
-    @Environment(\.modelContext) var modelContext
-    @Environment(\.openWindow) var openWindow
-    @Environment(\.openSettings) var openSettings
-    @AppStorage(QuickPanelStyle.storageKey) var quickPanelStyle = QuickPanelStyle.classic.rawValue
-    @ObservedObject var hotkeyManager = HotkeyManager.shared
-    @State var store = ClipItemStore()
-    @State var searchText = ""
-    @State var groupSuggestionIndex = -1
-    @State var selectedGroupFilter: String?
-    @State var isAppFilter = false
-    @State var selectedItemIDs: Set<PersistentIdentifier> = []
-    @State var selectedFilter: QuickFilter = .all
-    @State var keyMonitor: Any?
-    @State var flagsMonitor: Any?
-    @FocusState var isSearchFocused: Bool
-    @State var lastClickedID: PersistentIdentifier?
-    @State var lastClickTime: Date = .distantPast
-    @State var lastNavigatedID: PersistentIdentifier?
-    @State var selectionAnchor: PersistentIdentifier?
-    @State var showAllShortcuts = false
-    @State var relaySplitText: String?
-    @State var showCopiedToast = false
-    @State var showCommandPalette = false
-    @State var targetApp: NSRunningApplication?
-    @State var isPanelPinned = false
-    @State var scrollResetToken = UUID()
-    @State var pendingScrollRequestID: PersistentIdentifier?
-    @State var scrollRequestToken = 0
-    @State var pendingScrollRequestPasses = 0
-    @State var lastSeenFirstItemID: String?
-    @State var cachedGroupedItems: [GroupedItem<ClipItem>] = []
-    @State var cachedDisplayOrder: [ClipItem] = []
-    @State var cachedItemMap: [PersistentIdentifier: ClipItem] = [:]
-    @State var cachedIDSet: Set<PersistentIdentifier> = []
-    @State var bottomMode: QuickPanelBottomMode = .compact
-    @State var keepBottomDetailsMounted = false
-    @State var isBottomSearchExpanded = false
-    @State var isLiveResizing = false
-    @State var frozenBottomCardMetrics: BottomCardLayoutMetrics?
-    @State var bottomClipAllowsDirectionalFallback = true
-    @State var showBottomOverflowMenu = false
-    @State var editingItem: ClipItem?
-    @State var editingContent: String = ""
+    @EnvironmentObject private var layoutState: QuickPanelLayoutState
+    @Environment(\.modelContext) private var modelContext
+    @State private var store = ClipItemStore()
+    @State private var searchText = ""
+    @State private var groupSuggestionIndex = -1
+    /// Measured natural height of the `/` suggestion list. Drives a content-fitting,
+    /// max-capped frame so a long match list scrolls instead of stretching the panel.
+    /// Seeded at the cap so the first frame is already bounded (never grows the window).
+    @State private var suggestionsContentHeight: CGFloat = 280
+    @State private var pill: PillSelection?
+    /// 刚打开面板的前几十毫秒内抑制建议浮层渲染，避免上次残留状态首帧闪现
+    @State private var suggestionsArmed = false
+    /// 用户是否主动按过 `/` 键。只有在 keyMonitor 的 case 44 里置 true，
+    /// 避免 searchText 被任何其他路径写成 `/` 时弹出建议浮层。面板每次开/关都重置。
+    @State private var userTypedSlash = false
+    @State private var selectedItemIDs: Set<PersistentIdentifier> = []
+    @State private var selectedFilter: QuickFilter = .all
+    @State private var keyMonitor: Any?
+    @State private var flagsMonitor: Any?
+    @FocusState private var isSearchFocused: Bool
+    @State private var lastClickedID: PersistentIdentifier?
+    @State private var lastClickTime: Date = .distantPast
+    @State private var lastNavigatedID: PersistentIdentifier?
+    @State private var selectionAnchor: PersistentIdentifier?
+    @State private var showAllShortcuts = false
+    @State private var relaySplitText: String?
+    @State private var showCommandPalette = false
+    @State private var targetApp: NSRunningApplication?
+    @State private var isPanelPinned = false
+    @State private var scrollResetToken = UUID()
+    @State private var lastSeenFirstItemID: String?
+    /// 面板本次显示后用户是否操作过（按键 / 点击）。剪贴板轮询捕获的新条目可能在
+    /// 打开后一拍才到达并把列表重排——用户还没动过时选中应跟随新的第一条，
+    /// 否则预览停留在旧首条、与列表顶部不一致（1.7.12-beta 用户实测反馈）。
+    @State private var userInteractedSinceShow = false
+    /// 瀑布流网格的两级焦点：false = 焦点在分类标签（←→ 切分类，↓ 进入网格）；
+    /// true = 焦点在图片（←→↑↓ 四向移动，顶行按 ↑ 退回标签级）。
+    /// 没有这层状态时，→ 移到「图片」分类的瞬间方向键就被网格吞掉，分类切换"卡死"。
+    @State private var isGridFocused = false
+    @State private var cachedGroupedItems: [GroupedItem<ClipItem>] = []
+    @State private var cachedHistoryRows: [ClipHistoryListBuilder.Row] = []
+    @State private var cachedHistoryRowIndexByID: [PersistentIdentifier: Int] = [:]
+    @State private var cachedDisplayOrder: [ClipItem] = []
+    @State private var cachedItemMap: [PersistentIdentifier: ClipItem] = [:]
+    @State private var cachedIDSet: Set<PersistentIdentifier> = []
+    @AppStorage("quickPanelAutoPaste") private var quickPanelAutoPaste = true
+    @AppStorage(QuickPanelSettings.secondaryRowKey) private var quickPanelSecondaryRowRaw = QuickPanelSecondaryRow.types.rawValue
+    @AppStorage(QuickPanelSettings.rememberLastFilterKey) private var rememberLastFilter = false
+    @AppStorage(QuickPanelSettings.lastFilterKey) private var lastFilterStorage = "all"
+    @AppStorage(QuickPanelSettings.imageLayoutKey) private var imageLayoutRaw = QuickPanelImageLayout.list.rawValue
+    @AppStorage(QuickPanelSettings.imageGridDensityKey) private var imageGridDensityRaw = QuickPanelImageGridDensity.medium.rawValue
 
-    var filteredItems: [ClipItem] { store.items }
+    private var secondaryRow: QuickPanelSecondaryRow {
+        QuickPanelSecondaryRow(rawValue: quickPanelSecondaryRowRaw) ?? .types
+    }
 
-    var groupedItems: [GroupedItem<ClipItem>] { cachedGroupedItems }
+    // MARK: - 图片瀑布流网格
+
+    private var imageGridDensity: QuickPanelImageGridDensity {
+        QuickPanelImageGridDensity(rawValue: imageGridDensityRaw) ?? .medium
+    }
+
+    /// 仅当：用户开了「瀑布流网格」+ 当前主筛选是「图片」类型 + 有内容时，才用网格替代列表。
+    /// 其它任何筛选（全部 / 文本 / 链接 / 分组 …）一律保持原有列表。
+    private var isImageGridActive: Bool {
+        QuickPanelImageLayout(rawValue: imageLayoutRaw) == .grid
+            && selectedFilter == .type(.image)
+            && !displayOrderItems.isEmpty
+    }
+
+    private static let imageGridSpacing: CGFloat = 13
+    private static let imageGridHPad: CGFloat = 16
+
+    /// 按面板当前宽度 + 密度目标列宽算出列数（拖宽面板会自动增减列）。
+    /// 列分配只取决于列数，所以渲染（`QuickImageGridView`）与导航（`moveGrid`）传同一个值即可对齐。
+    private var imageGridColumnCount: Int {
+        let avail = max(1, layoutState.width - Self.imageGridHPad * 2)
+        let target = imageGridDensity.targetColumnWidth
+        return max(1, Int((avail + Self.imageGridSpacing) / (target + Self.imageGridSpacing)))
+    }
+
+    /// 实际列宽（列间拉伸撑满整宽）。渲染与导航必须共用同一个值，否则瀑布流打包
+    /// 会因常量间距算出不同的列分配，光标与屏幕对不上。
+    private var imageGridColumnWidth: CGFloat {
+        let n = imageGridColumnCount
+        let avail = max(1, layoutState.width - Self.imageGridHPad * 2)
+        return (avail - Self.imageGridSpacing * CGFloat(n - 1)) / CGFloat(n)
+    }
+
+    private var filteredItems: [ClipItem] { store.items }
+
+    private var validFilteredItems: [ClipItem] {
+        filteredItems.filter { !$0.isDeleted && $0.modelContext != nil }
+    }
+
+    private var groupedItems: [GroupedItem<ClipItem>] { cachedGroupedItems }
 
     /// Flat list in display order (matches what user sees on screen)
-    var displayOrderItems: [ClipItem] { cachedDisplayOrder }
+    private var displayOrderItems: [ClipItem] { cachedDisplayOrder }
 
-    var defaultItem: ClipItem? {
+    private var defaultItem: ClipItem? {
         cachedDisplayOrder.first
     }
 
-    var panelStyle: QuickPanelStyle {
-        QuickPanelStyle(rawValue: quickPanelStyle) ?? .classic
-    }
-
-    var isBottomFloatingStyle: Bool {
-        panelStyle == .bottomFloating
-    }
-
-    var isBottomExpanded: Bool {
-        isBottomFloatingStyle && bottomMode == .expanded
-    }
-
-    var currentCustomGroupFilterName: String? {
-        guard !isAppFilter, let name = selectedGroupFilter else { return nil }
-        return store.sidebarCounts.byGroup.contains(where: { $0.name == name }) ? name : nil
-    }
-
-    var isBottomSearchCollapsed: Bool {
-        isBottomFloatingStyle
-        && !isBottomSearchExpanded
-        && !isSearchFocused
-        && searchText.isEmpty
-    }
-
-    var bottomSearchFieldWidth: CGFloat {
-        isBottomSearchCollapsed ? QuickPanelBottomTheme.searchHeight : QuickPanelBottomTheme.searchWidth
-    }
-
-    var shouldRenderBottomDetails: Bool {
-        isBottomExpanded || keepBottomDetailsMounted
-    }
-
-    var bottomOverflowMenuSections: [AppMenuSectionDefinition] {
-        AppMenuFactory.makeSections(
-            hotkeyManager: hotkeyManager,
-            clipboardManager: clipboardManager,
-            onOpenManager: {
-                showBottomOverflowMenu = false
-                handleDismiss()
-                AppAction.shared.openMainWindow?()
-            },
-            onOpenQuickPanel: {
-                showBottomOverflowMenu = false
-                HotkeyManager.shared.toggleQuickPanel()
-            },
-            onOpenAutomationManager: {
-                showBottomOverflowMenu = false
-                handleDismiss()
-                AppAction.shared.openAutomationManager?()
-            },
-            onOpenSettings: {
-                showBottomOverflowMenu = false
-                handleDismiss()
-                AppAction.shared.openSettings?()
-            }
-        )
-    }
-
-    func storeAppActions() {
-        let hideDock = UserDefaults.standard.bool(forKey: "hideDockIcon")
-        AppAction.shared.openMainWindow = { [openWindow] in
-            openWindow(id: "main")
-            if !hideDock {
-                NSApp.setActivationPolicy(.regular)
-            }
-            NSApp.activate(ignoringOtherApps: true)
-        }
-        AppAction.shared.openSettings = { [openSettings] in
-            if !hideDock {
-                NSApp.setActivationPolicy(.regular)
-            }
-            NSApp.activate(ignoringOtherApps: true)
-            openSettings()
-        }
-        AppAction.shared.openAutomationManager = { [openWindow] in
-            if !hideDock {
-                NSApp.setActivationPolicy(.regular)
-            }
-            openWindow(id: "automationManager")
-            NSApp.activate(ignoringOtherApps: true)
+    private func selectDefaultHistoryItem() {
+        if let id = cachedDisplayOrder.first?.persistentModelID {
+            selectedItemIDs = [id]
+            lastNavigatedID = id
+            selectionAnchor = id
+        } else {
+            selectedItemIDs.removeAll()
+            lastNavigatedID = nil
+            selectionAnchor = nil
         }
     }
 
-    func rebuildGroupedItems() {
-        cachedGroupedItems = groupItemsByTime(filteredItems)
+    private func rebuildGroupedItems() {
+        // 原生列表会给每个 row 分配固定高度，先把已删除/脱离上下文的对象过滤掉，
+        // 避免表格里出现可见空白占位行。
+        cachedGroupedItems = groupItemsByTime(validFilteredItems, separatePinned: false)
+        cachedHistoryRows = ClipHistoryListBuilder.makeRows(from: cachedGroupedItems)
+        cachedHistoryRowIndexByID = ClipHistoryListBuilder.rowIndexByItemID(rows: cachedHistoryRows)
         cachedDisplayOrder = cachedGroupedItems.flatMap(\.items)
         cachedItemMap = Dictionary(cachedDisplayOrder.map { ($0.persistentModelID, $0) }, uniquingKeysWith: { _, last in last })
         cachedIDSet = Set(cachedItemMap.keys)
     }
 
-    func bottomCardLayoutMetrics(for size: CGSize, freezeForLiveResize: Bool) -> BottomCardLayoutMetrics {
-        let horizontalPadding: CGFloat = 10
-        let verticalPadding: CGFloat = bottomMode == .compact ? 10 : 12
-        let spacing: CGFloat = 12
-
-        let railHeight: CGFloat
-        if bottomMode == .compact {
-            railHeight = max(size.height - 86, 150)
-        } else {
-            railHeight = min(max(size.height * 0.31, 228), 300)
-        }
-
-        let normalizedRailHeight = freezeForLiveResize
-            ? quantizedLiveResizeLength(railHeight, step: bottomMode == .compact ? 14 : 12)
-            : railHeight
-        let cardSide = max(normalizedRailHeight - verticalPadding * 2, 156)
-
-        return BottomCardLayoutMetrics(
-            railHeight: normalizedRailHeight,
-            cardWidth: cardSide,
-            cardHeight: cardSide,
-            horizontalPadding: horizontalPadding,
-            verticalPadding: verticalPadding,
-            spacing: spacing
-        )
-    }
-
-    func bottomCardLayoutMetrics(for size: CGSize) -> BottomCardLayoutMetrics {
-        bottomCardLayoutMetrics(for: size, freezeForLiveResize: isLiveResizing)
-    }
-
-    func resolvedBottomCardLayoutMetrics(for size: CGSize) -> BottomCardLayoutMetrics {
-        let liveMetrics = bottomCardLayoutMetrics(for: size)
-        guard isLiveResizing, let frozen = frozenBottomCardMetrics else {
-            return liveMetrics
-        }
-
-        return BottomCardLayoutMetrics(
-            railHeight: min(frozen.railHeight, liveMetrics.railHeight),
-            cardWidth: min(frozen.cardWidth, liveMetrics.cardWidth),
-            cardHeight: min(frozen.cardHeight, liveMetrics.cardHeight),
-            horizontalPadding: frozen.horizontalPadding,
-            verticalPadding: frozen.verticalPadding,
-            spacing: frozen.spacing
-        )
-    }
-
     /// Single selected ID for backward compat
-    var selectedItemID: PersistentIdentifier? {
+    private var selectedItemID: PersistentIdentifier? {
         selectedItemIDs.count == 1 ? selectedItemIDs.first : selectedItemIDs.first
     }
 
-    var isMultiSelected: Bool { selectedItemIDs.count > 1 }
+    private var isMultiSelected: Bool { selectedItemIDs.count > 1 }
 
-    var currentItems: [ClipItem] {
-        selectedItemIDs.compactMap { cachedItemMap[$0] }
+    private var currentItems: [ClipItem] {
+        guard !store.items.isEmpty else { return [] }
+        let ids = selectedItemIDs
+        return cachedDisplayOrder.filter { ids.contains($0.persistentModelID) && !$0.isDeleted && $0.modelContext != nil }
     }
 
-    var currentItem: ClipItem? {
+    private var currentItem: ClipItem? {
         guard !isMultiSelected else { return nil }
+        // store.items is cleared by deleteAndNotify before deletion — this is the
+        // only reliable signal; isDeleted is NOT safe on zombie SwiftData objects
+        guard !store.items.isEmpty else { return nil }
         guard let id = selectedItemIDs.first else { return defaultItem }
-        return cachedItemMap[id]
+        guard let item = cachedItemMap[id], !item.isDeleted, item.modelContext != nil else { return nil }
+        return item
     }
 
-    func selectItem(_ id: PersistentIdentifier, allowsDirectionalFallback: Bool = true) {
-        bottomClipAllowsDirectionalFallback = allowsDirectionalFallback
+    private func selectItem(_ id: PersistentIdentifier) {
         selectedItemIDs = [id]
         lastNavigatedID = id
+        selectionAnchor = id
     }
 
-    func resetSearchFocusForPresentation() {
-        isSearchFocused = !isBottomFloatingStyle
-        isBottomSearchExpanded = false
-    }
-
-    func restoreSearchFocusIfNeeded() {
-        if !isBottomFloatingStyle {
-            isSearchFocused = true
-        }
-    }
-
-    @MainActor
-    @discardableResult
-    func placeSearchCursorAtEnd() -> Bool {
-        let windows = [NSApp.keyWindow, NSApp.mainWindow].compactMap { $0 }
-
-        for window in windows {
-            guard let textView = window.firstResponder as? NSTextView else { continue }
-            let cursorLocation = searchText.utf16.count
-            textView.setSelectedRange(NSRange(location: cursorLocation, length: 0))
-            textView.scrollRangeToVisible(NSRange(location: cursorLocation, length: 0))
-            return true
-        }
-
-        return false
-    }
-
-    func requestSearchCursorPlacementAtEnd() {
-        Task { @MainActor in
-            for _ in 0..<5 {
-                await Task.yield()
-                if placeSearchCursorAtEnd() {
-                    return
-                }
-            }
-        }
-    }
-
-    func activateSearchField(placeCursorAtEnd: Bool = false) {
-        guard isBottomFloatingStyle else {
-            isSearchFocused = true
-            if placeCursorAtEnd {
-                requestSearchCursorPlacementAtEnd()
-            }
-            return
-        }
-
-        isBottomSearchExpanded = true
-        Task { @MainActor in
-            await Task.yield()
-            isSearchFocused = true
-            if placeCursorAtEnd {
-                requestSearchCursorPlacementAtEnd()
-            }
-        }
-    }
-
-    func syncBottomSearchExpansion() {
-        guard isBottomFloatingStyle else {
-            isBottomSearchExpanded = false
-            return
-        }
-
-        isBottomSearchExpanded = isSearchFocused || !searchText.isEmpty
-    }
-
-    func moveFocusToSelectionIfNeeded() {
-        if isBottomFloatingStyle {
-            isSearchFocused = false
-        } else {
-            isSearchFocused = true
-        }
-    }
-
-    func bottomClipScrollAnchor(
-        for id: PersistentIdentifier,
-        previousID: PersistentIdentifier?,
-        allowsDirectionalFallback: Bool
-    ) -> UnitPoint? {
-        QuickPanelSelectionLogic.bottomClipScrollAnchor(
-            ids: displayOrderItems.map(\.persistentModelID),
-            targetID: id,
-            previousID: previousID,
-            allowsDirectionalFallback: allowsDirectionalFallback
-        )
-    }
-
-    func ensureBottomClipVisible(
-        id: PersistentIdentifier,
-        previousID: PersistentIdentifier?,
-        proxy: ScrollViewProxy
-    ) {
-        let allowsDirectionalFallback = bottomClipAllowsDirectionalFallback
-        bottomClipAllowsDirectionalFallback = true
-
-        guard let anchor = bottomClipScrollAnchor(
-            for: id,
-            previousID: previousID,
-            allowsDirectionalFallback: allowsDirectionalFallback
-        ) else { return }
-
-        withAnimation(.easeOut(duration: 0.16)) {
-            proxy.scrollTo(id, anchor: anchor)
-        }
-    }
-
-    func requestScrollToItem(_ id: PersistentIdentifier) {
-        pendingScrollRequestID = id
-        pendingScrollRequestPasses = 2
-        scrollRequestToken += 1
-    }
-
-    func reissuePendingScrollRequestIfNeeded() {
-        guard pendingScrollRequestPasses > 1,
-              let pendingID = pendingScrollRequestID,
-              cachedIDSet.contains(pendingID) else { return }
-        Task { @MainActor in
-            await Task.yield()
-            scrollRequestToken += 1
-        }
-    }
-
-    func completeScrollRequestPass() {
-        guard pendingScrollRequestPasses > 0 else { return }
-        pendingScrollRequestPasses -= 1
-        if pendingScrollRequestPasses == 0 {
-            pendingScrollRequestID = nil
-        }
-    }
-
-    func handleItemClick(_ id: PersistentIdentifier) {
+    private func handleItemClick(_ id: PersistentIdentifier) {
+        userInteractedSinceShow = true
+        // 鼠标点选图片 = 直接进入网格焦点级，后续方向键在图片间移动
+        if isImageGridActive { isGridFocused = true }
         let now = Date()
         let isDoubleClick = lastClickedID == id && now.timeIntervalSince(lastClickTime) < 0.3
 
         if isDoubleClick {
-            selectItem(id, allowsDirectionalFallback: false)
+            selectItem(id)
             handlePaste()
             lastClickedID = nil
             lastClickTime = .distantPast
@@ -367,90 +236,75 @@ struct QuickPanelView: View {
         } else if flags.contains(.shift) {
             extendSelectionTo(id)
         } else {
-            selectItem(id, allowsDirectionalFallback: false)
+            selectItem(id)
         }
-        moveFocusToSelectionIfNeeded()
-        syncQuickLookPreviewForSelection()
+        isSearchFocused = true
         lastClickedID = id
         lastClickTime = now
     }
 
-    func syncQuickLookPreviewForSelection() {
-        guard QuickLookHelper.shared.isVisible else { return }
-        guard !isMultiSelected, let item = currentItem else {
-            QuickLookHelper.shared.closePreview()
-            return
-        }
-        QuickLookHelper.shared.preview(item: item)
-    }
-
-    func toggleItemInSelection(_ id: PersistentIdentifier) {
+    private func toggleItemInSelection(_ id: PersistentIdentifier) {
         if selectedItemIDs.contains(id) {
             selectedItemIDs.remove(id)
+            if selectionAnchor == id {
+                selectionAnchor = lastNavigatedID == id ? nil : lastNavigatedID
+            }
         } else {
             selectedItemIDs.insert(id)
+            selectionAnchor = selectionAnchor ?? id
         }
     }
 
-    func extendSelectionTo(_ id: PersistentIdentifier) {
+    private func extendSelectionTo(_ id: PersistentIdentifier) {
         let items = displayOrderItems
-        guard let lastID = selectedItemIDs.first,
-              let lastIdx = items.firstIndex(where: { $0.persistentModelID == lastID }),
-              let clickIdx = items.firstIndex(where: { $0.persistentModelID == id }) else {
+        let anchor = ClipHistorySelectionHelper.resolvedAnchor(
+            existingAnchor: selectionAnchor,
+            focusedID: lastNavigatedID == id ? nil : lastNavigatedID,
+            fallbackSelectedID: selectedItemIDs.first,
+            targetID: id
+        )
+        guard let selection = ClipHistorySelectionHelper.rangeSelection(
+            orderedIDs: items.map(\.persistentModelID),
+            anchorID: anchor,
+            targetID: id
+        ) else {
             selectItem(id)
             return
         }
-        let range = min(lastIdx, clickIdx)...max(lastIdx, clickIdx)
-        selectedItemIDs = Set(items[range].map(\.persistentModelID))
+        selectedItemIDs = selection
+        selectionAnchor = anchor
+        lastNavigatedID = id
     }
 
     var body: some View {
         ZStack(alignment: .top) {
-        Group {
-            if isBottomFloatingStyle {
-                bottomFloatingLayout
+        VStack(spacing: 0) {
+            searchBar
+            // 标签条排除背景拖拽：否则点分类标签时窗口跟着微拖「晃动」
+            NonDraggableArea { tabBar }
+            Divider().opacity(0.3)
+            if filteredItems.isEmpty {
+                emptyStateView
+            } else if isImageGridActive {
+                // 「图片」筛选 + 开了瀑布流：全宽网格替代列表（无右侧预览，图片面积最大）。
+                imageGridView
             } else {
-                classicLayout
-            }
-        }
-        .overlay {
-            if showCopiedToast {
-                VStack {
-                    Spacer()
-                    Text(L10n.tr("action.copied"))
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(.black.opacity(0.75), in: Capsule())
-                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
-                        .padding(.bottom, 50)
+                HStack(spacing: 0) {
+                    if layoutState.shouldShowPreview {
+                        clipList
+                            .frame(width: LIST_WIDTH)
+                        Divider().opacity(0.3)
+                        previewPane
+                    } else {
+                        clipList
+                            .frame(maxWidth: .infinity)
+                    }
                 }
-                .animation(.easeInOut(duration: 0.2), value: showCopiedToast)
             }
-            // Command palette is now shown via popover on the selected row
+            Divider().opacity(0.3)
+            footerBar
         }
-        if isBottomFloatingStyle && showBottomOverflowMenu {
-            Color.black.opacity(0.001)
-                .ignoresSafeArea()
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    showBottomOverflowMenu = false
-                }
-                .zIndex(20)
-        }
-        if isBottomFloatingStyle && showBottomOverflowMenu {
-            VStack {
-                HStack {
-                    Spacer(minLength: 0)
-                    QuickPanelOverflowMenu(sections: bottomOverflowMenuSections)
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.top, 42)
-            .padding(.trailing, 16)
-            .zIndex(21)
-        }
+        .frame(minWidth: 360, minHeight: 420)
         // Floating group suggestions overlay
         if isShowingSuggestions {
             VStack(spacing: 0) {
@@ -473,181 +327,2415 @@ struct QuickPanelView: View {
         }
         } // ZStack
         .onAppear {
-            storeAppActions()
             store.configure(modelContext: modelContext)
             rebuildGroupedItems()
-            if let id = defaultItem?.persistentModelID { selectedItemIDs = [id]; lastNavigatedID = id }
+            selectDefaultHistoryItem()
+            lastSeenFirstItemID = store.queryFirstItemID()
             installKeyMonitor()
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(50))
-                resetSearchFocusForPresentation()
-                prewarmBottomDetailsIfNeeded()
+                isSearchFocused = true
             }
         }
         .onDisappear {
-            showBottomOverflowMenu = false
             removeKeyMonitor()
             store.isActive = false
         }
+        .onReceive(NotificationCenter.default.publisher(for: .quickPanelWillDismiss)) { _ in
+            // isActive 必须在这里归位，不能只靠 onDisappear：面板隐藏走的是
+            // orderOut，视图仍留在窗口层级里，onDisappear 不会触发。isActive
+            // 悬在 true 会让隐藏期间的每次复制都同步跑全量 performRefresh
+            // （20k 条实测每次 ~40-90ms），而设计上的惰性路径（标记
+            // needsRefresh、下次打开时 refreshIfNeeded 消费）形同虚设。
+            store.isActive = false
+            // 关闭前清空 "/" 触发的分组建议及相关状态，避免下次打开首帧闪现
+            searchText = ""
+            groupSuggestionIndex = -1
+            pill = nil
+            showCommandPalette = false
+            suggestionsArmed = false
+            userTypedSlash = false
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .quickPanelPinnedResignKey)) { _ in
+            // Pinned + user clicked another app: release search focus so the text field
+            // stops dragging key status back to the panel.
+            isSearchFocused = false
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .quickPanelPasteDigit)) { note in
+            // 置顶时全局 ⌘1–9 命中：粘贴对应项，面板保持打开
+            guard let index = note.userInfo?["index"] as? Int else { return }
+            pasteDigitWhilePinned(index: index)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .quickPanelPasteTargetChanged)) { _ in
+            // 置顶期间用户切到别的 App，刷新底部"粘贴到 X"（previousApp 已在控制器侧更新）
+            targetApp = QuickPanelWindowController.shared.previousApp
+        }
         .onReceive(NotificationCenter.default.publisher(for: .quickPanelDidShow)) { _ in
-            storeAppActions()
-            showBottomOverflowMenu = false
             showCommandPalette = false
             searchText = ""
-            selectedGroupFilter = nil
-            isAppFilter = false
-            selectedFilter = .all
+            pill = nil
+            let restoredFilter = restoredFilterOnShow()
+            selectedFilter = restoredFilter
             isPanelPinned = false
-            isLiveResizing = false
-            frozenBottomCardMetrics = nil
-            bottomMode = isBottomFloatingStyle ? .compact : .expanded
-            if isBottomFloatingStyle {
-                QuickPanelWindowController.shared.setBottomFloatingMode(.compact, animated: false)
-            }
+            suggestionsArmed = false
+            userTypedSlash = false
+            userInteractedSinceShow = false
+            isGridFocused = false
+            // 延后一小会儿再放开建议浮层，给 SwiftUI 一次 tick 把状态提交到渲染树，
+            // 避免刚 orderFrontRegardless 时显示上一次的 `/` 建议面板。
+            // 代价：打开 80ms 内如果立即输入 `/`，这一帧的建议不会渲染，
+            // 下次 searchText 变动即会正常显示，实际几乎感知不到。
             store.isActive = true
-            store.configure(modelContext: modelContext)
-            // Check if new content arrived before resetting
+            // Arming the `/` suggestion overlay and consuming any pending dirty flag both
+            // need the UI state reset above to be committed first, otherwise a stale `/`
+            // dropdown can flash through. Serialize them in one Task so refresh happens
+            // strictly after arming.
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(80))
+                suggestionsArmed = true
+                store.refreshIfNeeded()
+            }
             let latestItemID = store.queryFirstItemID()
             if latestItemID != lastSeenFirstItemID {
                 store.resetFilters()
-                rebuildGroupedItems()
-                scrollResetToken = UUID()
-                if let id = cachedDisplayOrder.first?.persistentModelID {
-                    selectedItemIDs = [id]
-                    lastNavigatedID = id
+            } else {
+                store.updateQuery(searchText: .set(""), sourceApp: .set(nil), groupName: .set(nil))
+            }
+            lastSeenFirstItemID = latestItemID
+
+            // 恢复上次的主筛选：同步写回 store，保证首帧即为正确列表（不闪“全部”）。
+            // 此刻 pill 恒为 nil。`restoredFilterOnShow()` 已用缓存计数校验过维度/存在性；
+            // 这里再用真实 totalCount 兜底关闭期间被删/清空的组或类型。
+            if restoredFilter != .all {
+                applyFilters(primary: restoredFilter, pill: nil)
+                if store.totalCount == 0 {
+                    selectedFilter = .all
+                    applyFilters(primary: .all, pill: nil)
                 }
-                lastSeenFirstItemID = latestItemID
             }
+
+            rebuildGroupedItems()
+            scrollResetToken = UUID()
+            selectDefaultHistoryItem()
             targetApp = QuickPanelWindowController.shared.previousApp
-            resetSearchFocusForPresentation()
-            prewarmBottomDetailsIfNeeded()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .quickPanelLiveResizeDidBegin)) { notification in
-            guard isBottomFloatingStyle else { return }
-            showBottomOverflowMenu = false
-            if let panel = notification.object as? NSPanel {
-                let contentSize = panel.contentView?.bounds.size ?? panel.frame.size
-                frozenBottomCardMetrics = bottomCardLayoutMetrics(for: contentSize, freezeForLiveResize: true)
-            }
-            isLiveResizing = true
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .quickPanelLiveResizeDidEnd)) { _ in
-            guard isBottomFloatingStyle else { return }
-            isLiveResizing = false
-            frozenBottomCardMetrics = nil
+            isSearchFocused = true
         }
         .onChange(of: searchText) {
-            groupSuggestionIndex = -1
-            if selectedGroupFilter != nil {
-                // Group tag is active — search text is just keyword
+            if pill != nil {
+                // Pill is active — search text is just keyword within the pill's scope
                 store.searchText = searchText
-            } else if searchText.hasPrefix(Self.GROUP_SEARCH_PREFIX) {
-                if QuickPanelSearchLogic.shouldTreatAsPathQuery(
-                    searchText,
-                    prefix: Self.GROUP_SEARCH_PREFIX
-                ) {
-                    // Looks like a path - perform normal search
-                    store.groupName = nil
-                    store.searchText = searchText
-                } else {
-                    // Single slash - group selection mode
-                    // Typing / for group selection — don't search yet
-                    store.searchText = ""
-                    store.groupName = nil
-                }
+            } else if isSlashSubmenuMode {
+                // The `/` submenu is in control (query selects a group/type/app), so
+                // pause content search. When nothing matches — or the user pressed Esc
+                // to leave the submenu — we fall through and search the `/`-prefixed
+                // query literally (e.g. clips starting with "/advisor").
+                store.searchText = ""
             } else {
-                store.groupName = nil
                 store.searchText = searchText
             }
-            syncBottomSearchExpansion()
-        }
-        .onChange(of: isSearchFocused) {
-            syncBottomSearchExpansion()
-        }
-        .onChange(of: selectedGroupFilter) {
-            syncBottomSearchExpansion()
+            // Default-select the first suggestion row when typing `/`
+            groupSuggestionIndex = totalSuggestionCount > 0 ? 0 : -1
         }
         .onChange(of: selectedFilter) {
-            store.pinnedOnly = false
-            store.filterType = nil
-            switch selectedFilter {
-            case .all: break
-            case .pinned: store.pinnedOnly = true
-            case .type(let t): store.filterType = t
-            }
-            store.applyFilters()
+            // 始终记录最近一次主筛选；恢复与否由 rememberLastFilter 在显示时决定。
+            lastFilterStorage = selectedFilter.storageString
+            // 切分类回到标签级焦点：←→ 继续切分类，↓ 才进入网格
+            isGridFocused = false
+            applyFiltersToStore()
+        }
+        .onChange(of: pill) { applyFiltersToStore() }
+        .onChange(of: quickPanelSecondaryRowRaw) {
+            // 切换 tabBar 维度时，相关过滤会失配，统一重置成干净状态
+            selectedFilter = .all
+            pill = nil
         }
         .onChange(of: store.items) {
             rebuildGroupedItems()
-            reissuePendingScrollRequestIfNeeded()
+            // 面板可见但用户还没任何操作：这次数据刷新多半是打开一瞬间赶到的新剪贴
+            // （轮询延迟跨过了 show），选中跟随新的第一条，保持「列表顶部 = 预览」。
+            if HotkeyManager.shared.isQuickPanelVisible, !userInteractedSinceShow {
+                selectDefaultHistoryItem()
+                return
+            }
             guard selectedItemIDs.isEmpty || selectedItemIDs.isDisjoint(with: cachedIDSet) else { return }
             let firstID = defaultItem?.persistentModelID
-            if let firstID { selectedItemIDs = [firstID] } else { selectedItemIDs.removeAll() }
+            if let firstID {
+                selectedItemIDs = [firstID]
+                selectionAnchor = firstID
+            } else {
+                selectedItemIDs.removeAll()
+                selectionAnchor = nil
+            }
             lastNavigatedID = firstID
         }
         .onChange(of: relaySplitText) {
             guard let text = relaySplitText else { return }
             SplitWindowController.shared.show(text: text) { delimiter in
                 guard let parts = RelaySplitter.split(text, by: delimiter) else { return }
-                RelayManager.shared.enqueue(texts: parts)
-                if !RelayManager.shared.isActive {
-                    RelayManager.shared.activate()
-                }
+                RelayManager.shared.addToQueue(texts: parts)
             }
             relaySplitText = nil
         }
-        .onChange(of: editingItem) {
-            // 当编辑对话框显示/隐藏时，控制面板的关闭行为
-            QuickPanelWindowController.shared.suppressDismiss = editingItem != nil
-        }
         .localized()
-        .sheet(item: $editingItem) { item in
-            VStack(spacing: 0) {
-                HStack {
-                    Text(L10n.tr("action.edit"))
-                        .font(.system(size: 15, weight: .semibold))
-                    Spacer()
-                    Button {
-                        cancelEdit()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 18))
+    }
+
+    // MARK: - Search
+
+    private static let GROUP_SEARCH_PREFIX = "/"
+
+    private enum SuggestionItem: Equatable {
+        case group(name: String, icon: String, count: Int)
+        case app(name: String, count: Int)
+        case type(ClipContentType)
+
+        static func == (lhs: SuggestionItem, rhs: SuggestionItem) -> Bool {
+            switch (lhs, rhs) {
+            case (.group(let a, _, _), .group(let b, _, _)): return a == b
+            case (.app(let a, _), .app(let b, _)): return a == b
+            case (.type(let a), .type(let b)): return a == b
+            default: return false
+            }
+        }
+    }
+
+    /// Single source of truth for "the `/` submenu is driving the panel": the user
+    /// typed `/`, no pill is active, and there's either a match or just a bare `/`.
+    /// While true, content search is paused (the query selects a group/type/app);
+    /// Esc exits this mode (see keyDown 53) by clearing `userTypedSlash`, which flips
+    /// the panel back to a literal content search of the same query.
+    private var isSlashSubmenuMode: Bool {
+        guard userTypedSlash, pill == nil,
+              searchText.hasPrefix(Self.GROUP_SEARCH_PREFIX) else { return false }
+        return totalSuggestionCount > 0 || searchText == Self.GROUP_SEARCH_PREFIX
+    }
+
+    private var isShowingSuggestions: Bool {
+        guard suggestionsArmed, isSlashSubmenuMode else { return false }
+        return totalSuggestionCount > 0
+    }
+
+    /// `/` 建议里是否展示分组（tabBar 当前为类型时才展示）
+    private var shouldSuggestGroups: Bool { secondaryRow == .types }
+    /// `/` 建议里是否展示类型（tabBar 当前为分组时才展示）
+    private var shouldSuggestTypes: Bool { secondaryRow == .groups }
+
+    /// Cap each `/` suggestion section so the dropdown stays short — an unbounded
+    /// match list (e.g. `/c` matching dozens of apps) both overflows visually and
+    /// stretches the panel. Apps surface highest-count first; groups keep the
+    /// user's sidebar drag order. Users narrow further by typing more.
+    private static let SUGGESTION_SECTION_LIMIT = 8
+
+    private var currentSuggestionGroups: [(name: String, icon: String, count: Int, preservesItems: Bool)] {
+        guard shouldSuggestGroups else { return [] }
+        guard searchText.hasPrefix(Self.GROUP_SEARCH_PREFIX) else { return [] }
+        let query = String(searchText.dropFirst()).trimmingCharacters(in: .whitespaces).lowercased()
+        // byGroup is already in ZSORTORDER (the sidebar's drag order) — keep it,
+        // so the dropdown mirrors the main window exactly.
+        let matches = store.sidebarCounts.byGroup
+            .filter { group in
+                guard group.count > 0 else { return false }
+                return query.isEmpty || group.name.lowercased().contains(query)
+            }
+        return Array(matches.prefix(Self.SUGGESTION_SECTION_LIMIT))
+    }
+
+    private var currentSuggestionTypes: [ClipContentType] {
+        guard shouldSuggestTypes else { return [] }
+        guard searchText.hasPrefix(Self.GROUP_SEARCH_PREFIX) else { return [] }
+        let query = String(searchText.dropFirst()).trimmingCharacters(in: .whitespaces).lowercased()
+        let matches = availableContentTypes.filter { type in
+            query.isEmpty || type.label.lowercased().contains(query)
+        }
+        return Array(matches.prefix(Self.SUGGESTION_SECTION_LIMIT))
+    }
+
+    private var currentSuggestionApps: [(name: String, count: Int)] {
+        guard searchText.hasPrefix(Self.GROUP_SEARCH_PREFIX) else { return [] }
+        let query = String(searchText.dropFirst()).trimmingCharacters(in: .whitespaces).lowercased()
+        let apps = store.sourceApps
+            .filter { !$0.isEmpty }
+            .compactMap { name -> (name: String, count: Int)? in
+                let count = store.sidebarCounts.byApp[name] ?? 0
+                guard count > 0 else { return nil }
+                guard query.isEmpty || name.lowercased().contains(query) else { return nil }
+                return (name: name, count: count)
+            }
+            .sorted { $0.count > $1.count }
+        let limit = query.isEmpty ? 5 : Self.SUGGESTION_SECTION_LIMIT
+        return Array(apps.prefix(limit))
+    }
+
+    private var totalSuggestionCount: Int {
+        currentSuggestionGroups.count + currentSuggestionTypes.count + currentSuggestionApps.count
+    }
+
+    /// Tallest the `/` suggestion dropdown is allowed to get; beyond this it scrolls.
+    private static let suggestionsMaxHeight: CGFloat = 280
+
+    @ViewBuilder
+    private var groupSuggestions: some View {
+        let groups = currentSuggestionGroups
+        let types = currentSuggestionTypes
+        let apps = currentSuggestionApps
+        if !groups.isEmpty || !types.isEmpty || !apps.isEmpty {
+            ScrollViewReader { proxy in
+                ScrollView(.vertical, showsIndicators: true) {
+                    VStack(spacing: 0) {
+                        if !groups.isEmpty {
+                            suggestionSectionHeader(L10n.tr("filter.groups"))
+                            ForEach(Array(groups.enumerated()), id: \.element.name) { idx, group in
+                                suggestionRow(
+                                    icon: group.icon, name: group.name, count: group.count,
+                                    isSelected: idx == groupSuggestionIndex
+                                ) {
+                                    selectSuggestion(.group(name: group.name, icon: group.icon, count: group.count))
+                                }
+                                .id(idx)
+                            }
+                        }
+                        if !types.isEmpty {
+                            if !groups.isEmpty { Divider().padding(.vertical, 2) }
+                            suggestionSectionHeader(L10n.tr("filter.types"))
+                            let offset = groups.count
+                            ForEach(Array(types.enumerated()), id: \.element) { idx, type in
+                                suggestionRow(
+                                    icon: type.icon, name: type.label, count: store.sidebarCounts.byType[type] ?? 0,
+                                    isSelected: (offset + idx) == groupSuggestionIndex
+                                ) {
+                                    selectSuggestion(.type(type))
+                                }
+                                .id(offset + idx)
+                            }
+                        }
+                        if !apps.isEmpty {
+                            if !groups.isEmpty || !types.isEmpty { Divider().padding(.vertical, 2) }
+                            suggestionSectionHeader(L10n.tr("filter.apps"))
+                            let offset = groups.count + types.count
+                            ForEach(Array(apps.enumerated()), id: \.element.name) { idx, app in
+                                suggestionRow(
+                                    icon: "app.dashed", appName: app.name, name: app.name, count: app.count,
+                                    isSelected: (offset + idx) == groupSuggestionIndex
+                                ) {
+                                    selectSuggestion(.app(name: app.name, count: app.count))
+                                }
+                                .id(offset + idx)
+                            }
+                        }
+                    }
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear.preference(key: SuggestionsHeightKey.self, value: geo.size.height)
+                        }
+                    )
+                }
+                .frame(height: min(suggestionsContentHeight, Self.suggestionsMaxHeight))
+                .onPreferenceChange(SuggestionsHeightKey.self) { suggestionsContentHeight = $0 }
+                .onChange(of: groupSuggestionIndex) {
+                    guard groupSuggestionIndex >= 0 else { return }
+                    withAnimation(.easeOut(duration: 0.12)) {
+                        proxy.scrollTo(groupSuggestionIndex, anchor: .center)
+                    }
+                }
+            }
+        }
+    }
+
+    private func suggestionSectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(.tertiary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.top, 6)
+            .padding(.bottom, 2)
+    }
+
+    private func suggestionRow(icon: String, appName: String? = nil, name: String, count: Int, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                if let appName, let nsIcon = appIcon(forBundleID: nil, name: appName) {
+                    Image(nsImage: nsIcon)
+                        .resizable()
+                        .frame(width: 18, height: 18)
+                } else {
+                    Image(systemName: icon)
+                        .font(.system(size: 13))
+                        .foregroundStyle(isSelected ? .white : .secondary)
+                        .frame(width: 18)
+                }
+                Text(name)
+                    .font(.system(size: 14))
+                    .foregroundStyle(isSelected ? .white : .primary)
+                Spacer()
+                Text("\(count)")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(isSelected ? .white : .secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        isSelected ? Color.white.opacity(0.2) : Color.primary.opacity(0.08),
+                        in: Capsule()
+                    )
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(isSelected ? Color.accentColor : Color.clear, in: RoundedRectangle(cornerRadius: 5))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func selectSuggestion(_ item: SuggestionItem) {
+        searchText = ""
+        groupSuggestionIndex = -1
+        switch item {
+        case .group(let name, _, _):
+            pill = .group(name)
+        case .app(let name, _):
+            pill = .app(name)
+        case .type(let type):
+            pill = .type(type)
+        }
+        store.searchText = ""
+    }
+
+    @ViewBuilder
+    private func pillView(for pill: PillSelection) -> some View {
+        HStack(spacing: 4) {
+            switch pill {
+            case .type(let t):
+                Image(systemName: t.icon).font(.system(size: 10))
+                Text(t.label).font(.system(size: 12))
+            case .group(let name):
+                let icon = store.sidebarCounts.byGroup.first { $0.name == name }?.icon ?? "folder"
+                Image(systemName: icon).font(.system(size: 10))
+                Text(name).font(.system(size: 12))
+            case .app(let name):
+                if let nsIcon = appIcon(forBundleID: nil, name: name) {
+                    Image(nsImage: nsIcon).resizable().frame(width: 12, height: 12)
+                } else {
+                    Image(systemName: "app.dashed").font(.system(size: 10))
+                }
+                Text(name).font(.system(size: 12))
+            }
+            Button { self.pill = nil } label: {
+                Image(systemName: "xmark").font(.system(size: 8, weight: .bold))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color.accentColor, in: Capsule())
+        .foregroundStyle(.white)
+    }
+
+    /// 将 selectedFilter + pill 合并写回到 store，两个维度正交共存
+    private func applyFiltersToStore() {
+        applyFilters(primary: selectedFilter, pill: pill)
+    }
+
+    /// 显示时恢复路径用：显式传 filter，避免读刚写入但尚未提交的 @State `selectedFilter`
+    private func applyFilters(primary: QuickFilter, pill: PillSelection?) {
+        store.pinnedOnly = false
+        store.aiAgentOnly = false
+        store.filterType = nil
+        store.groupName = nil
+        store.sourceApp = nil
+
+        switch primary {
+        case .all: break
+        case .pinned: store.pinnedOnly = true
+        case .aiAgent: store.aiAgentOnly = true
+        case .type(let t): store.filterType = t
+        case .group(let name): store.groupName = name
+        }
+
+        switch pill {
+        case nil: break
+        case .type(let t): store.filterType = t
+        case .group(let name): store.groupName = name
+        case .app(let name): store.sourceApp = .named(name)
+        }
+
+        store.applyFilters()
+        scrollResetToken = UUID()
+    }
+
+    /// 打开面板时计算要恢复的 tab 主筛选：开关关 → `.all`；开关开 → 解码并对当前上下文
+    /// 校验（维度匹配、组/类型仍存在），任何不匹配都退回 `.all`。
+    /// 用缓存的 sidebarCounts 校验（命中常见的"上次开/关之间数据没变"场景）；
+    /// 若数据在关闭期间变了导致缓存过期，由调用方的 `totalCount == 0` 兜底再退回 `.all`。
+    private func restoredFilterOnShow() -> QuickFilter {
+        guard rememberLastFilter, let stored = QuickFilter(storageString: lastFilterStorage) else { return .all }
+        switch stored {
+        case .all, .pinned:
+            return stored
+        case .aiAgent:
+            return store.sidebarCounts.aiAgent > 0 ? .aiAgent : .all
+        case .type(let t):
+            return (secondaryRow == .types && availableContentTypes.contains(t)) ? .type(t) : .all
+        case .group(let name):
+            return (secondaryRow == .groups && availableGroupsForTab.contains { $0.name == name }) ? .group(name) : .all
+        }
+    }
+
+    private var searchBar: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 18))
+                .foregroundStyle(.tertiary)
+                .frame(width: 22, height: 22)
+
+            if let pill {
+                pillView(for: pill)
+                    .transition(.identity)
+            }
+
+            TextField(L10n.tr("quick.search"), text: $searchText)
+                .textFieldStyle(.plain)
+                .font(.system(size: 16))
+                .focused($isSearchFocused)
+
+            if !searchText.isEmpty || pill != nil {
+                Button {
+                    searchText = ""
+                    pill = nil
+                    if let id = defaultItem?.persistentModelID { selectedItemIDs = [id] }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.quaternary)
+                }
+                .buttonStyle(.plain)
+            }
+
+            Button {
+                isPanelPinned.toggle()
+                QuickPanelWindowController.shared.isPinned = isPanelPinned
+            } label: {
+                Image(systemName: isPanelPinned ? "pin.fill" : "pin")
+                    .font(.system(size: 12))
+                    .foregroundStyle(
+                        isPanelPinned ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(HierarchicalShapeStyle.tertiary)
+                    )
+                    .frame(width: 28, height: 24)
+                    .background(
+                        isPanelPinned ? AnyShapeStyle(Color.accentColor.opacity(0.15)) : AnyShapeStyle(Color.clear),
+                        in: RoundedRectangle(cornerRadius: 5)
+                    )
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help((isPanelPinned ? L10n.tr("quickPanel.unpin") : L10n.tr("quickPanel.pin")) + " (⌘T)")
+
+            Text("\(store.totalCount)")
+                .font(.system(size: 12, weight: .medium).monospacedDigit())
+                .foregroundStyle(.tertiary)
+                .frame(minWidth: 28, minHeight: 24)
+                .padding(.horizontal, 6)
+                .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 5))
+        }
+        // 固定一个比最高 pill 略大的行高，pill 出现/消失时 HStack 不会撑高，
+        // 搜索图标、下方 tabBar 都不会上下跳动
+        .frame(height: 28)
+        .padding(.horizontal, 20)
+        .padding(.top, 22)
+        .padding(.bottom, 14)
+        // 避免 pill 出现/消失时输入框位置被 SwiftUI 默认动画插值造成的"抖动"
+        .animation(nil, value: selectedFilter)
+        .animation(nil, value: pill)
+        .animation(nil, value: searchText.isEmpty)
+    }
+
+    // MARK: - Tabs
+
+    private var tabBar: some View {
+        // ScrollViewReader + onChange：窄窗口下标签溢出时，无论切换来源
+        // （Tab 键、方向键、鼠标点击、`/` 命令）都让选中标签滚入可见区。
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    badge(L10n.tr("filter.pinned"), isActive: selectedFilter == .pinned) {
+                        selectedFilter = selectedFilter == .pinned ? .all : .pinned
+                        isSearchFocused = true
+                    }
+                    .id(QuickFilter.pinned)
+                    badge(L10n.tr("filter.all"), isActive: selectedFilter == .all) {
+                        selectedFilter = .all
+                        isSearchFocused = true
+                    }
+                    .id(QuickFilter.all)
+                    if secondaryRow == .types {
+                        ForEach(availableContentTypes, id: \.self) { type in
+                            badge(type.label, isActive: selectedFilter == .type(type)) {
+                                selectedFilter = selectedFilter == .type(type) ? .all : .type(type)
+                                isSearchFocused = true
+                            }
+                            .id(QuickFilter.type(type))
+                        }
+                    } else {
+                        ForEach(availableGroupsForTab, id: \.name) { group in
+                            badge(group.name, isActive: selectedFilter == .group(group.name)) {
+                                selectedFilter = selectedFilter == .group(group.name) ? .all : .group(group.name)
+                                isSearchFocused = true
+                            }
+                            .id(QuickFilter.group(group.name))
+                        }
+                    }
+                    if store.sidebarCounts.aiAgent > 0 {
+                        badge(L10n.tr("filter.aiAgent"), isActive: selectedFilter == .aiAgent) {
+                            selectedFilter = selectedFilter == .aiAgent ? .all : .aiAgent
+                            isSearchFocused = true
+                        }
+                        .id(QuickFilter.aiAgent)
+                    }
+                }
+                .padding(.horizontal, 18)
+                .padding(.bottom, 8)
+            }
+            .onChange(of: selectedFilter) {
+                withAnimation(.easeOut(duration: 0.15)) {
+                    proxy.scrollTo(selectedFilter, anchor: nil)
+                }
+            }
+            .onAppear {
+                // 面板重开恢复上次筛选时，选中标签可能已在可视区外，进场先对齐一次
+                proxy.scrollTo(selectedFilter, anchor: nil)
+            }
+        }
+    }
+
+    private var availableGroupsForTab: [(name: String, icon: String, count: Int, preservesItems: Bool)] {
+        store.sidebarCounts.byGroup.filter { $0.count > 0 }
+    }
+
+    private func badge(_ label: String, isActive: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 11, weight: isActive ? .medium : .regular))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .foregroundStyle(isActive ? .white : Color(nsColor: .secondaryLabelColor))
+                .background(
+                    isActive ? Color.accentColor : Color.primary.opacity(0.06),
+                    in: Capsule()
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - List
+
+    /// When the preview pane is hidden (narrow window) the list is the whole
+    /// experience, so switch rows to the dense single-line scan layout.
+    private var isCompactList: Bool { !layoutState.shouldShowPreview }
+
+    private var clipList: some View {
+        NativeClipHistoryList(
+            rows: cachedHistoryRows,
+            rowIndexByItemID: cachedHistoryRowIndexByID,
+            itemsByID: cachedItemMap,
+            canLoadMore: store.hasMore,
+            selectedItemIDs: selectedItemIDs,
+            focusedItemID: lastNavigatedID ?? selectedItemIDs.first,
+            scrollTargetID: lastNavigatedID,
+            showCommandPalette: showCommandPalette,
+            allowMultipleSelection: true,
+            scrollAlignment: .nearest,
+            itemRowHeight: isCompactList ? 40 : 48,
+            headerRowHeight: 28,
+            onItemTap: { id in
+                handleItemClick(id)
+            },
+            onItemRightClick: { id in
+                if !selectedItemIDs.contains(id) {
+                    selectedItemIDs = [id]
+                    lastNavigatedID = id
+                    selectionAnchor = id
+                }
+            },
+            onCommandPaletteDismiss: {
+                showCommandPalette = false
+                isSearchFocused = true
+            },
+            onLoadMore: {
+                store.loadMore()
+            },
+            rowContent: { item, isSelected in
+                QuickClipRow(
+                    item: item,
+                    isSelected: isSelected,
+                    shortcutIndex: shortcutIndex(for: item),
+                    searchText: searchText,
+                    compact: isCompactList
+                )
+            },
+            headerContent: { group in
+                Text(group.label)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 6)
+                    .padding(.bottom, 2)
+            },
+            contextMenu: { item in
+                historyItemContextMenu(item: item)
+            },
+            commandPaletteContent: { item in
+                CommandPaletteContent(
+                    item: item,
+                    isMultiSelected: isMultiSelected,
+                    manualRules: manualRulesForPalette(item: item),
+                    preservedGroupNames: SmartGroupRetention.preservedGroupNames(in: modelContext),
+                    onAction: { handleCommandAction($0) },
+                    onDismiss: { showCommandPalette = false; isSearchFocused = true }
+                )
+            }
+        )
+        // 过滤条件切换时需要整棵列表重建，避免旧的 NSTableView 选择/滚动状态残留。
+        .id(scrollResetToken)
+    }
+
+    // MARK: - Image Grid
+
+    private var imageGridView: some View {
+        QuickImageGridView(
+            items: displayOrderItems,
+            columnCount: imageGridColumnCount,
+            columnWidth: imageGridColumnWidth,
+            // 标签级焦点时隐藏选中/焦点描边（此时方向键切分类，不该看起来像在选图）；
+            // 选中状态本身保留——回车仍能直接粘贴当前选中项。
+            selectedItemIDs: isGridFocused ? selectedItemIDs : [],
+            focusedItemID: isGridFocused ? (lastNavigatedID ?? selectedItemIDs.first) : nil,
+            showCommandPalette: showCommandPalette,
+            onTap: { id in handleItemClick(id) },
+            onCommandPaletteDismiss: {
+                showCommandPalette = false
+                isSearchFocused = true
+            },
+            onLoadMore: { store.loadMore() },
+            contextMenu: { item in historyItemContextMenu(item: item) },
+            commandPalette: { item in
+                CommandPaletteContent(
+                    item: item,
+                    isMultiSelected: isMultiSelected,
+                    manualRules: manualRulesForPalette(item: item),
+                    preservedGroupNames: SmartGroupRetention.preservedGroupNames(in: modelContext),
+                    onAction: { handleCommandAction($0) },
+                    onDismiss: { showCommandPalette = false; isSearchFocused = true }
+                )
+            }
+        )
+        .id(scrollResetToken)
+        // 离开瀑布流（切走/关面板）后，把网格解码留下的高水位脏页还给系统。
+        .onDisappear { ImageCache.shared.reclaimFreedMemory() }
+    }
+
+    // MARK: - Empty State
+
+    private var isFilterActive: Bool {
+        selectedFilter != .all || !searchText.isEmpty || pill != nil
+    }
+
+    private var emptyStateView: some View {
+        VStack(spacing: 10) {
+            Spacer()
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 28, weight: .light))
+                .foregroundStyle(.quaternary)
+            Text(L10n.tr("empty.noResults"))
+                .font(.system(size: 13))
+                .foregroundStyle(.tertiary)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Preview
+
+    @ViewBuilder
+    private var previewPane: some View {
+        if isMultiSelected {
+            multiSelectPreview
+        } else if let item = currentItem {
+            QuickPreviewPane(item: item, searchText: searchText)
+        } else {
+            VStack(spacing: 8) {
+                Image(systemName: "square.text.square")
+                    .font(.system(size: 24))
+                    .foregroundStyle(.quaternary)
+                Text(L10n.tr("empty.message"))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.tertiary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private var multiSelectPreview: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "square.stack.3d.up")
+                .font(.system(size: 32, weight: .light))
+                .foregroundStyle(.tertiary)
+            Text(L10n.tr("quick.multiSelected", selectedItemIDs.count))
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.secondary)
+            Text(L10n.tr("quick.batchPaste"))
+                .font(.system(size: 12))
+                .foregroundStyle(.tertiary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Footer
+
+    private var footerBar: some View {
+        VStack(spacing: 0) {
+            // Expandable shortcuts panel
+            if showAllShortcuts {
+                WrappingHStack(spacing: 12, lineSpacing: 6, alignment: .trailing) {
+                    footerKey("←→", L10n.tr("quick.switchType"))
+                    footerKey("↑↓", L10n.tr("quick.navigate"))
+                    footerKey("⌘O", cmdOFooterLabel)
+                    footerKey("⌘T", isPanelPinned ? L10n.tr("quickPanel.unpin") : L10n.tr("quickPanel.pin"))
+                    if !HotkeyManager.shared.isManagerCleared {
+                        footerKey(
+                            shortcutDisplayString(
+                                keyCode: HotkeyManager.shared.managerKeyCode,
+                                modifiers: HotkeyManager.shared.managerModifiers
+                            ),
+                            L10n.tr("menu.openMain")
+                        )
+                    }
+                    footerKey("⌘⌫", L10n.tr("quick.delete"))
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 6)
+                .frame(maxWidth: .infinity)
+                .background(Color.primary.opacity(0.02))
+            }
+
+            // Main footer bar
+            HStack(spacing: 0) {
+                if !quickPanelAutoPaste {
+                    Text(L10n.tr("quick.copyToClipboard"))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                } else if let prevApp = targetApp,
+                   let appName = prevApp.localizedName {
+                    HStack(spacing: 4) {
+                        if let icon = prevApp.icon {
+                            Image(nsImage: icon)
+                                .resizable()
+                                .frame(width: 14, height: 14)
+                        }
+                        Text(L10n.tr("quick.pasteTo", appName))
+                            .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.secondary)
                     }
+                } else {
+                    Text("PasteMemo")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.quaternary)
+                }
+                Spacer()
+                HStack(spacing: 12) {
+                    let compact = !layoutState.shouldShowPreview
+                    if isMultiSelected {
+                        footerKey("↵", quickPanelAutoPaste ? (isTargetFinder ? L10n.tr("quick.saveToFolder") : L10n.tr("quick.batchPaste")) : L10n.tr("action.copy"))
+                        if !compact, quickPanelAutoPaste, !isTargetFinder {
+                            footerKey("⇧↵", L10n.tr("quick.pasteNewLine"))
+                        }
+                        if !compact {
+                            footerKey("⌘↵", quickPanelAutoPaste ? L10n.tr("action.pasteAsPlainText") : L10n.tr("cmd.copyAsPlainText"))
+                        }
+                    } else {
+                        if let cur = currentItem {
+                            footerKey("↵", primaryFooterLabel(for: cur))
+                            if !compact, quickPanelAutoPaste {
+                                if !(cur.imageData != nil && canPasteToFinderFolder), !canSaveTextToFolder {
+                                    footerKey("⇧↵", L10n.tr("quick.pasteNewLine"))
+                                }
+                            }
+                            if !compact, let cmdEnterLabel = cmdEnterFooterLabel(for: cur) {
+                                footerKey("⌘↵", cmdEnterLabel)
+                            }
+                        }
+                    }
+                    if !compact, let cur = currentItem, cur.isSensitive, !isMultiSelected {
+                        footerKey("⌥", L10n.tr("sensitive.peek"))
+                    }
+                    if !compact {
+                        footerKey("⌘K", L10n.tr("cmd.title"))
+                    }
+                    footerKey("esc", L10n.tr("quick.close"))
+
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            showAllShortcuts.toggle()
+                        }
+                    } label: {
+                        Image(systemName: showAllShortcuts ? "keyboard.chevron.compact.down" : "keyboard")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.tertiary)
+                            .frame(width: 20, height: 20)
+                    }
                     .buttonStyle(.plain)
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 16)
-                .padding(.bottom, 12)
+                    .pointerCursor()
 
-                Divider()
-
-                NativeTextView(
-                    text: editingContent,
-                    isEditable: true,
-                    onTextChange: { editingContent = $0 }
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(16)
-
-                Divider()
-
-                HStack {
-                    Spacer()
-                    Button(L10n.tr("action.cancel")) {
-                        cancelEdit()
+                    Button {
+                        handleDismiss()
+                        AppAction.shared.openSettings?()
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.tertiary)
+                            .frame(width: 20, height: 20)
                     }
-                    .keyboardShortcut(.escape, modifiers: [])
-                    
-                    Button(L10n.tr("action.save")) {
-                        saveEdit()
-                    }
-                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.plain)
+                    .pointerCursor()
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 16)
             }
-            .frame(width: 500, height: 400)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Color.primary.opacity(0.03))
         }
+    }
+
+    private func primaryFooterLabel(for item: ClipItem) -> String {
+        if quickPanelAutoPaste {
+            if item.imageData != nil, canPasteToFinderFolder {
+                return L10n.tr("quick.pasteImage")
+            }
+            if canSaveTextToFolder {
+                return L10n.tr("quick.saveToFolder")
+            }
+            return L10n.tr("quick.pasteAction")
+        }
+
+        if isFileBasedItem(item) {
+            return L10n.tr("quick.copyPath")
+        }
+
+        return L10n.tr("action.copy")
+    }
+
+    private func cmdEnterFooterLabel(for item: ClipItem) -> String? {
+        if item.contentType == .link {
+            return L10n.tr("cmd.openLink")
+        }
+
+        if isFileBasedItem(item) {
+            return quickPanelAutoPaste ? L10n.tr("quick.pastePath") : L10n.tr("quick.copyPath")
+        }
+
+        if canSaveTextToFolder {
+            return L10n.tr("quick.saveToFolder")
+        }
+
+        if [.text, .code, .color, .email, .phone].contains(item.contentType) {
+            return quickPanelAutoPaste ? L10n.tr("action.pasteAsPlainText") : L10n.tr("cmd.copyAsPlainText")
+        }
+
+        return nil
+    }
+
+    private func cmdEnterPaletteLabel(for item: ClipItem) -> String {
+        // 这里只服务 ⌘K 面板里的“次级动作”标签与执行，保持和面板文案一致，
+        // 不复用 footer 文案，避免被 quickPanelAutoPaste 的复制/粘贴分支影响。
+        switch item.contentType {
+        case .text, .code, .color, .email, .phone, .mixed:
+            return L10n.tr("cmd.pasteAsPlainText")
+        case .link:
+            return L10n.tr("cmd.openLink")
+        case .image, .file, .document, .archive, .application, .video, .audio:
+            return L10n.tr("cmd.pastePath")
+        }
+    }
+
+    private func footerKey(_ key: String, _ label: String) -> some View {
+        HStack(spacing: 4) {
+            Text(key)
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
+            Text(label)
+                .font(.system(size: 11))
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+        }
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    @ViewBuilder
+    private func historyItemContextMenu(item: ClipItem) -> some View {
+        let itemID = item.persistentModelID
+
+        if isMultiSelected, selectedItemIDs.contains(itemID) {
+            let items = currentItems
+            // 复制置顶，与主窗口右键菜单一致
+            Button(L10n.tr("action.mergeCopy")) {
+                copyItemsToClipboard(items)
+            }
+            let hasPinned = items.contains(where: \.isPinned)
+            Button(hasPinned ? L10n.tr("action.unpin") : L10n.tr("action.pin")) {
+                let newValue = !hasPinned
+                for i in items { i.isPinned = newValue }
+                ClipItemStore.saveAndNotify(modelContext)
+            }
+            let hasSensitive = items.contains(where: \.isSensitive)
+            Button(hasSensitive ? L10n.tr("sensitive.unmarkSensitive") : L10n.tr("sensitive.markSensitive")) {
+                let newValue = !hasSensitive
+                for i in items { i.isSensitive = newValue }
+                ClipItemStore.saveAndNotify(modelContext)
+            }
+            Divider()
+            quickPanelGroupMenu(items: items)
+            if items.contains(where: { $0.groupName != nil }) {
+                Button(L10n.tr("action.removeFromGroup")) {
+                    removeFromGroup(items: items)
+                }
+            }
+            Divider()
+            Button(L10n.tr("relay.addToQueue")) {
+                RelayManager.shared.addToQueue(clipItems: items)
+            }
+            Divider()
+            Button(L10n.tr("action.delete"), role: .destructive) {
+                handleDeleteSelected()
+            }
+        } else {
+            // 复制置顶，与主窗口右键菜单一致
+            Button(L10n.tr("action.mergeCopy")) {
+                copyItemsToClipboard([item])
+                selectItem(itemID)
+            }
+            Button(item.isPinned ? L10n.tr("action.unpin") : L10n.tr("action.pin")) {
+                item.isPinned.toggle()
+                ClipItemStore.saveAndNotify(modelContext)
+                selectItem(itemID)
+            }
+            Button(item.isSensitive ? L10n.tr("sensitive.unmarkSensitive") : L10n.tr("sensitive.markSensitive")) {
+                item.isSensitive.toggle()
+                ClipItemStore.saveAndNotify(modelContext)
+                selectItem(itemID)
+            }
+            if ProManager.AUTOMATION_ENABLED {
+                let manualRules = fetchEnabledRules()
+                    .filter { $0.triggerMode == .manual && $0.matches(item: item) }
+                if !manualRules.isEmpty {
+                    Divider()
+                    Menu(L10n.tr("cmd.automation")) {
+                        ForEach(manualRules) { rule in
+                            Button(rule.isBuiltIn ? L10n.tr(rule.name) : rule.name) {
+                                applyRule(rule, to: item)
+                            }
+                        }
+                    }
+                }
+            }
+            Divider()
+            quickPanelGroupMenu(items: [item])
+            if item.groupName != nil {
+                Button(L10n.tr("action.removeFromGroup")) {
+                    removeFromGroup(items: [item])
+                    selectItem(itemID)
+                }
+            }
+            Divider()
+            if !item.content.isEmpty || item.imageData != nil {
+                Button(L10n.tr("relay.addToQueue")) {
+                    RelayManager.shared.addToQueue(clipItems: [item])
+                }
+                Button(L10n.tr("relay.splitAndRelay")) {
+                    relaySplitText = item.content
+                }
+            }
+            Divider()
+            Button(L10n.tr("action.copyDebugInfo")) {
+                copyDebugInfo(for: item)
+            }
+            Divider()
+            Button(L10n.tr("action.delete"), role: .destructive) {
+                deleteItem(item)
+            }
+        }
+    }
+
+    // MARK: - Actions
+
+    private func moveSelection(_ delta: Int, extendSelection: Bool = false) {
+        var items = displayOrderItems
+        guard !items.isEmpty else { return }
+        let cursorID = lastNavigatedID ?? selectedItemIDs.first ?? items.first?.persistentModelID
+        guard let currentIdx = items.firstIndex(where: { $0.persistentModelID == cursorID }) else { return }
+        let next = currentIdx + delta
+        if next < 0 { return }
+        if next >= items.count {
+            store.loadMore()
+            items = displayOrderItems
+            if next >= items.count { return }
+        }
+        let targetID = items[next].persistentModelID
+        lastNavigatedID = targetID
+        if extendSelection {
+            let anchor = selectionAnchor ?? cursorID ?? targetID
+            selectionAnchor = anchor
+            guard let anchorIdx = items.firstIndex(where: { $0.persistentModelID == anchor }) else { return }
+            let range = min(anchorIdx, next)...max(anchorIdx, next)
+            selectedItemIDs = Set(items[range].map(\.persistentModelID))
+        } else {
+            selectedItemIDs = [targetID]
+            selectionAnchor = nil
+        }
+    }
+
+    /// 瀑布流网格的四向键盘移动。用与渲染相同的 `imageGridColumnCount` 建布局，
+    /// 取目标方向上视觉最近的格子，更新焦点 + 单选（粘贴/复制照旧读 selectedItemIDs）。
+    /// - Returns: 是否真的移动了（边缘无相邻格时返回 false；↑ 用它判断"到顶了，该退回标签级"）。
+    @discardableResult
+    private func moveGrid(_ direction: MasonryLayout.Direction) -> Bool {
+        let items = displayOrderItems
+        guard !items.isEmpty else { return false }
+        let cursorID = lastNavigatedID ?? selectedItemIDs.first ?? items.first?.persistentModelID
+        guard let cursorID else { return false }
+        // 必须与渲染用同一对 (列数, 列宽)：列分配受常量间距影响，列宽不同会算出不同布局。
+        let layout = MasonryLayout(
+            items: items,
+            columnCount: imageGridColumnCount,
+            columnWidth: imageGridColumnWidth,
+            spacing: Self.imageGridSpacing
+        )
+        guard let targetID = layout.neighbor(of: cursorID, direction) else { return false }
+        lastNavigatedID = targetID
+        selectedItemIDs = [targetID]
+        selectionAnchor = nil
+        return true
+    }
+
+    /// 网格里用 space 切换某项的多选（加入/移出），焦点不变。
+    private func toggleFocusedInSelection() {
+        guard let id = lastNavigatedID ?? selectedItemIDs.first else { return }
+        toggleItemInSelection(id)
+    }
+
+    private func installKeyMonitor() {
+        flagsMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
+            guard HotkeyManager.shared.isQuickPanelVisible else { return event }
+            OptionKeyMonitor.shared.isOptionPressed = event.modifierFlags.contains(.option)
+            return event
+        }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            guard HotkeyManager.shared.isQuickPanelVisible else { return event }
+            userInteractedSinceShow = true
+            let hasShift = event.modifierFlags.contains(.shift)
+            let hasCmd = event.modifierFlags.contains(.command)
+            let hasControl = event.modifierFlags.contains(.control)
+
+            if showCommandPalette {
+                // NSPopover 内的键盘监听偶发收不到字母键，这里只对高频字母快捷键做一层兜底，
+                // 用最小改动修复「⌘K 后按 P 无反应」。
+                switch Int(event.keyCode) {
+                case 53:
+                    showCommandPalette = false
+                    isSearchFocused = true
+                    return nil
+                case 40 where hasCmd:
+                    showCommandPalette = false
+                    isSearchFocused = true
+                    return nil
+                case 13 where hasCmd:
+                    showCommandPalette = false
+                    isSearchFocused = true
+                    return nil
+                case 35 where !hasControl:
+                    if let item = currentItem, item.contentType != .color {
+                        handleCommandAction(.cmdEnter(label: cmdEnterPaletteLabel(for: item)))
+                        return nil
+                    }
+                    return event
+                case 9:
+                    handleCommandAction(.paste)
+                    return nil
+                default:
+                    return event
+                }
+            }
+
+            // Group suggestion keyboard navigation
+            if isShowingSuggestions {
+                let total = totalSuggestionCount
+                switch Int(event.keyCode) {
+                case 125: // Down
+                    groupSuggestionIndex = (groupSuggestionIndex + 1) % total
+                    return nil
+                case 126: // Up
+                    groupSuggestionIndex = groupSuggestionIndex <= 0 ? total - 1 : groupSuggestionIndex - 1
+                    return nil
+                case 36: // Enter
+                    if groupSuggestionIndex >= 0, groupSuggestionIndex < total {
+                        let groups = currentSuggestionGroups
+                        let types = currentSuggestionTypes
+                        let apps = currentSuggestionApps
+                        if groupSuggestionIndex < groups.count {
+                            let g = groups[groupSuggestionIndex]
+                            selectSuggestion(.group(name: g.name, icon: g.icon, count: g.count))
+                        } else if groupSuggestionIndex < groups.count + types.count {
+                            let t = types[groupSuggestionIndex - groups.count]
+                            selectSuggestion(.type(t))
+                        } else {
+                            let a = apps[groupSuggestionIndex - groups.count - types.count]
+                            selectSuggestion(.app(name: a.name, count: a.count))
+                        }
+                        return nil
+                    }
+                default: break
+                }
+            }
+
+            // Open main window with the user-configured manager shortcut.
+            // Placed after group suggestion navigation so bare-key shortcuts
+            // (rare but possible) don't steal Enter/arrows from the suggestion UI.
+            if eventMatchesShortcut(
+                event: event,
+                keyCode: HotkeyManager.shared.managerKeyCode,
+                modifiers: HotkeyManager.shared.managerModifiers
+            ) {
+                handleDismiss()
+                AppAction.shared.openMainWindow?()
+                return nil
+            }
+
+            // 图片瀑布流模式的两级焦点：
+            // 标签级（默认）——←→ 继续切分类、↓ 进入网格；
+            // 图片级——←→↑↓ 四向移动、space 切多选、顶行 ↑ 退回标签级。
+            // 切换类型（Tab=48）、粘贴（Enter=36）、Cmd+C/删除/数字 等仍落到下面共享 switch。
+            if isImageGridActive {
+                if isGridFocused {
+                    switch Int(event.keyCode) {
+                    case 126: // ↑ 顶行时退出网格，焦点回到「图片」标签
+                        if !moveGrid(.up) { isGridFocused = false }
+                        return nil
+                    case 125: moveGrid(.down); return nil
+                    case 123: moveGrid(.left); return nil
+                    case 124: moveGrid(.right); return nil
+                    case 49: toggleFocusedInSelection(); return nil // Space
+                    default: break
+                    }
+                } else {
+                    switch Int(event.keyCode) {
+                    case 125: // ↓ 进入网格：第一张图获取焦点
+                        if let first = displayOrderItems.first?.persistentModelID {
+                            isGridFocused = true
+                            selectItem(first)
+                        }
+                        return nil
+                    case 126: return nil // 标签级 ↑ 无操作（不落到列表 moveSelection）
+                    default: break // ←→ 落到共享 switch 继续切分类
+                    }
+                }
+            }
+
+            switch Int(event.keyCode) {
+            case 126: moveSelection(-1, extendSelection: hasShift); return nil
+            case 125: moveSelection(1, extendSelection: hasShift); return nil
+            case 123: switchType(-1); return nil
+            case 124: switchType(1); return nil
+            case 45:
+                if hasControl {
+                    moveSelection(1, extendSelection: hasShift)
+                    return nil
+                }
+                return event
+            case 35:
+                if hasControl && !hasCmd {
+                    moveSelection(-1, extendSelection: hasShift)
+                    return nil
+                }
+                return event
+            case 40: // Cmd+K
+                if hasCmd {
+                    showCommandPalette.toggle()
+                    if showCommandPalette {
+                        isSearchFocused = false
+                        // 网格模式下命令面板锚在焦点格上，标签级时先落焦到当前选中图
+                        if isImageGridActive { isGridFocused = true }
+                    }
+                    return nil
+                }
+                return event
+            case 17: // Cmd+T — 切换置顶（置顶后面板让出焦点，取消置顶请用 Esc 或图钉按钮）
+                if hasCmd {
+                    isPanelPinned.toggle()
+                    QuickPanelWindowController.shared.isPinned = isPanelPinned
+                    return nil
+                }
+                return event
+            case 48: switchType(hasShift ? -1 : 1); return nil  // Tab / Shift+Tab
+            case 13: // Cmd+W
+                if hasCmd { handleDismiss(); return nil }
+                return event
+            case 53:
+                if isShowingSuggestions {
+                    // Dismiss the `/` submenu without clearing the box, and run the
+                    // query as a literal content search. Covers "I wanted to search
+                    // content but the app/group menu popped up" — Esc escapes the menu,
+                    // keeps "/cla", and searches it as text. Re-typing `/` from an empty
+                    // box brings the submenu back.
+                    userTypedSlash = false
+                    store.searchText = searchText
+                    groupSuggestionIndex = -1
+                    return nil
+                }
+                if let qlPanel = QLPreviewPanel.shared(), qlPanel.isVisible {
+                    qlPanel.orderOut(nil)
+                    return nil
+                }
+                // Esc 优先清 pill（`/` 选择），pill 不在时关闭面板
+                if pill != nil {
+                    pill = nil
+                    searchText = ""
+                    isSearchFocused = true
+                    return nil
+                }
+                handleDismiss(); return nil
+            case 43: // Cmd+,
+                if hasCmd {
+                    handleDismiss()
+                    AppAction.shared.openSettings?()
+                    return nil
+                }
+                return event
+            case 8: // Cmd+C
+                if hasCmd {
+                    // Check if preview area has text selected
+                    if let textView = event.window?.firstResponder as? NSTextView,
+                       textView.selectedRange().length > 0 {
+                        return event // let system copy selected text
+                    }
+                    let items = isMultiSelected ? currentItems : (currentItem.map { [$0] } ?? [])
+                    if !items.isEmpty { copyItemsFullFidelity(items, dismissAfterCopy: true, playSound: true) }
+                    return nil
+                }
+                return event
+            case 51:
+                if hasCmd {
+                    if isSearchFocused, !searchText.isEmpty { return event }
+                    handleDeleteSelected(); return nil
+                }
+                if isSearchFocused, searchText.isEmpty, pill != nil {
+                    // Delete 键清 pill
+                    pill = nil
+                    return nil
+                }
+                return event
+            case 31:
+                if hasCmd { handleOpenLink(); return nil }
+                return event
+            case 36:
+                // Let IME confirm its candidate before handling Enter
+                if let textView = event.window?.firstResponder as? NSTextView,
+                   textView.hasMarkedText() {
+                    return event
+                }
+                // ⌘⇧↩ is the one-shot "paste and destroy" shortcut, gated to
+                // single-selection items that aren't pinned / favourited / in a
+                // preserved group. The check runs before the hasCmd branch below
+                // so shift isn't swallowed by the plain hasCmd path.
+                if hasCmd, hasShift, !isMultiSelected,
+                   let item = currentItem, canPasteAndDestroy(item) {
+                    handlePasteAndDestroy(item: item)
+                    return nil
+                }
+                if isMultiSelected {
+                    handleMultiPaste(asPlainText: hasCmd, forceNewLine: hasShift)
+                } else if hasCmd {
+                    handleCmdEnter()
+                } else if hasShift {
+                    handlePaste(forceNewLine: true)
+                } else {
+                    handlePaste()
+                }
+                return nil
+            case 44:
+                // 中文输入法下 `/` 会被吞成 `、`，这里在搜索框空、无 IME 组字、
+                // 无修饰键时手动把搜索框置为 `/` 触发分组过滤，绕过 IME
+                if hasShift || hasCmd || hasControl { return event }
+                if !isSearchFocused { return event }
+                if !searchText.isEmpty { return event }
+                if let textView = event.window?.firstResponder as? NSTextView,
+                   textView.hasMarkedText() {
+                    return event
+                }
+                searchText = Self.GROUP_SEARCH_PREFIX
+                userTypedSlash = true
+                return nil
+            default:
+                if hasCmd, let digit = Self.digitKeyMap[Int(event.keyCode)] {
+                    handleShortcutPaste(index: digit)
+                    return nil
+                }
+                return event
+            }
+        }
+    }
+
+    /// Maps macOS key codes to digit values 1~9.
+    private static let digitKeyMap: [Int: Int] = [
+        18: 1, 19: 2, 20: 3, 21: 4, 23: 5,
+        22: 6, 26: 7, 28: 8, 25: 9,
+    ]
+
+    private var availableContentTypes: [ClipContentType] { store.availableTypes }
+
+    private func switchType(_ delta: Int) {
+        if secondaryRow == .types {
+            switchTypeFilter(delta)
+        } else {
+            switchGroupFilter(delta)
+        }
+    }
+
+    private func switchTypeFilter(_ delta: Int) {
+        let types = availableContentTypes
+        var allFilters: [QuickFilter] = [.pinned, .all]
+        allFilters.append(contentsOf: types.map { .type($0) })
+        if store.sidebarCounts.aiAgent > 0 { allFilters.append(.aiAgent) }
+
+        if let idx = allFilters.firstIndex(of: selectedFilter) {
+            let newIdx = (idx + delta + allFilters.count) % allFilters.count
+            selectedFilter = allFilters[newIdx]
+        } else {
+            selectedFilter = delta > 0 ? allFilters.first! : allFilters.last!
+        }
+    }
+
+    private func switchGroupFilter(_ delta: Int) {
+        let groups = availableGroupsForTab
+        // tabBar 顺序：[.pinned, .all, .group(g1), .group(g2), ..., .aiAgent?]
+        var all: [QuickFilter] = [.pinned, .all]
+        all.append(contentsOf: groups.map { .group($0.name) })
+        if store.sidebarCounts.aiAgent > 0 { all.append(.aiAgent) }
+
+        if let idx = all.firstIndex(of: selectedFilter) {
+            let newIdx = (idx + delta + all.count) % all.count
+            selectedFilter = all[newIdx]
+        } else {
+            selectedFilter = delta > 0 ? all.first! : all.last!
+        }
+    }
+
+    private func handleCommandAction(_ action: CommandAction) {
+        // paste-and-destroy dismisses the whole Quick Panel instantly inside
+        // its own handler. Setting `showCommandPalette = false` beforehand queues
+        // a SwiftUI overlay dismiss that the subsequent panel.dismiss() then
+        // forces to flush (via layoutSubtreeIfNeeded), stalling the close for
+        // a frame. Skipping the state change here lets the panel go down in one
+        // tick; onDismiss re-asserts the state after the fact as a safety net.
+        if case .pasteAndDestroy = action {
+            if let item = currentItem, canPasteAndDestroy(item) {
+                handlePasteAndDestroy(item: item)
+            }
+            return
+        }
+        // Only pre-close the popover for actions that LEAVE the panel open.
+        // Panel-dismissing actions (paste / cmdEnter / copy / pasteOCR) skip it:
+        // setting showCommandPalette=false here queues a SwiftUI popover dismiss
+        // that the handler's panel.dismiss() then force-flushes
+        // (layoutSubtreeIfNeeded), stalling the close for a beat — the lag felt
+        // vs. a direct Enter paste. Those handlers close the panel in one tick;
+        // onDismiss re-asserts showCommandPalette afterward as a safety net.
+        if !action.dismissesQuickPanel {
+            showCommandPalette = false
+            isSearchFocused = true
+        }
+        switch action {
+        case .paste:
+            handlePaste(respectAutoPaste: false)
+        case .pasteAndDestroy:
+            break  // handled above
+        case .cmdEnter:
+            if isMultiSelected {
+                handleMultiPaste(asPlainText: true, forceNewLine: false, respectAutoPaste: false)
+            } else {
+                handleCmdEnter(respectAutoPaste: false)
+            }
+        case .copy:
+            let items = isMultiSelected ? currentItems : (currentItem.map { [$0] } ?? [])
+            if !items.isEmpty { copyItemsFullFidelity(items, dismissAfterCopy: true, playSound: true) }
+        case .retryOCR:
+            if let item = currentItem, item.contentType == .image, item.imageData != nil {
+                OCRTaskCoordinator.shared.retry(itemID: item.itemID)
+            }
+        case .pasteOCR:
+            if let item = currentItem {
+                pasteOCRText(for: item)
+            }
+        case .openInPreview:
+            if let item = currentItem {
+                QuickLookHelper.shared.openInPreviewApp(item: item)
+            }
+        case .addToRelay:
+            let items = isMultiSelected ? currentItems : (currentItem.map { [$0] } ?? [])
+            RelayManager.shared.addToQueue(clipItems: items)
+        case .splitAndRelay:
+            if let item = currentItem, !item.content.isEmpty {
+                relaySplitText = item.content
+            }
+        case .pin:
+            if isMultiSelected {
+                let items = currentItems
+                let shouldPin = !items.contains(where: \.isPinned)
+                for i in items { i.isPinned = shouldPin }
+            } else {
+                currentItem?.isPinned.toggle()
+            }
+            ClipItemStore.saveAndNotify(modelContext)
+        case .toggleSensitive:
+            if isMultiSelected {
+                let items = currentItems
+                let hasSensitive = items.contains(where: \.isSensitive)
+                for i in items { i.isSensitive = !hasSensitive }
+            } else {
+                currentItem?.isSensitive.toggle()
+            }
+            ClipItemStore.saveAndNotify(modelContext)
+        case .copyColorFormat(let format, _):
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(format, forType: .string)
+            // No marker / lastChangeCount update: we want auto-capture to persist the
+            // formatted color as a new history entry (or dedup/update the existing one).
+            ToastCenter.shared.show(ToastDescriptor(message: L10n.tr("action.copied"), icon: .success))
+        case .showInFinder:
+            if let item = currentItem {
+                // Prefer the resolved (tilde-expanded, existence-checked) path; fall
+                // back to the first raw path so media file clips still reveal.
+                let path = item.revealableFinderPath
+                    ?? item.content.components(separatedBy: "\n").first { !$0.isEmpty }
+                        .map { ($0 as NSString).expandingTildeInPath }
+                if let path {
+                    NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: URL(fileURLWithPath: path).deletingLastPathComponent().path)
+                }
+            }
+        case .transform(let ruleAction):
+            if let item = currentItem {
+                let processed = AutomationEngine.shared.applyAction(ruleAction, to: item.content)
+                item.content = processed
+                item.displayTitle = ClipItem.buildTitle(content: processed, contentType: item.contentType)
+                if ruleAction == .stripRichText {
+                    item.richTextData = nil
+                    item.richTextType = nil
+                }
+                ClipItemStore.saveAndNotify(modelContext)
+            }
+        case .delete:
+            handleDeleteSelected()
+        case .runRule(let ruleID, _):
+            guard let item = currentItem else { return }
+            let descriptor = FetchDescriptor<AutomationRule>(
+                predicate: #Predicate { $0.ruleID == ruleID }
+            )
+            if let rule = try? modelContext.fetch(descriptor).first {
+                applyRule(rule, to: item)
+            }
+        }
+    }
+
+    /// Manual-trigger rules visible in the ⌘K palette for this clip. Capped
+    /// at 5 so a rule-heavy setup doesn't drown out built-in actions.
+    private func manualRulesForPalette(item: ClipItem) -> [AutomationRule] {
+        guard ProManager.AUTOMATION_ENABLED else { return [] }
+        let descriptor = FetchDescriptor<AutomationRule>(
+            predicate: #Predicate { $0.enabled },
+            sortBy: [SortDescriptor(\.sortOrder)]
+        )
+        let enabled = (try? modelContext.fetch(descriptor)) ?? []
+        let filtered = enabled.filter {
+            $0.triggerMode == .manual && $0.matches(item: item)
+        }
+        return Array(filtered.prefix(5))
+    }
+
+    private func removeKeyMonitor() {
+        if let monitor = keyMonitor { NSEvent.removeMonitor(monitor); keyMonitor = nil }
+        if let monitor = flagsMonitor { NSEvent.removeMonitor(monitor); flagsMonitor = nil }
+        OptionKeyMonitor.shared.isOptionPressed = false
+    }
+
+    /// Returns 1-based shortcut index (1~9) for the item, or nil if beyond top 9.
+    private func shortcutIndex(for item: ClipItem) -> Int? {
+        guard let first9 = cachedDisplayOrder.prefix(9).firstIndex(where: { $0.persistentModelID == item.persistentModelID }) else { return nil }
+        return first9 + 1
+    }
+
+    private func handleShortcutPaste(index: Int) {
+        let items = displayOrderItems
+        guard index >= 1, index <= 9, index <= items.count else { return }
+        let target = items[index - 1]
+        selectItem(target.persistentModelID)
+        handlePaste()
+    }
+
+    /// 置顶连续快粘：全局 ⌘N 命中时粘贴第 N 个可见项。走统一的 `dismissAndPaste`——
+    /// 置顶时它会保留面板、激活目标 App 后 ⌘V、且不更新 lastUsedAt（保证 ⌘1–9 编号稳定）。
+    private func pasteDigitWhilePinned(index: Int) {
+        let items = displayOrderItems
+        guard index >= 1, index <= 9, index <= items.count else { return }
+        let item = items[index - 1]
+        guard !item.isDeleted, item.modelContext != nil else { return }
+        QuickPanelWindowController.shared.dismissAndPaste(item, clipboardManager: clipboardManager)
+    }
+
+    @ViewBuilder
+    private func quickPanelGroupMenu(items: [ClipItem]) -> some View {
+        let groupNames = Set(items.compactMap(\.groupName))
+        let currentGroup = groupNames.count == 1 ? groupNames.first : nil
+        Menu(L10n.tr("action.assignGroup")) {
+            ForEach(store.sidebarCounts.byGroup, id: \.name) { group in
+                if group.name == currentGroup {
+                    Button {} label: {
+                        Label(group.name, systemImage: "checkmark")
+                    }
+                    .disabled(true)
+                } else {
+                    Button(group.name) {
+                        assignToGroup(items: items, name: group.name)
+                    }
+                }
+            }
+            if !store.sidebarCounts.byGroup.isEmpty {
+                Divider()
+            }
+            Button(L10n.tr("action.newGroup")) {
+                showNewGroupAlert(for: items)
+            }
+        }
+    }
+
+    private func isFileBasedItem(_ item: ClipItem) -> Bool {
+        item.contentType.isFileBased && !(item.contentType == .image && item.content == "[Image]")
+    }
+
+    private func isPureImage(_ item: ClipItem) -> Bool {
+        item.contentType == .image && item.content == "[Image]" && item.imageData != nil
+    }
+
+    private var canPasteToFinderFolder: Bool {
+        guard let item = currentItem, item.imageData != nil else { return false }
+        return clipboardManager.isFinderApp(QuickPanelWindowController.shared.previousApp)
+    }
+
+    private func handleMultiPaste(asPlainText: Bool, forceNewLine: Bool = false, respectAutoPaste: Bool = true) {
+        let items = currentItems
+        guard !items.isEmpty else { return }
+
+        if respectAutoPaste && !quickPanelAutoPaste {
+            guard !forceNewLine else { return }
+            copyItemsFullFidelity(items, dismissAfterCopy: true, playSound: true)
+            return
+        }
+
+        // Target is Finder → special file handling
+        if isTargetFinder, !asPlainText {
+            handleMultiPasteToFinder(items)
+            return
+        }
+
+        bumpLastUsedPreservingOrder(items)
+
+        let previousApp = QuickPanelWindowController.shared.previousApp
+        dismissAndRestoreApp { app in
+            if asPlainText {
+                clipboardManager.pasteMultipleAsPlainText(items, targetApp: app)
+            } else {
+                clipboardManager.pasteMultiple(items, forceNewLine: forceNewLine, targetApp: previousApp ?? app)
+            }
+        }
+    }
+
+    /// 粘贴类动作统一的「已使用」标记：bump `lastUsedAt` 让该条回到「全部」第一条，
+    /// 与回车粘贴（`dismissAndPaste`）行为一致。此前 ⌘↩ 粘贴路径 / 粘贴图片 / 纯文本 /
+    /// OCR / 存文件夹 都漏了这一步，用户粘完重开面板发现条目不在顶部。
+    /// 置顶连续快粘时不动（列表重排会打乱 ⌘1–9 编号），同 `dismissAndPaste`。
+    private func markItemUsed(_ item: ClipItem) {
+        guard !QuickPanelWindowController.shared.isPinned else { return }
+        item.lastUsedAt = Date()
+        if let context = item.modelContext {
+            ClipItemStore.saveAndNotifyLastUsed(context)
+        }
+    }
+
+    /// Bump `lastUsedAt` for multiple items while preserving their current display order.
+    /// `items` are expected to be in display order (top = most recently used); staggered
+    /// sub-millisecond timestamps break the DESC sort tie so the top selection stays on top.
+    private func bumpLastUsedPreservingOrder(_ items: [ClipItem]) {
+        let now = Date()
+        for (index, item) in items.enumerated() {
+            item.lastUsedAt = now.addingTimeInterval(-Double(index) / 1000.0)
+        }
+        ClipItemStore.saveAndNotifyLastUsed(modelContext)
+    }
+
+    private func handleMultiPasteToFinder(_ items: [ClipItem]) {
+        bumpLastUsedPreservingOrder(items)
+        let fileItems = items.filter { isFileBasedItem($0) }
+        let textItems = items.filter { !isFileBasedItem($0) && $0.content != "[Image]" }
+        let imageItems = items.filter { isPureImage($0) }
+
+        guard let folder = clipboardManager.getFinderSelectedFolder() else {
+            // Fallback: paste as files if possible
+            dismissAndRestoreApp { app in clipboardManager.pasteMultiple(items, targetApp: app) }
+            return
+        }
+
+        // Save pure images to folder — write the verbatim original, never the thumbnail.
+        for img in imageItems {
+            guard let data = img.imageBytesForExport() else { continue }
+            _ = clipboardManager.saveImageToFolder(data, folder: folder)
+        }
+
+        // Merge text items into one file
+        if !textItems.isEmpty, fileItems.isEmpty {
+            let merged = textItems.map(\.content).joined(separator: "\n")
+            _ = clipboardManager.saveTextToFolder(merged, folder: folder)
+        }
+
+        // File items: paste via file URLs
+        if !fileItems.isEmpty {
+            let allPaths = fileItems.flatMap { $0.content.components(separatedBy: "\n").filter { !$0.isEmpty } }
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            clipboardManager.writeFileURLsToPasteboard(pasteboard, paths: allPaths)
+            pasteboard.markAsPasteMemoWrite()
+            clipboardManager.lastChangeCount = pasteboard.changeCount
+        }
+
+        dismissAndRestoreApp { app in
+            if !fileItems.isEmpty {
+                clipboardManager.simulatePaste(targetApp: app)
+            } else {
+                // Images/texts saved to folder, just reveal in Finder
+                NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folder.path)
+            }
+        }
+    }
+
+    private func dismissAndRestoreApp(action: @escaping (NSRunningApplication) -> Void) {
+        let appToRestore = QuickPanelWindowController.shared.previousApp
+        QuickPanelWindowController.shared.dismiss()
+
+        guard let app = appToRestore else { return }
+        app.activate()
+        Task { @MainActor in
+            for _ in 0..<20 {
+                try? await Task.sleep(for: .milliseconds(50))
+                if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier { break }
+            }
+            try? await Task.sleep(for: .milliseconds(50))
+            action(app)
+        }
+    }
+
+    private func copyItemsToClipboard(_ items: [ClipItem], dismissAfterCopy: Bool = false, playSound: Bool = false) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        let merged = items.map(\.content).joined(separator: "\n")
+        pasteboard.setString(merged, forType: .string)
+        pasteboard.markAsPasteMemoWrite()
+        clipboardManager.lastChangeCount = pasteboard.changeCount
+        bumpLastUsedPreservingOrder(items)
+
+        if playSound {
+            SoundManager.playCopy()
+        }
+
+        if dismissAfterCopy {
+            QuickPanelWindowController.shared.dismiss()
+            ToastCenter.shared.show(ToastDescriptor(message: L10n.tr("action.copied"), icon: .success))
+            return
+        }
+
+        ToastCenter.shared.show(ToastDescriptor(message: L10n.tr("action.copied"), icon: .success))
+    }
+
+    /// Copy one or more items to the clipboard at full fidelity — the same
+    /// representations the paste path lays down (file URLs, image bytes, NSImage,
+    /// rich text), minus the simulated ⌘V. This is what makes ⌘C on an image or
+    /// file paste the actual image/file into the target app instead of its path.
+    ///
+    /// - Single item → reuse the single-clip pipeline (`writeToPasteboard`), which
+    ///   knows about snapshots, file-backed images, mixed content, etc.
+    /// - Multiple file-based items → write every file URL so a paste drops all files.
+    /// - Any other multi-selection (text, or mixed types) → fall back to merged text,
+    ///   since one clipboard can't hold several heterogeneous payloads at once.
+    private func copyItemsFullFidelity(_ items: [ClipItem], dismissAfterCopy: Bool = false, playSound: Bool = false) {
+        guard !items.isEmpty else { return }
+
+        if items.count == 1 {
+            clipboardManager.writeToPasteboard(items[0])
+        } else if items.allSatisfy({ isFileBasedItem($0) }) {
+            let paths = items.flatMap { $0.content.components(separatedBy: "\n") }
+                .filter { !$0.isEmpty }
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            clipboardManager.writeFileURLsToPasteboard(pasteboard, paths: paths)
+            pasteboard.markAsPasteMemoWrite()
+            clipboardManager.lastChangeCount = pasteboard.changeCount
+        } else {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(items.map(\.content).joined(separator: "\n"), forType: .string)
+            pasteboard.markAsPasteMemoWrite()
+            clipboardManager.lastChangeCount = pasteboard.changeCount
+        }
+
+        bumpLastUsedPreservingOrder(items)
+
+        if playSound {
+            SoundManager.playCopy()
+        }
+        if dismissAfterCopy {
+            QuickPanelWindowController.shared.dismiss()
+        }
+        ToastCenter.shared.show(ToastDescriptor(message: L10n.tr("action.copied"), icon: .success))
+    }
+
+    private func handleDeleteSelected() {
+        let itemsToDelete = isMultiSelected ? currentItems : (currentItem.map { [$0] } ?? [])
+        deleteItems(itemsToDelete)
+    }
+
+    private func copyDebugInfo(for item: ClipItem) {
+        let hexContent = item.content.utf8.map { String(format: "%02x", $0) }.joined()
+        let hexTitle = (item.displayTitle ?? "").utf8.map { String(format: "%02x", $0) }.joined()
+        let info = """
+            [PasteMemo Debug Info]
+            itemID: \(item.itemID)
+            contentType: \(item.contentType.rawValue)
+            content.count: \(item.content.count)
+            content.hex: \(hexContent)
+            content.text: \(item.content)
+            displayTitle.hex: \(hexTitle)
+            displayTitle.text: \(item.displayTitle ?? "nil")
+            hasRichText: \(item.richTextData != nil)
+            richTextType: \(item.richTextType ?? "nil")
+            """
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(info, forType: .string)
+    }
+
+    private func deleteItem(_ item: ClipItem) {
+        deleteItems([item])
+    }
+
+    private func assignToGroup(items: [ClipItem], name: String) {
+        for item in items {
+            let oldGroup = item.groupName
+            item.groupName = name
+            ClipboardManager.shared.upsertSmartGroup(name: name, context: modelContext)
+            if let oldGroup, !oldGroup.isEmpty {
+                ClipboardManager.shared.decrementSmartGroup(name: oldGroup, context: modelContext)
+            }
+        }
+        ClipItemStore.saveAndNotify(modelContext)
+    }
+
+    private func removeFromGroup(items: [ClipItem]) {
+        for item in items {
+            guard let name = item.groupName, !name.isEmpty else { continue }
+            item.groupName = nil
+            ClipboardManager.shared.decrementSmartGroup(name: name, context: modelContext)
+        }
+        ClipItemStore.saveAndNotify(modelContext)
+    }
+
+    private func showNewGroupAlert(for items: [ClipItem]) {
+        guard let result = GroupEditorPanel.show() else { return }
+        let name = result.name
+        let descriptor = FetchDescriptor<SmartGroup>(predicate: #Predicate { $0.name == name })
+        if let existing = try? modelContext.fetch(descriptor).first {
+            existing.icon = result.icon
+            existing.preservesItems = result.preservesItems
+        } else {
+            let maxOrder = (try? modelContext.fetch(FetchDescriptor<SmartGroup>()))?.map(\.sortOrder).max() ?? -1
+            let group = SmartGroup(name: result.name, icon: result.icon, sortOrder: maxOrder + 1, preservesItems: result.preservesItems)
+            modelContext.insert(group)
+        }
+        try? modelContext.save()
+        assignToGroup(items: items, name: result.name)
+    }
+
+    private func applyTransform(_ action: RuleAction, to item: ClipItem) {
+        let processed = AutomationEngine.shared.applyAction(action, to: item.content)
+        let contentChanged = processed != item.content
+        item.content = processed
+        item.displayTitle = ClipItem.buildTitle(content: processed, contentType: item.contentType)
+        // Clear rich text whenever content changed (or user explicitly asked).
+        if contentChanged || action == .stripRichText {
+            item.richTextData = nil
+            item.richTextType = nil
+        }
+        ClipItemStore.saveAndNotify(modelContext)
+    }
+
+    private func fetchEnabledRules() -> [AutomationRule] {
+        let descriptor = FetchDescriptor<AutomationRule>(
+            predicate: #Predicate { $0.enabled },
+            sortBy: [SortDescriptor(\.sortOrder)]
+        )
+        return (try? modelContext.fetch(descriptor)) ?? []
+    }
+
+    private func applyRule(_ rule: AutomationRule, to item: ClipItem) {
+        let actions = rule.actions
+        guard !actions.isEmpty else { return }
+
+        // If the rule contains runShortcut, take the async path: transform
+        // through text actions first, then invoke the shortcut, and write the
+        // shortcut's output to NSPasteboard so it shows up as a new clip.
+        if actions.contains(where: { if case .runShortcut = $0 { return true }; return false }) {
+            Task { @MainActor in
+                await runRuleViaShortcut(rule, on: item)
+            }
+            return
+        }
+
+        let processed = AutomationEngine.executeActions(actions, on: item.content)
+        let contentChanged = processed != item.content
+        // Include metadata actions (move to group / pin / mark sensitive): a rule that
+        // only moves the clip to a group leaves the text unchanged, so guarding on
+        // contentChanged alone made such rules silently no-op here. (issue #71)
+        guard contentChanged || AutomationEngine.containsSpecialAction(actions) else { return }
+        item.content = processed
+        item.displayTitle = ClipItem.buildTitle(content: processed, contentType: item.contentType)
+        // Clear rich text if content changed — otherwise stale rich formatting
+        // shows through in the preview pane even though content has been updated.
+        if contentChanged || actions.contains(.stripRichText) {
+            item.richTextData = nil
+            item.richTextType = nil
+        }
+        // markSensitive / pin / move-to-group — shared with the capture & main-window paths.
+        ClipboardManager.shared.applyMetadataActions(actions, to: item, context: modelContext)
+        ClipItemStore.saveAndNotify(modelContext)
+    }
+
+    @MainActor
+    private func runRuleViaShortcut(_ rule: AutomationRule, on item: ClipItem) async {
+        // PasteMemo pipes the clip in and triggers the Shortcut. The Shortcut
+        // itself handles output (Copy to Clipboard, Post webhook, Show
+        // Notification, etc). We never mutate NSPasteboard here.
+        var currentContent = item.content
+        // Verbatim original (not the thumbnail) — the Shortcut may save/process the image.
+        let currentImageData = item.imageBytesForExport()
+        let currentContentType = item.contentType
+
+        for action in rule.actions {
+            if case .runShortcut(let name) = action {
+                do {
+                    _ = try await ShortcutRunner.run(
+                        name: name,
+                        content: currentContent,
+                        imageData: currentImageData,
+                        contentType: currentContentType
+                    )
+                } catch {
+                    ShortcutNotifier.showFailure(ruleName: name, error: error)
+                    return
+                }
+            } else {
+                currentContent = action.execute(on: currentContent)
+            }
+        }
+        let displayName = rule.isBuiltIn ? L10n.tr(rule.name) : rule.name
+        ShortcutNotifier.showSuccess(ruleName: displayName)
+    }
+
+    private func deleteItems(_ itemsToDelete: [ClipItem]) {
+        guard !itemsToDelete.isEmpty else { return }
+        let items = filteredItems
+        let idsToDelete = Set(itemsToDelete.map(\.persistentModelID))
+        let firstIdx = items.firstIndex { idsToDelete.contains($0.persistentModelID) }
+        DeleteUndoCoordinator.shared.scheduleUndoableDelete(items: itemsToDelete, context: modelContext)
+        let remaining = filteredItems
+        if let idx = firstIdx, !remaining.isEmpty {
+            let nextIdx = min(idx, remaining.count - 1)
+            let nextID = remaining[nextIdx].persistentModelID
+            selectedItemIDs = [nextID]
+            lastNavigatedID = nextID
+            selectionAnchor = nextID
+        } else {
+            let firstID = remaining.first?.persistentModelID
+            selectedItemIDs = firstID.map { [$0] } ?? []
+            lastNavigatedID = firstID
+            selectionAnchor = firstID
+        }
+    }
+
+    private func guideRow(_ icon: String, _ text: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon).frame(width: 14)
+            Text(text)
+        }
+    }
+
+    private func emptyHintKey(_ key: String, _ label: String) -> some View {
+        HStack(spacing: 6) {
+            Text(key)
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 4))
+            Text(label)
+                .font(.system(size: 11))
+                .foregroundStyle(.quaternary)
+            Spacer()
+        }
+    }
+
+    /// ⌘O footer caption — links open, file/path clips reveal in Finder, others Quick Look.
+    private var cmdOFooterLabel: String {
+        guard let item = currentItem else { return L10n.tr("quick.preview") }
+        if item.contentType == .link { return L10n.tr("quick.openLink") }
+        if item.revealableFinderPath != nil { return L10n.tr("cmd.showInFinder") }
+        return L10n.tr("quick.preview")
+    }
+
+    private func handleOpenLink() {
+        guard let item = currentItem else { return }
+        if item.contentType == .link,
+           let url = item.resolvedURL {
+            NSWorkspace.shared.open(url)
+            handleDismiss()
+        } else if let path = item.revealableFinderPath {
+            // File / path clips: ⌘O jumps to the item in Finder instead of Quick Look.
+            handleDismiss()
+            NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: URL(fileURLWithPath: path).deletingLastPathComponent().path)
+        } else {
+            QuickLookHelper.shared.toggle(item: item)
+        }
+    }
+
+    private func handleDismiss() {
+        HotkeyManager.shared.hideQuickPanel()
+        // 浏览结束，把刚才解码图片产生的高水位脏页还给系统（后台、不卡 UI）。
+        ImageCache.shared.reclaimFreedMemory()
+    }
+
+    private var isTargetFinder: Bool {
+        clipboardManager.isFinderApp(QuickPanelWindowController.shared.previousApp)
+    }
+
+    private var canSaveAttachmentToFolder: Bool {
+        guard let item = currentItem,
+              item.imageData != nil,
+              item.contentType != .image else { return false }
+        return isTargetFinder
+    }
+
+    private var canSaveTextToFolder: Bool {
+        guard let item = currentItem,
+              item.contentType == .text || item.contentType == .code,
+              item.imageData == nil else { return false }
+        return isTargetFinder
+    }
+
+    private var canSaveLinkToFolder: Bool {
+        guard let item = currentItem,
+              item.contentType == .link else { return false }
+        return isTargetFinder
+    }
+
+    private func handleCmdEnter(respectAutoPaste: Bool = true) {
+        guard let item = currentItem else { return }
+        // Link → open in browser
+        if item.contentType == .link,
+           let url = item.resolvedURL {
+            QuickPanelWindowController.shared.dismiss()
+            NSWorkspace.shared.open(url)
+        }
+        // File-based (including file images) → paste path
+        else if isFileBasedItem(item) {
+            if !respectAutoPaste || quickPanelAutoPaste {
+                handlePastePath()
+            } else {
+                copyItemToClipboardAndDismiss(item, plainTextOnly: true)
+            }
+        }
+        // Pure text → save to folder if target is Finder
+        else if canSaveTextToFolder {
+            handlePasteTextToFolder()
+        }
+        // Text-like types → paste as plain text
+        else if [.text, .code, .color, .email, .phone, .mixed].contains(item.contentType) {
+            if !respectAutoPaste || quickPanelAutoPaste {
+                handlePlainTextPaste(item)
+            } else {
+                copyItemToClipboardAndDismiss(item, plainTextOnly: true)
+            }
+        }
+    }
+
+    private func copyItemToClipboardAndDismiss(_ item: ClipItem, plainTextOnly: Bool = false) {
+        if plainTextOnly {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(item.content, forType: .string)
+            pasteboard.markAsPasteMemoWrite()
+            clipboardManager.lastChangeCount = pasteboard.changeCount
+        } else {
+            clipboardManager.writeToPasteboard(item)
+        }
+
+        item.lastUsedAt = Date()
+        if let context = item.modelContext {
+            ClipItemStore.saveAndNotifyLastUsed(context)
+        }
+        SoundManager.playCopy()
+        QuickPanelWindowController.shared.dismiss()
+        ToastCenter.shared.show(ToastDescriptor(message: L10n.tr("action.copied"), icon: .success))
+    }
+
+    private func handlePlainTextPaste(_ item: ClipItem) {
+        let appToRestore = QuickPanelWindowController.shared.previousApp
+        markItemUsed(item)
+        QuickPanelWindowController.shared.dismiss()
+
+        if let app = appToRestore {
+            app.activate()
+            clipboardManager.pasteAsPlainText(item, targetApp: app)
+        }
+    }
+
+    /// Paste the item's recognized OCR text into the frontmost app.
+    ///
+    /// Cached text → paste synchronously, identical to the normal Enter-paste
+    /// (`dismissAndPaste`): dismiss + activate + ⌘V in one tick.
+    ///
+    /// Uncached (auto-OCR off / not run yet) → dismiss now so the panel goes away
+    /// immediately, then recognize on demand while the target app refocuses
+    /// concurrently, and paste.
+    private func pasteOCRText(for item: ClipItem) {
+        let appToRestore = QuickPanelWindowController.shared.previousApp
+        markItemUsed(item)
+
+        if let cached = item.ocrText, !cached.isEmpty {
+            writeStringToPasteboard(cached)
+            SoundManager.playPaste()
+            QuickPanelWindowController.shared.dismiss()
+            if let app = appToRestore {
+                app.activate()
+                clipboardManager.simulatePaste(targetApp: app)
+            } else {
+                ToastCenter.shared.show(ToastDescriptor(message: L10n.tr("action.copied"), icon: .success))
+            }
+            return
+        }
+
+        let id = item.itemID
+        QuickPanelWindowController.shared.dismiss()
+        appToRestore?.activate()   // refocus overlaps the on-demand OCR below
+        Task { @MainActor in
+            guard let text = await OCRTaskCoordinator.shared.recognizeOnDemand(itemID: id), !text.isEmpty else {
+                ToastCenter.shared.show(ToastDescriptor(message: L10n.tr("detail.ocr.empty"), icon: .info))
+                return
+            }
+            guard appToRestore != nil else {
+                writeStringToPasteboard(text)
+                ToastCenter.shared.show(ToastDescriptor(message: L10n.tr("action.copied"), icon: .success))
+                return
+            }
+            clipboardManager.pasteAsPlainText(text, targetApp: appToRestore)
+        }
+    }
+
+    private func writeStringToPasteboard(_ text: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+        pasteboard.markAsPasteMemoWrite()
+        clipboardManager.lastChangeCount = pasteboard.changeCount
+    }
+
+    private func handlePasteTextToFolder() {
+        guard let item = currentItem else { return }
+
+        guard let folder = clipboardManager.getFinderSelectedFolder() else { return }
+
+        let ext = item.resolvedFileExtension
+        guard let savedURL = clipboardManager.saveTextToFolder(item.content, folder: folder, fileExtension: ext) else { return }
+
+        let appToRestore = QuickPanelWindowController.shared.previousApp
+        markItemUsed(item)
+        QuickPanelWindowController.shared.dismiss()
+
+        if let app = appToRestore {
+            app.activate()
+            Task { @MainActor in
+                for _ in 0..<20 {
+                    try? await Task.sleep(for: .milliseconds(50))
+                    if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier { break }
+                }
+                try? await Task.sleep(for: .milliseconds(100))
+                NSWorkspace.shared.selectFile(savedURL.path, inFileViewerRootedAtPath: savedURL.deletingLastPathComponent().path)
+            }
+        }
+    }
+
+    private func handlePasteLinkToFolder() {
+        guard let item = currentItem, item.contentType == .link else { return }
+        guard let folder = clipboardManager.getFinderSelectedFolder() else { return }
+
+        let content = item.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        let linkTitle = item.linkTitle
+        let cm = clipboardManager
+        let appToRestore = QuickPanelWindowController.shared.previousApp
+        markItemUsed(item)
+        QuickPanelWindowController.shared.dismiss()
+
+        Task { @MainActor in
+            let savedURL: URL? = await Self.saveLinkToFolder(content: content, linkTitle: linkTitle, folder: folder, clipboardManager: cm)
+            guard let savedURL else { return }
+            if let app = appToRestore {
+                app.activate()
+                for _ in 0..<20 {
+                    try? await Task.sleep(for: .milliseconds(50))
+                    if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier { break }
+                }
+                try? await Task.sleep(for: .milliseconds(100))
+                NSWorkspace.shared.selectFile(savedURL.path, inFileViewerRootedAtPath: savedURL.deletingLastPathComponent().path)
+            }
+        }
+    }
+
+    private static func saveLinkToFolder(content: String, linkTitle: String?, folder: URL, clipboardManager: ClipboardManager) async -> URL? {
+        if content.hasPrefix("data:image/") {
+            // data:image URI → decode base64, save as PNG
+            guard let commaIndex = content.firstIndex(of: ",") else { return nil }
+            let base64 = String(content[content.index(after: commaIndex)...])
+            guard let data = Data(base64Encoded: base64, options: .ignoreUnknownCharacters) else { return nil }
+            return clipboardManager.saveImageToFolder(data, folder: folder)
+        } else if LinkMetadataFetcher.isImageURL(content) {
+            // Image URL → download and save as PNG
+            guard let url = URL(string: content) else { return nil }
+            do {
+                var request = URLRequest(url: url)
+                request.timeoutInterval = 10
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard let httpResponse = response as? HTTPURLResponse,
+                      httpResponse.statusCode == 200,
+                      NSImage(data: data) != nil else { return nil }
+                return clipboardManager.saveImageToFolder(data, folder: folder)
+            } catch {
+                return nil
+            }
+        } else {
+            // Regular link → save as .webloc
+            let title = linkTitle ?? (URL(string: content)?.host ?? "link")
+            let safeName = String(title
+                .replacingOccurrences(of: "/", with: "_")
+                .replacingOccurrences(of: ":", with: "_")
+                .trimmingCharacters(in: .controlCharacters)
+                .prefix(50))
+            let fileURL = folder.appendingPathComponent("\(safeName).webloc")
+            let dict: NSDictionary = ["URL": content]
+            guard let data = try? PropertyListSerialization.data(fromPropertyList: dict, format: .xml, options: 0) else { return nil }
+            try? data.write(to: fileURL)
+            return fileURL
+        }
+    }
+
+    private func handlePasteImage() {
+        // Use exportable bytes — file-backed clips re-read the original from disk
+        // so this stays at full resolution rather than the stored thumbnail.
+        guard let item = currentItem,
+              let imageData = item.imageBytesForExport(),
+              let image = NSImage(data: imageData) else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        // writeObjects gives the receiving app multiple representations to pick
+        // from (TIFF/PNG/etc); plain setData(.tiff) skips that negotiation and
+        // some targets only read PNG.
+        pasteboard.writeObjects([image])
+        pasteboard.markAsPasteMemoWrite()
+        clipboardManager.lastChangeCount = pasteboard.changeCount
+        SoundManager.playPaste()
+
+        let appToRestore = QuickPanelWindowController.shared.previousApp
+        markItemUsed(item)
+        QuickPanelWindowController.shared.dismiss()
+
+        if let app = appToRestore {
+            app.activate()
+            clipboardManager.simulatePaste(targetApp: app)
+        }
+    }
+
+    private func handlePastePath() {
+        guard let item = currentItem, isFileBasedItem(item) else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(item.content, forType: .string)
+        pasteboard.markAsPasteMemoWrite()
+        clipboardManager.lastChangeCount = pasteboard.changeCount
+        SoundManager.playPaste()
+
+        let appToRestore = QuickPanelWindowController.shared.previousApp
+        markItemUsed(item)
+        QuickPanelWindowController.shared.dismiss()
+
+        if let app = appToRestore {
+            app.activate()
+            clipboardManager.simulatePaste(targetApp: app)
+        }
+    }
+
+    /// Whether the given clip qualifies for the paste-and-destroy shortcut.
+    /// Mirrors the palette's `canPasteAndDestroy` gate — pinned / favourited
+    /// items, and clips in a `preservesItems` group, are excluded so the
+    /// one-shot delete can't swallow content the user explicitly kept.
+    private func canPasteAndDestroy(_ item: ClipItem) -> Bool {
+        if item.isPinned || item.isFavorite { return false }
+        if let group = item.groupName, !group.isEmpty {
+            let preserved = SmartGroupRetention.preservedGroupNames(in: modelContext)
+            if preserved.contains(group) { return false }
+        }
+        return true
+    }
+
+    /// Paste the clip via the normal pipeline, then schedule an undoable delete
+    /// a beat later. The delay gives the simulated ⌘V time to land in the target
+    /// app (around 200–300ms in practice) before we queue deletion — undo
+    /// restores the history entry but does not undo the paste itself.
+    ///
+    /// Dismiss is split out from the paste machinery (rather than going through
+    /// `dismissAndPaste`) so the panel disappears in its own runloop tick before
+    /// the `app.activate()` + simulated ⌘V chain hogs the main actor. Otherwise
+    /// the panel visibly lingers for a beat while the paste is dispatched.
+    private func handlePasteAndDestroy(item: ClipItem) {
+        let panelController = QuickPanelWindowController.shared
+        let targetApp = panelController.previousApp
+        // 粘贴并销毁是一次性动作，即便置顶也关闭面板
+        panelController.dismiss(force: true)
+
+        clipboardManager.writeToPasteboard(item, targetApp: targetApp)
+        item.lastUsedAt = Date()
+        if let ctx = item.modelContext {
+            ClipItemStore.saveAndNotifyLastUsed(ctx)
+        }
+        SoundManager.playPaste()
+        targetApp?.activate()
+        clipboardManager.simulatePaste(targetApp: targetApp)
+
+        let modelCtx = modelContext
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(500))
+            DeleteUndoCoordinator.shared.scheduleUndoableDelete(items: [item], context: modelCtx)
+        }
+    }
+
+    private func handlePaste(forceNewLine: Bool = false, respectAutoPaste: Bool = true) {
+        guard let item = currentItem else { return }
+        if respectAutoPaste && !quickPanelAutoPaste {
+            guard !forceNewLine else { return }
+            // ⌘C / Enter-to-copy must put full-fidelity content on the clipboard
+            // (file URL + NSImage for file-backed images, etc.) so a later paste
+            // produces the image/file, not its path. Plain-text/path copy lives on
+            // the dedicated ⌘Enter action instead.
+            copyItemToClipboardAndDismiss(item)
+            return
+        }
+        if canPasteToFinderFolder {
+            handlePasteImageToFolder()
+        } else if canSaveLinkToFolder {
+            handlePasteLinkToFolder()
+        } else if canSaveTextToFolder {
+            handlePasteTextToFolder()
+        } else {
+            QuickPanelWindowController.shared.dismissAndPaste(
+                item,
+                clipboardManager: clipboardManager,
+                addNewLine: forceNewLine
+            )
+        }
+    }
+
+    private func handlePasteImageToFolder() {
+        guard let item = currentItem, item.imageData != nil else {
+            // No image at all, fallback to normal paste
+            if let item = currentItem {
+                QuickPanelWindowController.shared.dismissAndPaste(item, clipboardManager: clipboardManager)
+            }
+            return
+        }
+
+        guard let folder = clipboardManager.getFinderSelectedFolder() else {
+            // Can't get folder, fallback to paste image
+            handlePasteImage()
+            return
+        }
+
+        // Genuine file-backed clip (Finder copy) → copy the user's original file directly,
+        // preserving its exact bytes / format / metadata and its filename.
+        // Raw pasteboard image (incl. our cached screenshots, content == "[Image]") → write
+        // the verbatim original bytes via `imageBytesForExport()` under a clean PasteMemo_<ts>
+        // name (copying our internal cache file would give it an ugly UUID filename).
+        let savedURL: URL?
+        if item.content != "[Image]", let sourceURL = item.sourceImageFileURL {
+            savedURL = clipboardManager.copyImageFileToFolder(sourceURL: sourceURL, folder: folder)
+        } else {
+            savedURL = clipboardManager.saveImageToFolder(
+                item.imageBytesForExport() ?? Data(),
+                folder: folder,
+                preferredFilename: nil
+            )
+        }
+        guard let savedURL else {
+            // Save failed, fallback to paste image
+            handlePasteImage()
+            return
+        }
+
+        let appToRestore = QuickPanelWindowController.shared.previousApp
+        markItemUsed(item)
+        QuickPanelWindowController.shared.dismiss()
+
+        if let app = appToRestore {
+            app.activate()
+            Task { @MainActor in
+                for _ in 0..<20 {
+                    try? await Task.sleep(for: .milliseconds(50))
+                    if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier { break }
+                }
+                try? await Task.sleep(for: .milliseconds(100))
+                NSWorkspace.shared.selectFile(savedURL.path, inFileViewerRootedAtPath: savedURL.deletingLastPathComponent().path)
+            }
+        }
+    }
+
+}
+
+struct KeyCap: View {
+    let text: String
+    init(_ text: String) { self.text = text }
+    var body: some View {
+        Text(text)
+            .font(.system(size: 10, weight: .medium, design: .rounded))
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 4))
+    }
+}
+
+/// Reports the natural height of the `/` suggestion list so its scroll container
+/// can fit content while capping at `suggestionsMaxHeight`.
+private struct SuggestionsHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }

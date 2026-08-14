@@ -3,9 +3,18 @@ import SwiftUI
 @MainActor
 enum CommandAction: Hashable {
     case paste
+    /// Paste the item, then delete it from history with an 8s undo window.
+    /// Intended for one-shot values (OTP codes, temporary tokens) that should
+    /// leave no trace after use. Suppressed for pinned / favourited items and
+    /// for clips in a group flagged `preservesItems`.
+    case pasteAndDestroy
     case cmdEnter(label: String)
     case copyColorFormat(format: String, label: String)
     case retryOCR
+    /// Paste the item's recognized OCR text into the frontmost app (runs OCR on
+    /// demand first when the text isn't cached). Falls back to clipboard when
+    /// there's no target app, e.g. in the main window.
+    case pasteOCR
     case openInPreview
     case showInFinder
     case copy
@@ -15,13 +24,19 @@ enum CommandAction: Hashable {
     case pin(isPinned: Bool)
     case toggleSensitive(isSensitive: Bool)
     case delete
+    /// Trigger a manual-trigger automation rule. Carries the rule's ID so the
+    /// host can refetch and execute without keeping a SwiftData reference in
+    /// a Hashable enum.
+    case runRule(ruleID: String, displayName: String)
 
     var icon: String {
         switch self {
         case .paste: "doc.on.clipboard"
+        case .pasteAndDestroy: "flame"
         case .cmdEnter: "textformat"
         case .copyColorFormat: "paintpalette"
         case .retryOCR: "text.viewfinder"
+        case .pasteOCR: "doc.text"
         case .openInPreview: "photo.on.rectangle.angled"
         case .showInFinder: "folder"
         case .copy: "doc.on.doc"
@@ -31,15 +46,18 @@ enum CommandAction: Hashable {
         case .pin(let pinned): pinned ? "pin.slash" : "pin"
         case .toggleSensitive(let sensitive): sensitive ? "lock.open" : "lock.shield"
         case .delete: "trash"
+        case .runRule: "sparkles"
         }
     }
 
     var label: String {
         switch self {
         case .paste: L10n.tr("cmd.paste")
+        case .pasteAndDestroy: L10n.tr("cmd.pasteAndDestroy")
         case .cmdEnter(let label): label
         case .copyColorFormat(_, let label): label
         case .retryOCR: L10n.tr("cmd.retryOCR")
+        case .pasteOCR: L10n.tr("cmd.pasteOCR")
         case .openInPreview: L10n.tr("cmd.openInPreview")
         case .showInFinder: L10n.tr("cmd.showInFinder")
         case .copy: L10n.tr("cmd.copy")
@@ -49,15 +67,18 @@ enum CommandAction: Hashable {
         case .pin(let pinned): pinned ? L10n.tr("action.unpin") : L10n.tr("action.pin")
         case .toggleSensitive(let sensitive): sensitive ? L10n.tr("sensitive.unmarkSensitive") : L10n.tr("sensitive.markSensitive")
         case .delete: L10n.tr("cmd.delete")
+        case .runRule(_, let displayName): displayName
         }
     }
 
     var shortcutKey: String? {
         switch self {
         case .paste: "V"
+        case .pasteAndDestroy: "B"
         case .cmdEnter: "P"
         case .copyColorFormat: "P"
         case .retryOCR: "Y"
+        case .pasteOCR: "G"
         case .openInPreview: "L"
         case .showInFinder: "O"
         case .copy: "C"
@@ -67,15 +88,18 @@ enum CommandAction: Hashable {
         case .pin: "T"
         case .toggleSensitive: "E"
         case .delete: "D"
+        case .runRule: nil
         }
     }
 
     var keyCode: Int? {
         switch self {
         case .paste: 9       // V
+        case .pasteAndDestroy: 11 // B
         case .cmdEnter: 35   // P
         case .copyColorFormat: 35 // P
         case .retryOCR: 16   // Y
+        case .pasteOCR: 5     // G
         case .openInPreview: 37 // L
         case .showInFinder: 31 // O
         case .copy: 8        // C
@@ -85,12 +109,54 @@ enum CommandAction: Hashable {
         case .pin: 17        // T
         case .toggleSensitive: 14 // E
         case .delete: 2      // D
+        case .runRule: nil
         }
     }
 
     var isDestructive: Bool {
-        if case .delete = self { return true }
-        return false
+        switch self {
+        case .delete, .pasteAndDestroy: true
+        default: false
+        }
+    }
+
+    /// Logical section for visually grouping the palette. A divider is drawn
+    /// wherever two consecutive visible rows belong to different groups.
+    /// 0 粘贴 · 1 识别与查看 · 2 复制与接力 · 3 管理 · 4 自动化
+    var group: Int {
+        switch self {
+        case .paste, .pasteAndDestroy, .cmdEnter, .copyColorFormat: 0
+        case .retryOCR, .pasteOCR, .openInPreview, .showInFinder: 1
+        case .copy, .addToRelay, .splitAndRelay: 2
+        case .pin, .toggleSensitive, .delete: 3
+        case .transform, .runRule: 4
+        }
+    }
+
+    /// Actions whose handler tears down the whole Quick Panel. `handleCommandAction`
+    /// skips the up-front `showCommandPalette = false` for these — otherwise the
+    /// queued popover dismiss gets force-flushed by the panel's own `dismiss()`
+    /// and the close stalls for a beat (the lag vs. a direct Enter paste).
+    var dismissesQuickPanel: Bool {
+        switch self {
+        case .paste, .pasteAndDestroy, .cmdEnter, .copy, .pasteOCR: true
+        default: false
+        }
+    }
+}
+
+/// macOS 26 上把 popover 的系统默认背景换成更通透的玻璃材质（与快捷面板本体的
+/// Liquid Glass 呼应）；presentationBackground 的替换内容由 NSPopover 按自身外形
+/// （含指向箭头）裁剪，不会破坏气泡形状。旧系统保持系统默认材质。
+/// 注：完整 glassEffect 需要自定义形状、盖不住系统画的指向箭头，popover 形态下
+/// ultraThinMaterial 是能做到的最大通透度。
+private struct PaletteGlassBackground: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content.presentationBackground(.ultraThinMaterial)
+        } else {
+            content
+        }
     }
 }
 
@@ -99,6 +165,12 @@ enum CommandAction: Hashable {
 struct CommandPaletteContent: View {
     let item: ClipItem?
     let isMultiSelected: Bool
+    /// Manual-trigger rules shown inline in the palette. Capped to 5 at the
+    /// call site so a big rule list doesn't drown out built-in actions.
+    var manualRules: [AutomationRule] = []
+    /// Group names flagged `preservesItems` at the moment the palette opened.
+    /// Used to suppress `pasteAndDestroy` for items whose group forbids deletion.
+    var preservedGroupNames: Set<String> = []
     let onAction: (CommandAction) -> Void
     let onDismiss: () -> Void
 
@@ -107,8 +179,28 @@ struct CommandPaletteContent: View {
     @State private var flagsMonitor: Any?
     @State private var isOptionPressed = false
 
+    // keyCodes for digits 1..5 on an ANSI keyboard
+    private static let digitKeyCodes: [Int] = [18, 19, 20, 21, 23]
+
+    /// True when the current single-selection item can be paste-and-destroyed.
+    /// Intentionally gated on single selection: multi-select paste-and-destroy is
+    /// ambiguous (delete every selected item? only the active one?) so we skip it
+    /// in that mode. Also suppressed for pinned / favourited items and for items
+    /// whose group opts out of deletion via `SmartGroup.preservesItems`.
+    private var canPasteAndDestroy: Bool {
+        guard !isMultiSelected, let item else { return false }
+        if item.isPinned || item.isFavorite { return false }
+        if let group = item.groupName, !group.isEmpty, preservedGroupNames.contains(group) {
+            return false
+        }
+        return true
+    }
+
     private var actions: [CommandAction] {
         var list: [CommandAction] = [.paste]
+        if canPasteAndDestroy {
+            list.append(.pasteAndDestroy)
+        }
         if let item, item.contentType == .color, let parsed = ColorConverter.parse(item.content) {
             let alt = parsed.alternateFormat
             let altValue = parsed.formatted(alt)
@@ -124,12 +216,21 @@ struct CommandPaletteContent: View {
            OCRTaskCoordinator.shared.canRetry(item: item) {
             list.append(.retryOCR)
         }
+        // Shown for any OCR-able image — even with auto-OCR off / no text yet.
+        // Clicking runs OCR on demand (see QuickPanelView/MainWindowView).
+        if !isMultiSelected,
+           let item,
+           (item.contentType == .image && item.imageData != nil) || (item.ocrText?.isEmpty == false) {
+            list.append(.pasteOCR)
+        }
         if !isMultiSelected,
            let item,
            canOpenInPreview(item) {
             list.append(.openInPreview)
         }
-        if let item, item.contentType.isFileBased {
+        // File-based clips always offer "Show in Finder"; plain-text clips do too
+        // when their content is itself an existing filesystem path.
+        if let item, item.contentType.isFileBased || item.revealableFinderPath != nil {
             list.append(.showInFinder)
         }
         list.append(.copy)
@@ -142,14 +243,35 @@ struct CommandPaletteContent: View {
         list.append(.pin(isPinned: isPinned))
         list.append(.toggleSensitive(isSensitive: isSensitive))
         list.append(.delete)
+        // Manual-trigger automation rules, appended after built-in actions so
+        // they don't displace high-use commands (Paste, Copy, etc).
+        for rule in manualRules {
+            let displayName = rule.isBuiltIn ? L10n.tr(rule.name) : rule.name
+            list.append(.runRule(ruleID: rule.ruleID, displayName: displayName))
+        }
         return list
+    }
+
+    /// Digit shortcut to display next to a rule row (1-indexed). Only rules
+    /// map to digits 1–5; earlier built-in commands keep their letter keys.
+    private func digitForAction(at index: Int) -> String? {
+        let action = actions[index]
+        guard case .runRule = action else { return nil }
+        let ruleIndex = actions[..<index].reduce(0) { count, a in
+            if case .runRule = a { return count + 1 }
+            return count
+        }
+        guard ruleIndex < Self.digitKeyCodes.count else { return nil }
+        return String(ruleIndex + 1)
     }
 
     private func cmdEnterLabel(for item: ClipItem) -> String {
         switch item.contentType {
-        case .text, .code, .color, .email, .phone: L10n.tr("cmd.pasteAsPlainText")
+        case .text, .code, .color, .email, .phone, .mixed:
+            L10n.tr("cmd.pasteAsPlainText")
         case .link: L10n.tr("cmd.openLink")
-        case .image, .file, .document, .archive, .application, .video, .audio: L10n.tr("cmd.pastePath")
+        case .image, .file, .document, .archive, .application, .video, .audio:
+            L10n.tr("cmd.pastePath")
         }
     }
 
@@ -160,13 +282,19 @@ struct CommandPaletteContent: View {
     var body: some View {
         VStack(spacing: 1) {
             ForEach(Array(actions.enumerated()), id: \.element) { index, action in
-                commandRow(action: action, isSelected: selectedIndex == index)
+                if index > 0, actions[index - 1].group != action.group {
+                    Divider()
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                }
+                commandRow(action: action, isSelected: selectedIndex == index, index: index)
                     .onTapGesture { execute(action) }
                     .onHover { if $0 { selectedIndex = index } }
             }
         }
         .padding(5)
         .frame(width: 200)
+        .modifier(PaletteGlassBackground())
         .onAppear {
             installKeyMonitor()
             installFlagsMonitor()
@@ -185,17 +313,26 @@ struct CommandPaletteContent: View {
         }
     }
 
-    private func commandRow(action: CommandAction, isSelected: Bool) -> some View {
-        HStack(spacing: 8) {
+    private func commandRow(action: CommandAction, isSelected: Bool, index: Int) -> some View {
+        let isRuleRow: Bool = {
+            if case .runRule = action { return true }
+            return false
+        }()
+        let ruleDigit = digitForAction(at: index)
+        return HStack(spacing: 8) {
             Image(systemName: action.icon)
                 .font(.system(size: 11))
                 .frame(width: 16)
-                .foregroundStyle(action.isDestructive ? .red : .secondary)
+                .foregroundStyle(
+                    action.isDestructive ? .red : (isRuleRow ? .purple : .secondary)
+                )
             Text(displayLabel(for: action))
                 .font(.system(size: 12))
                 .foregroundStyle(action.isDestructive ? .red : .primary)
+                .lineLimit(1)
+                .truncationMode(.tail)
             Spacer()
-            if let key = action.shortcutKey {
+            if let key = action.shortcutKey ?? ruleDigit {
                 Text(key)
                     .font(.system(size: 9, weight: .medium, design: .monospaced))
                     .foregroundStyle(.secondary)
@@ -228,6 +365,7 @@ struct CommandPaletteContent: View {
     private func installKeyMonitor() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             let code = Int(event.keyCode)
+            let hasControl = event.modifierFlags.contains(.control)
             switch code {
             case 53: dismiss(); return nil // Esc
             case 40 where event.modifierFlags.contains(.command): dismiss(); return nil // Cmd+K
@@ -236,10 +374,33 @@ struct CommandPaletteContent: View {
                 selectedIndex = selectedIndex > 0 ? selectedIndex - 1 : actions.count - 1; return nil
             case 125: // Down
                 selectedIndex = selectedIndex < actions.count - 1 ? selectedIndex + 1 : 0; return nil
+            case 35: // P
+                if hasControl {
+                    selectedIndex = selectedIndex > 0 ? selectedIndex - 1 : actions.count - 1
+                    return nil
+                }
+                return event
+            case 45: // N
+                if hasControl {
+                    selectedIndex = selectedIndex < actions.count - 1 ? selectedIndex + 1 : 0
+                    return nil
+                }
+                return event
             case 36: execute(actions[selectedIndex]); return nil // Enter
             default:
                 if let match = actions.first(where: { $0.keyCode == code }) {
                     execute(match); return nil
+                }
+                // Digits 1–5 trigger the Nth manual-trigger rule inline.
+                if let digitIndex = Self.digitKeyCodes.firstIndex(of: code) {
+                    let ruleActions = actions.filter {
+                        if case .runRule = $0 { return true }
+                        return false
+                    }
+                    if digitIndex < ruleActions.count {
+                        execute(ruleActions[digitIndex])
+                        return nil
+                    }
                 }
                 return event
             }

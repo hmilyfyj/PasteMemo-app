@@ -15,11 +15,12 @@ enum AppMenuActions {
 
         let container = PasteMemoApp.sharedModelContainer
         let context = container.mainContext
-        let descriptor = FetchDescriptor<ClipItem>()
-        guard let items = try? context.fetch(descriptor) else { return }
+        guard let items = try? context.fetch(FetchDescriptor<ClipItem>()) else { return }
+        let groups = (try? context.fetch(FetchDescriptor<SmartGroup>())) ?? []
+        let rules = (try? context.fetch(FetchDescriptor<AutomationRule>())) ?? []
 
         // Step 1: extract on main thread (SwiftData objects)
-        let payload = DataPorter.buildExportPayload(items)
+        let payload = DataPorter.buildExportPayload(items, groups: groups, rules: rules)
         // Step 2: encode + compress + write on background thread
         Task.detached {
             do {
@@ -72,13 +73,56 @@ enum AppMenuActions {
     }
 
     private static func performImport(fileData: Data, password: String?, context: ModelContext) {
+        // Show the progress panel up front so the user has visible feedback
+        // before we touch the heavy work below. Settings panel has its own
+        // integrated sheet — this is the menu-action equivalent.
+        let coordinator = ImportProgressCoordinator.shared
+        coordinator.start(
+            title: L10n.tr("dataPorter.import"),
+            initialStatus: L10n.tr("dataPorter.decrypting")
+        )
+
         Task { @MainActor in
             do {
-                let jsonData = try DataPorterCrypto.decrypt(fileData: fileData, password: password ?? "")
-                let result = try DataPorter.importItems(from: jsonData, into: context)
-                showAlert(L10n.tr("dataPorter.importSuccess") + " (\(result.imported) imported, \(result.skipped) skipped)")
+                // Let SwiftUI commit the panel's initial render before we hold
+                // the main actor with crypto / decode work.
+                try? await Task.sleep(for: .milliseconds(32))
+
+                // PBKDF2 (600k iter) + AES.GCM + zlib + JSON decode of a
+                // multi-MB payload would freeze the panel and spin the cursor
+                // if done on the main actor. Run off-actor, then resume.
+                let pwd = password ?? ""
+                let payload: ExportPayload = try await Task.detached(priority: .userInitiated) {
+                    let jsonData = try DataPorterCrypto.decrypt(fileData: fileData, password: pwd)
+                    return try DataPorter.decodePayload(jsonData)
+                }.value
+
+                coordinator.updateProgress(current: 0, total: payload.items.count)
+
+                ClipItemStore.isBulkOperation = true
+                let result = try await DataPorter.importItems(
+                    payload: payload,
+                    into: context
+                ) { current, total in
+                    coordinator.updateProgress(current: current, total: total)
+                }
+                ClipItemStore.isBulkOperation = false
+
+                // Same reasoning as DataPorterSection.performImport: the
+                // throttled save observer is async (`.receive(on: RunLoop.main)`),
+                // so a synchronous refresh here keeps the main window in sync
+                // before the result phase reveals it behind the panel.
+                coordinator.setIndeterminateStage(L10n.tr("dataPorter.refreshing"))
+                await Task.yield()
+                ClipItemStore.refreshAllStoresNow()
+
+                // Folds the would-be follow-up "import success" alert into the
+                // same panel so the user gets one place to ack the result.
+                coordinator.showSuccess(result: result)
+            } catch let error as CryptoError where error == .wrongPassword {
+                coordinator.showFailure(message: L10n.tr("dataPorter.wrongPassword"))
             } catch {
-                showAlert(L10n.tr("dataPorter.wrongPassword"))
+                coordinator.showFailure(message: error.localizedDescription)
             }
         }
     }
@@ -91,17 +135,20 @@ enum AppMenuActions {
         let resultName = result.name
         let descriptor = FetchDescriptor<SmartGroup>(predicate: #Predicate { $0.name == resultName })
         if (try? context.fetch(descriptor).first) != nil { return }
-        upsertGroup(name: result.name, icon: result.icon, context: context)
+        let maxOrder = (try? context.fetch(FetchDescriptor<SmartGroup>()))?.map(\.sortOrder).max() ?? -1
+        let group = SmartGroup(name: result.name, icon: result.icon, sortOrder: maxOrder + 1, preservesItems: result.preservesItems)
+        context.insert(group)
         try? context.save()
-        notifyGroupStoreDidChange()
+        NotificationCenter.default.post(name: ClipItemStore.itemDidUpdateNotification, object: nil)
     }
 
     static func showEditGroupAlert(group: SmartGroup, context: ModelContext) {
-        guard let result = GroupEditorPanel.show(name: group.name, icon: group.icon) else { return }
+        guard let result = GroupEditorPanel.show(name: group.name, icon: group.icon, preservesItems: group.preservesItems) else { return }
         group.name = result.name
         group.icon = result.icon
+        group.preservesItems = result.preservesItems
         try? context.save()
-        notifyGroupStoreDidChange()
+        NotificationCenter.default.post(name: ClipItemStore.itemDidUpdateNotification, object: nil)
     }
 
     static func deleteGroup(name: String, context: ModelContext) {
@@ -113,27 +160,6 @@ enum AppMenuActions {
         }
         context.delete(group)
         try? context.save()
-        notifyGroupStoreDidChange()
-    }
-
-    @discardableResult
-    static func upsertGroup(name: String, icon: String, context: ModelContext) -> SmartGroup? {
-        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty else { return nil }
-
-        let descriptor = FetchDescriptor<SmartGroup>(predicate: #Predicate { $0.name == trimmedName })
-        if let existing = try? context.fetch(descriptor).first {
-            existing.icon = icon
-            return existing
-        }
-
-        let maxOrder = (try? context.fetch(FetchDescriptor<SmartGroup>()))?.map(\.sortOrder).max() ?? -1
-        let group = SmartGroup(name: trimmedName, icon: icon, sortOrder: maxOrder + 1)
-        context.insert(group)
-        return group
-    }
-
-    static func notifyGroupStoreDidChange() {
         NotificationCenter.default.post(name: ClipItemStore.itemDidUpdateNotification, object: nil)
     }
 

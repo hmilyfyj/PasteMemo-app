@@ -6,7 +6,10 @@ enum DevDataImporter {
     static let RELEASE_BUNDLE_ID = "com.lifedever.pastememo"
 
     static var isDevBuild: Bool {
-        Bundle.main.bundleIdentifier?.hasSuffix(".dev") == true
+        if ProcessInfo.processInfo.environment["PASTEMEMO_DEV"] == "1" {
+            return true
+        }
+        return Bundle.main.bundleIdentifier?.hasSuffix(".dev") == true
     }
 
     static func importFromRelease() {
@@ -99,8 +102,7 @@ enum DevDataImporter {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/bin/sh")
         task.arguments = ["-c", "sleep 1 && open \"\(path)\""]
-        try? task.launch()
-        AppDelegate.shouldReallyQuit = true
+        task.launch()
         NSApp.terminate(nil)
     }
 

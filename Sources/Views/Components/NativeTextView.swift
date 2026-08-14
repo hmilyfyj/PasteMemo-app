@@ -5,11 +5,63 @@ struct NativeTextView: NSViewRepresentable {
     let text: String
     var richTextData: Data?
     var richTextType: String?
+    /// When false, the view shows `text` (plain string) only and skips all rich-text decoding.
+    /// Callers use this to avoid paying the RTFD/HTML cost during rapid selection changes
+    /// (e.g. arrow-key scrubbing in QuickPanel). Pass true once the selection settles.
+    var allowRichRender: Bool = true
+    /// Stable identifier for caching decoded rich-text results across view recreations.
+    /// When provided, decoded NSAttributedString is keyed on `(itemID, dataHash, width)`.
+    var itemID: String? = nil
     var isEditable: Bool = false
+    var autoFocus: Bool = false
+    /// Optional search query for highlighting in the plain-text render path.
+    /// Empty string disables highlighting. Tokenization matches the search bar's
+    /// behavior (whitespace → AND tokens). Rich-text branch ignores this.
+    var searchText: String = ""
+    /// Plain-text style. Defaults match the standard text-clip preview; the
+    /// quick panel's OCR card passes a smaller secondary style instead.
+    var fontSize: CGFloat = 13
+    var textColor: NSColor = .labelColor
     var onTextChange: ((String) -> Void)?
+    var onEscape: (() -> Void)?
+
+    /// Skip the highlight scan for very large content to keep typing responsive.
+    /// 200K chars ≈ a 200 KB plain-text clip; above this the per-keystroke scan
+    /// starts being perceptible.
+    static let highlightSizeLimit = 200_000
+
+    /// Measured plain-text render heights keyed by (text, width, fontSize).
+    /// Tiny bounded cache — OCR cards re-evaluate body often but only ever show
+    /// a handful of texts at a time.
+    @MainActor private static var measureCache: [Int: CGFloat] = [:]
+
+    /// 按给定宽度测量纯文本的渲染高度（已计入 NSTextContainer 默认的左右各
+    /// 5pt lineFragmentPadding）。供"高度贴内容、封顶滚动"的调用方使用，
+    /// 结果缓存，重复调用不重新跑 TextKit。
+    @MainActor static func measuredHeight(text: String, width: CGFloat, fontSize: CGFloat) -> CGFloat {
+        var hasher = Hasher()
+        hasher.combine(text)
+        hasher.combine(Int(width))
+        hasher.combine(fontSize)
+        let key = hasher.finalize()
+        if let cached = measureCache[key] { return cached }
+
+        let attributed = NSAttributedString(
+            string: text,
+            attributes: [.font: NSFont.systemFont(ofSize: fontSize)]
+        )
+        let bounds = attributed.boundingRect(
+            with: CGSize(width: max(width - 10, 10), height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin]
+        )
+        let height = ceil(bounds.height) + 4
+        if measureCache.count > 64 { measureCache.removeAll(keepingCapacity: true) }
+        measureCache[key] = height
+        return height
+    }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onTextChange: onTextChange)
+        Coordinator(onTextChange: onTextChange, onEscape: onEscape)
     }
 
     func makeNSView(context: Context) -> NSScrollView {
@@ -17,16 +69,25 @@ struct NativeTextView: NSViewRepresentable {
         let textView = scrollView.documentView as! NSTextView
         textView.isEditable = isEditable
         textView.isSelectable = true
-        textView.font = .systemFont(ofSize: 13)
-        textView.textColor = .labelColor
+        textView.font = .systemFont(ofSize: fontSize)
+        textView.textColor = textColor
         textView.backgroundColor = .clear
         textView.drawsBackground = false
         textView.textContainerInset = .zero
         textView.delegate = context.coordinator
+        // Horizontal scroll must stay off so that text/images wrap to the container width.
+        textView.textContainer?.widthTracksTextView = true
+        textView.isHorizontallyResizable = false
         scrollView.drawsBackground = false
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = true
+        if autoFocus {
+            DispatchQueue.main.async { [weak textView] in
+                guard let textView, let window = textView.window else { return }
+                window.makeFirstResponder(textView)
+            }
+        }
         return scrollView
     }
 
@@ -34,71 +95,346 @@ struct NativeTextView: NSViewRepresentable {
         let textView = scrollView.documentView as! NSTextView
         textView.isEditable = isEditable
         context.coordinator.onTextChange = onTextChange
+        context.coordinator.onEscape = onEscape
 
         let isFirstResponder = textView.window?.firstResponder == textView
         guard !isFirstResponder else { return }
 
-        if let rtfData = richTextData {
-            let currentRTF = context.coordinator.lastRichTextData
-            guard rtfData != currentRTF else { return }
-            context.coordinator.lastRichTextData = rtfData
-            if let attrString = attributedString(from: rtfData) {
-                textView.textStorage?.setAttributedString(attrString)
-            } else {
-                textView.string = text
-            }
-        } else {
+        // Fast path: rich render disabled OR no rich data — render plain string only, skip all decoding.
+        guard allowRichRender, let rtfData = richTextData else {
+            let wasRich = context.coordinator.lastRichTextData != nil
             context.coordinator.lastRichTextData = nil
-            if textView.string != text {
+            context.coordinator.lastLayoutWidth = 0
+            var textWasReplaced = false
+            if wasRich {
+                // Switching from rich → plain on the same view: setting
+                // `.string` only replaces the characters and keeps the prior
+                // attributed run's typing attributes (bold/colors/font), so
+                // the visual still looks formatted. Force a fully attributed
+                // overwrite with the default plain attrs to clear all
+                // inherited formatting.
+                let plain = NSAttributedString(string: text, attributes: [
+                    .font: NSFont.systemFont(ofSize: fontSize),
+                    .foregroundColor: textColor,
+                ])
+                textView.textStorage?.setAttributedString(plain)
+                textWasReplaced = true
+            } else if textView.string != text {
                 textView.string = text
+                textWasReplaced = true
             }
+            let searchChanged = context.coordinator.lastSearchText != searchText
+            context.coordinator.lastSearchText = searchText
+            // 切换条目(textWasReplaced)→ 立即高亮，方向键扫不滞后
+            // 仅搜索词变化(searchChanged)→ 80ms 微防抖,连打字时不重复扫
+            if textWasReplaced {
+                context.coordinator.cancelPendingHighlight()
+                Self.applyHighlights(textView: textView, searchText: searchText)
+            } else if searchChanged {
+                context.coordinator.scheduleDebouncedHighlight(textView: textView, searchText: searchText)
+            }
+            return
+        }
+
+        let currentWidth = textView.textContainer?.size.width ?? 0
+        let widthChanged = abs(currentWidth - context.coordinator.lastLayoutWidth) > 1
+        let dataChanged = rtfData != context.coordinator.lastRichTextData
+        guard dataChanged || widthChanged else { return }
+
+        // Serve from cache instantly if we've decoded the same (itemID, data, width) combo recently.
+        if let id = itemID,
+           let cached = RichTextCache.shared.get(itemID: id, data: rtfData, width: currentWidth) {
+            context.coordinator.lastRichTextData = rtfData
+            context.coordinator.lastLayoutWidth = currentWidth
+            textView.textStorage?.setAttributedString(cached)
+            return
+        }
+
+        // Show the plain string immediately so the viewport isn't blank while we decode.
+        if textView.string.isEmpty || dataChanged {
+            textView.string = text
+        }
+        context.coordinator.lastRichTextData = rtfData
+        context.coordinator.lastLayoutWidth = currentWidth
+
+        // Decode off the main thread — RTFD with large inline images can take 100ms+.
+        // Only Sendable values (Data, String?, CGFloat) cross into Task.detached; the
+        // NSTextView/Coordinator references stay on the MainActor side.
+        let typeLocal = richTextType
+        let itemIDLocal = itemID
+        let dataLocal = rtfData
+        let widthLocal = currentWidth
+        let coordinator = context.coordinator
+        let token = coordinator.beginDecodeToken()
+        let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        Task { @MainActor in
+            // NSAttributedString isn't Sendable in Swift 6, but we're only ever moving the
+            // reference from one detached decode task to this single MainActor consumer — wrap
+            // in an unchecked box so the compiler is satisfied.
+            let box = await Task.detached(priority: .userInitiated) {
+                UnsafeSendableBox(Self.decode(data: dataLocal, type: typeLocal, maxImageWidth: widthLocal, isDark: isDark))
+            }.value
+            guard let attr = box.value else { return }
+            guard coordinator.isCurrentDecodeToken(token) else { return }
+            // Selection changed meanwhile — discard.
+            guard coordinator.lastRichTextData == dataLocal else { return }
+            if let id = itemIDLocal {
+                RichTextCache.shared.set(itemID: id, data: dataLocal, width: widthLocal, value: attr)
+            }
+            textView.textStorage?.setAttributedString(attr)
         }
     }
 
-    private func attributedString(from data: Data) -> NSAttributedString? {
+    // MARK: - Decoding (nonisolated: safe on background)
+
+    nonisolated private static func decode(data: Data, type: String?, maxImageWidth: CGFloat, isDark: Bool) -> NSAttributedString? {
         let raw: NSAttributedString?
-        if richTextType == "html" {
+        switch type {
+        case "rtfd":
+            raw = try? NSAttributedString(
+                data: data,
+                options: [.documentType: NSAttributedString.DocumentType.rtfd],
+                documentAttributes: nil
+            )
+        case "html":
             raw = NSAttributedString(html: data, documentAttributes: nil)
-        } else {
+        default:
             raw = NSAttributedString(rtf: data, documentAttributes: nil)
         }
         guard let raw else { return nil }
-        return adaptColorsForAppearance(raw)
+        let adapted = adaptColorsForAppearance(raw, isDark: isDark)
+        return scaleAttachmentsToFit(adapted, maxWidth: maxImageWidth)
     }
 
-    private func adaptColorsForAppearance(_ source: NSAttributedString) -> NSAttributedString {
+    /// Responsive images: shrink attachments whose intrinsic width exceeds the text container.
+    /// Preserves aspect ratio. Leaves narrower images at natural size.
+    nonisolated private static func scaleAttachmentsToFit(_ source: NSAttributedString, maxWidth: CGFloat) -> NSAttributedString {
+        guard maxWidth > 1 else { return source }
         let result = NSMutableAttributedString(attributedString: source)
         let fullRange = NSRange(location: 0, length: result.length)
+        // Leave a little breathing room so the scroll indicator / insets don't clip.
+        let targetWidth = max(40, maxWidth - 8)
+
+        result.enumerateAttribute(.attachment, in: fullRange, options: []) { value, range, _ in
+            guard let attachment = value as? NSTextAttachment else { return }
+            let intrinsic = intrinsicSize(of: attachment)
+            guard intrinsic.width > 0, intrinsic.height > 0 else { return }
+            guard intrinsic.width > targetWidth else {
+                // Natural size fits — honor the source dimensions.
+                attachment.bounds = CGRect(origin: .zero, size: intrinsic)
+                return
+            }
+            let scale = targetWidth / intrinsic.width
+            attachment.bounds = CGRect(
+                x: 0, y: 0,
+                width: targetWidth,
+                height: (intrinsic.height * scale).rounded()
+            )
+            _ = range
+        }
+        return result
+    }
+
+    nonisolated private static func intrinsicSize(of attachment: NSTextAttachment) -> CGSize {
+        if let image = attachment.image {
+            return image.size
+        }
+        if let wrapper = attachment.fileWrapper,
+           let data = wrapper.regularFileContents,
+           let image = NSImage(data: data) {
+            // Cache so subsequent layout passes don't re-decode.
+            attachment.image = image
+            return image.size
+        }
+        return attachment.bounds.size
+    }
+
+    nonisolated private static func adaptColorsForAppearance(_ source: NSAttributedString, isDark: Bool) -> NSAttributedString {
+        let result = NSMutableAttributedString(attributedString: source)
+        let fullRange = NSRange(location: 0, length: result.length)
+
+        // Strip source backgroundColor across the whole string — the preview
+        // uses the panel's own material background; dragging in black/gray
+        // backgrounds from the source makes text unreadable on dark mode.
+        result.removeAttribute(.backgroundColor, range: fullRange)
 
         result.enumerateAttribute(.foregroundColor, in: fullRange) { value, range, _ in
             guard let color = value as? NSColor else {
                 result.addAttribute(.foregroundColor, value: NSColor.labelColor, range: range)
                 return
             }
-            if isNearBlackOrWhite(color) {
+            if shouldAdaptForegroundColor(color, isDark: isDark) {
                 result.addAttribute(.foregroundColor, value: NSColor.labelColor, range: range)
             }
         }
         return result
     }
 
-    private func isNearBlackOrWhite(_ color: NSColor) -> Bool {
+    // MARK: - Search highlight (plain-text branch only)
+
+    /// Applies search-term highlights to the text view's backing storage.
+    /// Clears any previous `.backgroundColor` runs first so removed tokens disappear.
+    /// Bails on empty input or oversized content so the per-keystroke cost stays cheap.
+    @MainActor
+    private static func applyHighlights(textView: NSTextView, searchText: String) {
+        guard let storage = textView.textStorage else { return }
+        let fullRange = NSRange(location: 0, length: storage.length)
+        storage.beginEditing()
+        defer { storage.endEditing() }
+        storage.removeAttribute(.backgroundColor, range: fullRange)
+
+        let tokens = ClipItemStore.tokenizeSearchInput(searchText)
+        guard !tokens.isEmpty else { return }
+        guard storage.length <= highlightSizeLimit else { return }
+
+        let color = NSColor.systemYellow.withAlphaComponent(0.35)
+        for range in highlightRanges(in: storage.string, tokens: tokens) {
+            storage.addAttribute(.backgroundColor, value: color, range: range)
+        }
+    }
+
+    /// Pure function: every case-insensitive match for each token in `content`,
+    /// returned as NSRanges suitable for NSTextStorage attribute application.
+    /// Empty / overlapping tokens are tolerated; overlaps may produce overlapping
+    /// ranges, but NSTextStorage merges them on the same `.backgroundColor` value.
+    static func highlightRanges(in content: String, tokens: [String]) -> [NSRange] {
+        var ranges: [NSRange] = []
+        for token in tokens where !token.isEmpty {
+            var cursor = content.startIndex
+            while cursor < content.endIndex,
+                  let match = content.range(of: token, options: .caseInsensitive, range: cursor..<content.endIndex) {
+                ranges.append(NSRange(match, in: content))
+                cursor = match.upperBound
+            }
+        }
+        return ranges
+    }
+
+    nonisolated private static func shouldAdaptForegroundColor(_ color: NSColor, isDark: Bool) -> Bool {
         guard let rgb = color.usingColorSpace(.sRGB) else { return false }
         let brightness = rgb.redComponent * 0.299 + rgb.greenComponent * 0.587 + rgb.blueComponent * 0.114
-        return brightness < 0.15 || brightness > 0.85
+        // Near-black or near-white: always adapt.
+        if brightness < 0.15 || brightness > 0.85 { return true }
+        // Mid-grey on dark / light panel — low contrast, swap to label color.
+        if isDark, brightness < 0.40 { return true }
+        if !isDark, brightness > 0.70 { return true }
+        return false
     }
 
     class Coordinator: NSObject, NSTextViewDelegate {
         var onTextChange: ((String) -> Void)?
+        var onEscape: (() -> Void)?
         var lastRichTextData: Data?
+        var lastLayoutWidth: CGFloat = 0
+        var lastSearchText: String = ""
+        private var decodeToken: Int = 0
+        private var highlightTask: Task<Void, Never>?
 
-        init(onTextChange: ((String) -> Void)?) {
+        @MainActor
+        func cancelPendingHighlight() {
+            highlightTask?.cancel()
+            highlightTask = nil
+        }
+
+        @MainActor
+        func scheduleDebouncedHighlight(textView: NSTextView, searchText: String) {
+            cancelPendingHighlight()
+            highlightTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(80))
+                guard let self, !Task.isCancelled else { return }
+                NativeTextView.applyHighlights(textView: textView, searchText: searchText)
+                self.highlightTask = nil
+            }
+        }
+
+        init(onTextChange: ((String) -> Void)?, onEscape: (() -> Void)? = nil) {
             self.onTextChange = onTextChange
+            self.onEscape = onEscape
+        }
+
+        func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            if commandSelector == #selector(NSResponder.cancelOperation(_:)), let onEscape {
+                onEscape()
+                return true
+            }
+            return false
+        }
+
+        /// Increment-and-return used to invalidate in-flight decodes when selection changes.
+        func beginDecodeToken() -> Int {
+            decodeToken &+= 1
+            return decodeToken
+        }
+
+        func isCurrentDecodeToken(_ token: Int) -> Bool {
+            decodeToken == token
         }
 
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
             onTextChange?(textView.string)
+        }
+    }
+}
+
+/// Single-use box to pass non-Sendable values between tasks when we know by construction that
+/// the value is only accessed by one isolation domain at a time.
+private struct UnsafeSendableBox<T>: @unchecked Sendable {
+    let value: T
+    init(_ value: T) { self.value = value }
+}
+
+// MARK: - Rich-text render cache
+
+/// LRU cache of decoded NSAttributedString keyed on (itemID, data hash, container width).
+/// Saves 100ms+ per arrow-key navigation through RTFD-heavy items.
+@MainActor
+final class RichTextCache {
+    static let shared = RichTextCache()
+
+    private struct Key: Hashable {
+        let itemID: String
+        let dataHash: Int
+        let width: Int  // rounded to reduce cache key churn from sub-pixel width drift
+    }
+
+    private var cache: [Key: NSAttributedString] = [:]
+    private var order: [Key] = []
+    private let capacity = 20
+
+    func get(itemID: String, data: Data, width: CGFloat) -> NSAttributedString? {
+        let key = Key(itemID: itemID, dataHash: data.hashValue, width: Int(width))
+        guard let value = cache[key] else { return nil }
+        // Mark as most recently used.
+        if let idx = order.firstIndex(of: key) {
+            order.remove(at: idx)
+            order.append(key)
+        }
+        return value
+    }
+
+    func set(itemID: String, data: Data, width: CGFloat, value: NSAttributedString) {
+        let key = Key(itemID: itemID, dataHash: data.hashValue, width: Int(width))
+        if cache[key] == nil {
+            order.append(key)
+        } else if let idx = order.firstIndex(of: key) {
+            order.remove(at: idx)
+            order.append(key)
+        }
+        cache[key] = value
+        while order.count > capacity {
+            let oldest = order.removeFirst()
+            cache.removeValue(forKey: oldest)
+        }
+    }
+
+    func invalidate(itemID: String) {
+        let keysToRemove = cache.keys.filter { $0.itemID == itemID }
+        for key in keysToRemove {
+            cache.removeValue(forKey: key)
+            if let idx = order.firstIndex(of: key) {
+                order.remove(at: idx)
+            }
         }
     }
 }

@@ -36,7 +36,7 @@
 "type.color" = "Цвет";
 "type.file" = "Файл";
 "type.other" = "Другое";
-"type.email" = "Email";
+"type.email" = "Эл. почта";
 "type.phone" = "Телефон";
 "phone.call" = "Позвонить";
 "phone.message" = "Сообщение";
@@ -46,13 +46,22 @@
 "type.document" = "Документ";
 "type.archive" = "Архив";
 "type.application" = "Приложение";
+"type.mixed" = "Смешанное";
+"mixed.section.image" = "Изображение";
+"mixed.section.text" = "Текст";
+"mixed.section.files" = "Файлы (%d)";
 "detail.openInFinder" = "Показать в Finder";
+"preview.image.zoomFit" = "По ширине";
+"preview.image.zoomActual" = "100%";
+"preview.image.openInPreview" = "Открыть в Просмотре";
+"preview.image.zoomHint" = "⌘+прокрутка или жест для масштаба";
 
 /* Filter */
 "filter.all" = "Все";
 "filter.special" = "Особые";
 "filter.favorites" = "Избранное";
 "filter.pinned" = "Закреплённые";
+"filter.aiAgent" = "AI Agent";
 
 /* Time */
 "time.now" = "сейчас";
@@ -84,6 +93,7 @@
 "settings.language.restart_now" = "Перезапустить сейчас";
 "settings.language.restart_later" = "Позже";
 "settings.launchAtLogin" = "Запускать при входе";
+"settings.clipboardMonitoring" = "Включить мониторинг буфера обмена";
 "settings.hideDockIcon" = "Скрыть значок Dock";
 "settings.hideDockIcon.hint" = "При включении приложение доступно только через значок в строке меню.";
 "settings.hideDockIcon.confirm.title" = "Скрыть значок Dock?";
@@ -92,25 +102,62 @@
 "settings.menuBarIconStyle" = "Значок строки меню";
 "settings.menuBarIconStyle.outline" = "Контур";
 "settings.menuBarIconStyle.filled" = "Заливка";
+"settings.menuBar.leftClickAction" = "Действие при левом клике на иконке меню";
+"settings.menuBar.leftClickAction.help" = "Действие при левом клике на иконку строки меню; правый клик всегда показывает меню";
+"menuBar.leftClick.menu" = "Показать меню";
+"menuBar.leftClick.openManager" = "Открыть менеджер";
+"menuBar.leftClick.quickPanel" = "Открыть быструю вставку";
+"menuBar.leftClick.toggleRelay" = "Переключить режим эстафеты";
+"menuBar.leftClick.togglePause" = "Приостановить / возобновить мониторинг буфера";
+"menuBar.leftClick.openSettings" = "Открыть настройки";
 "settings.currentVersion" = "Текущая версия";
 "settings.features" = "Функции";
 "settings.shortcuts" = "Горячие клавиши";
 "settings.quickPanelShortcut" = "Быстрая вставка";
-"settings.managerShortcut" = "Open Manager";
+"settings.managerShortcut" = "Открыть менеджер";
+"settings.managerShortcut.global" = "Глобально";
+"settings.managerShortcut.scopeHint" = "Когда глобальный режим выключен, это сочетание клавиш работает только если быстрая панель уже открыта.";
+"settings.relayShortcut" = "Начать эстафету";
 "settings.shortcut.none" = "Не задано";
 "settings.shortcut.clickToRecord" = "Нажмите для записи";
 "settings.shortcut.pressKey" = "Нажмите клавиши…";
 "settings.paste" = "Вставка";
+"settings.autoPaste" = "Вставлять в приложение по Enter";
 "settings.addNewLine" = "Добавлять перевод строки после вставки";
+"settings.quickPanelLaunchAnimation" = "Анимация запуска быстрой панели";
+"settings.quickPanelRememberFilter" = "Запоминать последний фильтр";
+"settings.quickPanelSecondaryRow" = "Показывать под поиском быстрой панели";
+"settings.quickPanelSecondaryRow.types" = "Типы";
+"settings.quickPanelSecondaryRow.groups" = "Группы";
 "settings.history" = "История";
 "settings.retentionDays" = "Хранить историю";
 "settings.retentionDays.forever" = "Навсегда";
 "settings.retentionDays.days" = "%d дней";
+"settings.retentionDays.cleanConfirm" = "Будет удалено %d записей за пределами срока хранения";
+"settings.retentionDays.cleanWarning" = "Это действие нельзя отменить. Продолжить?";
 "settings.display" = "Отображение";
+"settings.quickPanelPosition" = "Положение быстрой панели";
+"settings.quickPanelPosition.remembered" = "Запоминать прошлую позицию";
+"settings.quickPanelPosition.cursor" = "Курсор";
+"settings.quickPanelPosition.menuBarIcon" = "Значок в строке меню";
+"settings.quickPanelPosition.windowCenter" = "Центр активного окна";
+"settings.quickPanelPosition.screenCenter" = "Центр экрана";
+"settings.quickPanelTargetScreen" = "Целевой экран";
+"settings.quickPanelTargetScreen.active" = "Активный экран";
+"settings.quickPanelTargetScreen.specified" = "Указанный экран";
+"settings.quickPanelSpecifiedScreen" = "Указанный дисплей";
 "settings.behavior" = "Поведение";
 "settings.preferences" = "Настройки";
+"settings.quickPanel" = "Быстрая вставка";
+"settings.previewRecognition" = "Предпросмотр и распознавание";
 "settings.showLinkURL" = "Показывать URL вместо заголовка для ссылок";
 "settings.webPreview" = "Веб-предпросмотр";
+"settings.imageLinkPreview" = "Предпросмотр ссылок на изображения";
+"settings.previewExecutesJavaScript" = "Выполнять JavaScript в предпросмотре";
+"settings.linkPreview" = "Ссылки и предпросмотр";
+"settings.linkPreview.footer" = "Эти переключатели управляют тем, делает ли PasteMemo сетевые запросы для скопированных ссылок. Отключите все, и PasteMemo будет подключаться только для проверки обновлений.";
+"settings.linkPreview.footer.offline" = "Автономный режим включён: переключатели выше отключены. Выключите его на вкладке «Конфиденциальность».";
+"settings.richTextPreview" = "Предпросмотр форматированного текста";
 
 /* Pro */
 "pro.title" = "Перейти на PasteMemo Pro";
@@ -129,7 +176,7 @@
 "pro.feature.themes" = "Пользовательские темы";
 "pro.feature.rules" = "Правила буфера обмена";
 "pro.feature.relay" = "Режим эстафеты";
-"pro.feature.customCategory" = "Пользовательские коллекции";
+"pro.feature.customCategory" = "Пользовательские категории";
 "pro.feature.ignoreApps" = "Игнорировать определённые приложения";
 "pro.feature.automation" = "Автоматизация буфера обмена";
 
@@ -142,8 +189,9 @@
 "detail.info" = "Информация";
 "detail.type" = "Тип";
 "detail.source" = "Приложение-источник";
+"detail.aiAgent" = "AI Agent";
 "detail.created" = "Создано";
-"detail.group" = "Коллекция";
+"detail.group" = "Группа";
 "detail.lastUsed" = "Последнее использование";
 "detail.chars" = "Символы";
 "detail.lines" = "Строки";
@@ -162,29 +210,41 @@
 "detail.preview_failed" = "Не удалось загрузить предпросмотр";
 "detail.multiSelected" = "Выбрано элементов: %d";
 "action.deleteSelected" = "Удалить элементов: %d";
-"action.deleteSelected.confirm" = "Delete %d items?";
+"action.deleteSelected.confirm" = "Удалить записи (%d)?";
 "file.multiTitle" = " и ещё %d файлов";
 
 /* Filter */
 "filter.types" = "По типу";
 "filter.apps" = "По приложению";
-"filter.groups" = "Коллекции";
+"filter.groups" = "Группы";
 "filter.other" = "Другое";
 
 /* Actions */
 "action.paste" = "Вставить";
 "action.cancel" = "Отмена";
 "action.confirm" = "ОК";
-"action.assignGroup" = "Добавить в коллекцию";
-"action.newGroup" = "Новая коллекция…";
-"action.editGroup" = "Редактировать коллекцию…";
-"action.deleteGroup" = "Удалить коллекцию";
-"action.deleteGroupConfirm" = "Вы уверены, что хотите удалить коллекцию «%@»? Элементы в коллекции не будут удалены.";
-"action.removeFromGroup" = "Убрать из коллекции";
+"action.assignGroup" = "Назначить группу";
+"action.newGroup" = "Новая группа…";
+"action.editGroup" = "Редактировать группу…";
+"action.deleteGroup" = "Удалить группу";
+"action.deleteGroupConfirm" = "Вы уверены, что хотите удалить группу «%@»? Элементы в группе не будут удалены.";
+"action.removeFromGroup" = "Убрать из группы";
+"group.preserveItems" = "Хранить элементы этой группы постоянно";
+"group.preserveItems.help" = "Если включено, элементы этой группы не будут удаляться автоматической очисткой по сроку хранения и командой очистки данных.";
+"group.preserveItems.badge" = "Постоянно";
 "action.changeIcon" = "Изменить значок…";
 "action.clearConfirm" = "Все незакреплённые элементы будут удалены.";
+"action.clearScope.type" = "Очистить все элементы этого типа";
+"action.clearScope.group" = "Очистить все элементы в этой группе";
+"action.clearScope.group.disabledHelp" = "Эта группа помечена как постоянная, поэтому её элементы нельзя очистить.";
+"action.clearScope.app" = "Очистить все элементы из этого приложения";
+"action.clearScope.title" = "Очистить «%@»";
+"action.clearScope.confirm" = "Будет удалено %d элементов (закреплённые элементы и элементы из постоянных групп будут сохранены).";
+"action.clearScope.empty" = "Нечего очищать в текущем фильтре (закреплённые элементы и элементы из постоянных групп пропускаются).";
 "action.copy" = "Копировать";
 "action.copied" = "Скопировано в буфер обмена";
+"action.undo" = "Отменить";
+"delete.undo.toast" = "Удалено: %d";
 
 /* Stats */
 "stats.total" = "Всего записей";
@@ -193,22 +253,25 @@
 /* Menu */
 "menu.openMain" = "Открыть главное окно";
 "menu.quickPanel" = "Быстрая вставка";
-"menu.pause" = "Приостановить мониторинг";
-"menu.resume" = "Возобновить мониторинг";
+"menu.pause" = "Приостановить мониторинг буфера обмена";
+"menu.resume" = "Возобновить мониторинг буфера обмена";
 "menu.settings" = "Настройки";
 "menu.quit" = "Завершить %@";
+"menu.accessibility.grant" = "⚠ Предоставить разрешение на универсальный доступ";
 
 /* Quick Panel */
 "quick.search" = "Поиск по буферу…";
 "quick.recent" = "Недавние";
 "quick.selectHint" = "Выберите элемент для предпросмотра";
 "quick.pasteTo" = "Вставить в %@";
+"quick.copyToClipboard" = "Скопировать в буфер обмена";
 "quick.actions" = "Действия";
 "quick.navigate" = "Навигация";
 "quick.pasteAction" = "Вставить";
 "quick.close" = "Закрыть";
 "quick.pasteNewLine" = "Вставить + Enter";
 "quick.pastePath" = "Вставить путь";
+"quick.copyPath" = "Скопировать путь";
 "quick.pasteName" = "Вставить имя";
 "quick.saveToFolder" = "Вставить файл";
 "quick.switchType" = "Тип";
@@ -220,8 +283,11 @@
 
 /* Onboarding */
 "accessibility.lost.title" = "Требуется разрешение на Универсальный доступ";
-"accessibility.lost.message" = "После обновления приложения macOS требует повторной авторизации. Откройте Системные настройки, сначала удалите PasteMemo из списка Универсальный доступ (выберите и нажмите минус), затем нажмите плюс, чтобы добавить снова.";
+"accessibility.lost.message" = "После обновления приложения macOS требует повторной авторизации. После нажатия «Открыть Универсальный доступ» выберите существующую запись PasteMemo и нажмите −, чтобы удалить её, затем перетащите новую версию из плавающей панели.";
 "accessibility.lost.later" = "Позже";
+"reinstall.required.title" = "Файлы приложения неполные";
+"reinstall.required.message" = "После обновления отсутствуют некоторые файлы. Пожалуйста, повторно скачайте DMG и переустановите. Ваши данные и разрешения сохранятся.";
+"reinstall.required.action" = "Открыть страницу загрузки";
 "onboarding.back" = "Назад";
 "onboarding.next" = "Далее";
 "onboarding.done" = "Начать";
@@ -241,6 +307,7 @@
 "menu.newGroup" = "Новая группа…";
 "menu.newSmartGroup" = "Новая смарт-группа…";
 "menu.help" = "Справка PasteMemo";
+"menu.alwaysOnTop" = "Всегда поверх других окон";
 "help.title" = "Справка PasteMemo";
 "help.subtitle" = "Краткое руководство по использованию менеджера буфера обмена.";
 "help.close" = "Понятно";
@@ -273,6 +340,8 @@
 
 /* Update */
 "update.available.title" = "Доступна новая версия PasteMemo!";
+"update.available.beta.title" = "Доступна новая бета-версия PasteMemo";
+"update.beta.warning" = "Бета-версии могут быть нестабильными. Сделайте резервную копию важных данных перед установкой.";
 "update.available.message" = "Доступна PasteMemo %@ — у вас %@. Хотите загрузить сейчас?";
 "update.skip" = "Пропустить эту версию";
 "update.remind_later" = "Напомнить позже";
@@ -291,6 +360,7 @@
 "update.download_error" = "Ошибка загрузки";
 "update.dmg_error" = "Ошибка обновления";
 "update.dmg_error.message" = "Загруженный образ диска повреждён. Попробуйте скачать обновление ещё раз.";
+"update.download_error.incomplete" = "Загрузка не завершена или прервана. Проверьте подключение к сети и повторите попытку.";
 
 /* Ignored Apps */
 "settings.ignoredApps" = "Игнорируемые приложения";
@@ -311,6 +381,7 @@
 /* Data Import/Export */
 "dataPorter.section" = "Данные";
 "dataPorter.export" = "Экспорт данных";
+"dataPorter.compressing" = "Сжатие...";
 "dataPorter.import" = "Импорт данных";
 "dataPorter.encrypt" = "Шифровать экспорт";
 "dataPorter.password" = "Пароль";
@@ -320,24 +391,19 @@
 "dataPorter.exportSuccess" = "Экспорт выполнен";
 "dataPorter.importSuccess" = "Импорт выполнен";
 "dataPorter.wrongPassword" = "Неверный пароль";
-
-/* Paste.app Migration */
-"dataPorter.pasteMigration" = "Миграция Paste.app";
-"dataPorter.pasteMigration.desc" = "Импорт истории буфера обмена из Paste.app";
-"dataPorter.pasteMigration.button" = "Начать миграцию";
-"dataPorter.pasteMigration.notFound" = "База данных Paste.app не найдена. Убедитесь, что Paste.app установлен и использовался.";
-"dataPorter.pasteMigration.empty" = "В базе данных Paste.app нет элементов.";
-"dataPorter.pasteMigration.progress" = "Миграция из Paste.app (%d элементов)";
-"dataPorter.pasteMigration.success" = "Миграция завершена: %d элементов импортировано, %d пропущено";
-"dataPorter.pasteMigration.errors" = "Ошибки: %@";
-
+"dataPorter.decrypting" = "Расшифровка...";
+"dataPorter.refreshing" = "Обновление главного окна...";
+"dataPorter.summary.imported" = "Импортировано: %d";
+"dataPorter.summary.skipped" = "Пропущено: %d";
+"dataPorter.summary.newGroups" = "Новых групп: %d";
+"dataPorter.summary.newRules" = "Новых правил: %d";
 
 /* Dev Tools */
-"devTools.importFromRelease" = "Import Data from Release";
-"devTools.importFromRelease.confirm" = "Import from Release?";
-"devTools.importFromRelease.confirmMessage" = "This will overwrite all data in the Dev version. This action cannot be undone.";
-"devTools.importFromRelease.releaseRunning" = "Please quit the release version of PasteMemo before importing.";
-"devTools.importFromRelease.noData" = "No release version data found.";
+"devTools.importFromRelease" = "Импортировать данные из основной версии";
+"devTools.importFromRelease.confirm" = "Импортировать из основной версии?";
+"devTools.importFromRelease.confirmMessage" = "Все данные Dev-версии будут перезаписаны. Это действие нельзя отменить.";
+"devTools.importFromRelease.releaseRunning" = "Перед импортом закройте основную версию PasteMemo.";
+"devTools.importFromRelease.noData" = "Данные основной версии не найдены.";
 
 /* Rich Text / Plain Text */
 "action.pasteAsPlainText" = "Обычный текст";
@@ -349,11 +415,14 @@
 /* Multi-select */
 "action.merge" = "Объединить";
 "action.mergeCopy" = "Копировать";
+"action.copyDebugInfo" = "Скопировать отладочную информацию";
 "quick.multiSelected" = "Выбрано: %d";
 "quick.batchPaste" = "Пакетная вставка";
 
 /* Privacy */
 "settings.privacy" = "Конфиденциальность";
+"settings.privacy.offlineMode" = "Автономный режим";
+"settings.privacy.offlineMode.hint" = "Когда включён, PasteMemo не отправляет никаких сетевых запросов, кроме проверки обновлений. Предпросмотр ссылок, загрузка изображений и анонимная статистика отключены.";
 "settings.privacy.sensitive" = "Конфиденциальное содержимое";
 "settings.privacy.sensitiveDetection" = "Автоматическое обнаружение конфиденциального содержимого";
 "settings.privacy.sensitiveHint" = "Автоматически маскирует пароли, API-ключи, токены и другие конфиденциальные данные, скопированные в буфер обмена.";
@@ -363,7 +432,7 @@
 "settings.automation.enabled" = "Включить правила автоматизации";
 "settings.automation.ruleCount" = "%d правил (%d включено)";
 "settings.automation.manage" = "Управление правилами автоматизации...";
-"settings.automation.hint" = "All matching rules are executed in order. Drag to reorder.";
+"settings.automation.hint" = "Все совпавшие правила выполняются по порядку. Перетащите, чтобы изменить порядок.";
 "settings.automation.auto" = "Авто";
 "settings.automation.manual" = "Вручную";
 "settings.automation.proRequired" = "Правила автоматизации — функция Pro";
@@ -375,20 +444,13 @@
 "onboarding.privacy.title" = "Защита конфиденциальности";
 "onboarding.privacy.desc" = "PasteMemo обнаружил на вашем Mac следующие менеджеры паролей и приложения безопасности. Рекомендуем игнорировать их активность в буфере обмена для защиты ваших данных.";
 "onboarding.privacy.none" = "Менеджеры паролей и приложения безопасности не обнаружены";
+"onboarding.privacy.hint" = "Отмечено = игнорируется — буфер обмена этого приложения не сохраняется. Нажмите на строку, чтобы изменить.";
+"onboarding.privacy.ignored" = "Игнорируется";
+"onboarding.privacy.notIgnored" = "Не игнорируется";
 
 /* Onboarding - Preferences */
 "onboarding.preferences.title" = "Настройки";
 "onboarding.preferences.desc" = "Настройте предпочтительное поведение. Вы можете изменить это в любое время в настройках.";
-
-/* Onboarding - Migration */
-"onboarding.migration.title" = "Миграция данных";
-"onboarding.migration.desc" = "Обнаружено Paste.app. Вы можете перенести историю буфера обмена в PasteMemo одним кликом.";
-"onboarding.migration.found" = "Найдено %d элементов";
-"onboarding.migration.import" = "Начать миграцию";
-"onboarding.migration.none" = "Paste.app не обнаружен, миграция не требуется";
-"onboarding.migration.success" = "Миграция завершена! Импортировано %d элементов";
-"onboarding.migration.skipped" = "Пропущено %d дубликатов";
-
 
 "sensitive.optionHint" = "Удерживайте ⌥ Option для быстрого просмотра";
 
@@ -415,6 +477,10 @@
 "accessibility.step2.pre" = "сначала";
 "accessibility.step2.separator" = ", ";
 
+"accessibility.step3.dragFromPanel" = "Перетащите PasteMemo из плавающей панели";
+"accessibility.panelHint" = "Если есть старая запись, нажмите −, чтобы удалить её перед перетаскиванием.";
+"accessibility.panelTitle" = "Разрешение Универсального доступа";
+
 "filter.sensitive" = "Конфиденциальные";
 
 "settings.clearData" = "Очистить все данные";
@@ -432,6 +498,7 @@
 "backup.frequency" = "Частота копирования";
 "backup.maxSlots" = "Количество копий";
 "backup.destination" = "Способ копирования";
+"backup.frequency.twoHours" = "Каждые 2 часа";
 "backup.frequency.sixHours" = "Каждые 6 часов";
 "backup.frequency.daily" = "Ежедневно";
 "backup.frequency.threeDays" = "Каждые 3 дня";
@@ -442,6 +509,7 @@
 "backup.backupNow" = "Создать копию сейчас";
 "backup.restore" = "Восстановить…";
 "backup.success" = "Резервное копирование завершено.";
+"backup.progress.finalizing" = "Сохранение…";
 "backup.restore.title" = "Восстановить из копии";
 "backup.restore.empty" = "Нет доступных резервных копий.";
 "backup.restore.merge" = "Объединить (сохранить существующие)";
@@ -461,12 +529,17 @@
 
 // Relay Mode
 "relay.title" = "Режим Эстафеты";
-"relay.exit" = "Выход";
+"relay.exit" = "Выйти";
+"relay.clearAndExit" = "Очистить и выйти";
 "relay.close" = "Закрыть";
 "relay.autoExit" = "Авто-выход при пустой очереди";
 "relay.previous" = "Назад";
 "relay.skip" = "Пропустить";
+"relay.pasteAll" = "Вставить все";
+"relay.pasteAll.stop" = "Остановить";
+"relay.pasteAll.help" = "Вставить все оставшиеся элементы очереди по порядку (⌥⌃V)";
 "relay.delete" = "Удалить";
+"relay.setCurrent" = "Сделать текущим";
 "relay.split" = "Разделить";
 "relay.addToQueue" = "Добавить в очередь";
 "relay.splitAndRelay" = "Разделить и эстафета";
@@ -482,12 +555,23 @@
 "relay.delimiter.custom" = "Пользовательский";
 "relay.exitRelay" = "Выйти из эстафеты";
 "relay.autoExit.short" = "Авто-выход по завершении";
+"relay.loop" = "Цикл";
+"relay.loop.tooltip.on" = "Цикл: Вкл. (перезапуск с начала после окончания очереди)";
+"relay.loop.tooltip.off" = "Цикл: Выкл.";
+"relay.pasteAsText" = "Вставить как текст";
 "relay.startRelay" = "Начать эстафету";
 "relay.pause" = "Пауза";
 "relay.resume" = "Продолжить";
 "relay.paused" = "На паузе";
 "relay.emptyHint" = "Скопируйте содержимое для добавления в очередь";
+"relay.deleted.recirculated" = "Удалено из реле, сохранено в истории";
+"relay.deleted.undo" = "Отменить";
+"relay.appendedToQueue" = "Добавлено в очередь эстафеты (%d/%d)";
+"relay.queue.heading" = "Очередь %d";
 "relay.quickPastePaused" = "Быстрая вставка приостановлена в режиме эстафеты";
+"relay.expand" = "Развернуть";
+"relay.collapse" = "Свернуть";
+"relay.content.truncated" = "…(содержимое слишком большое, обрезано)";
 "relay.alert.title" = "Режим Эстафеты активирован";
 "relay.alert.message" = "Быстрая вставка приостановлена. Скопированное содержимое будет добавлено в очередь.
 
@@ -497,6 +581,31 @@
 "relay.settings.pasteKey" = "Горячая клавиша вставки";
 "relay.settings.pasteKeyNote" = "Некоторые приложения (Терминал, Emacs) могут использовать ту же клавишу.";
 "relay.settings.resetAlert" = "Показать подсказку снова";
+"relay.settings.plainText" = "Вставить как обычный текст";
+"relay.settings.plainText.desc" = "Удалить форматирование";
+"relay.settings.allowRepeatCopy" = "Разрешить повторы";
+"relay.settings.allowRepeatCopy.desc" = "Добавлять одинаковые подряд элементы";
+"relay.settings.completeSound" = "Звук завершения";
+"relay.settings.completeSound.desc" = "Воспроизводить по завершении эстафеты";
+"relay.settings.completeSound.mute" = "Без звука";
+"relay.banner.clickToClear" = "Клик — переключить · ✕ — очистить";
+"relay.settings.automation" = "Автоматизация";
+"relay.settings.automation.desc" = "Применять правило при вставке";
+"relay.settings.automation.none" = "Нет";
+"relay.settings.preview" = "Предпросмотр";
+"relay.settings.preview.desc" = "Список показывает обработанный текст";
+"relay.settings.tooltip.default" = "Настройки";
+"relay.settings.tooltip.active" = "Активно";
+"relay.settings.postPasteKey" = "Клавиша после вставки";
+"relay.settings.postPasteKey.desc" = "Для быстрого ввода";
+"relay.settings.postPasteKey.none" = "Нет";
+"relay.settings.postPasteKey.return" = "Return";
+"relay.settings.postPasteKey.tab" = "Tab";
+"relay.settings.postPasteKey.down" = "Вниз";
+"relay.settings.postPasteKey.up" = "Вверх";
+"relay.settings.postPasteKey.left" = "Влево";
+"relay.settings.postPasteKey.right" = "Вправо";
+"relay.settings.postPasteKey.space" = "Пробел";
 "relay.settings.description" = "Режим эстафеты позволяет копировать несколько элементов и вставлять их по одному. Идеально для копирования списка имён и построчной вставки в Excel.";
 "relay.settings.shortcuts" = "Горячие клавиши";
 "relay.settings.operations" = "Операции";
@@ -509,6 +618,11 @@
 "onboarding.relay.feature1" = "Выберите несколько элементов или копируйте последовательно";
 "onboarding.relay.feature2" = "Разделите текст по разделителю для быстрого создания очереди";
 "onboarding.relay.feature3" = "Нажмите Ctrl+V для вставки по одному (настраивается)";
+"onboarding.aiAgent.title" = "Мост к ИИ-агентам";
+"onboarding.aiAgent.desc" = "Сделайте буфер обмена доступным для Claude Code, Cursor, Codex и любого MCP-совместимого ИИ-агента.";
+"onboarding.aiAgent.feature1" = "5 инструментов MCP — чтение, поиск, запись буфера обмена";
+"onboarding.aiAgent.feature2" = "Установка в один клик в Настройки → AI Agents";
+"onboarding.aiAgent.feature3" = "Конфиденциальные элементы фильтруются по умолчанию";
 
 /* Missing Keys - Empty State */
 "empty.noResults" = "Совпадений не найдено";
@@ -517,6 +631,7 @@
 "cmd.showInFinder" = "Показать в Finder";
 "cmd.copyAs" = "Копировать как %@";
 "relay.reverse" = "Обратный порядок";
+"relay.clearAll" = "Очистить всё";
 "relay.editItem" = "Редактировать содержимое";
 "quickPanel.pin" = "Закрепить окно";
 "quickPanel.unpin" = "Открепить окно";
@@ -558,7 +673,9 @@
 /* Missing Keys - Command Palette */
 "cmd.title" = "Быстрые действия";
 "cmd.paste" = "Вставить";
+"cmd.pasteAndDestroy" = "Вставить и удалить";
 "cmd.pasteAsPlainText" = "Вставить как обычный текст";
+"cmd.copyAsPlainText" = "Скопировать как обычный текст";
 "cmd.copy" = "Копировать";
 "cmd.pin" = "Закрепить / Открепить";
 "cmd.toggleSensitive" = "Переключить конфиденциальность";
@@ -568,6 +685,7 @@
 "cmd.pastePath" = "Вставить путь";
 "cmd.andNewLine" = " + новая строка";
 "cmd.transform" = "Преобразовать";
+"cmd.automation" = "Автоматизация";
 
 /* Missing Keys - Relay */
 "relay.tab" = "Эстафета";
@@ -577,12 +695,14 @@
 "automation.section.builtIn" = "Встроенные правила";
 "automation.section.custom" = "Мои правила";
 "automation.section.empty" = "(пусто)";
+"automation.section.disabled" = "Отключено";
 "automation.editor.selectRule" = "Выберите правило для редактирования";
 "automation.rule.name" = "Название";
 "automation.rule.enabled" = "Включено";
 "automation.rule.triggerMode" = "Триггер";
 "automation.rule.triggerMode.automatic" = "Автоматический";
 "automation.rule.triggerMode.manual" = "Только вручную";
+"automation.rule.triggerMode.shortcutManualOnly" = "Действия «Выполнить быструю команду» можно запускать только вручную";
 "automation.rule.notifyBeforeApply" = "Подтверждать перед применением";
 "automation.rule.newName" = "Новое правило";
 "automation.condition.title" = "Условия";
@@ -591,6 +711,7 @@
 "automation.condition.regexMatch" = "Содержимое соответствует регулярному выражению";
 "automation.condition.containsText" = "Содержимое содержит";
 "automation.condition.sourceApp" = "Приложение-источник";
+"automation.condition.anyText" = "Любой текст";
 "automation.action.title" = "Действия (по порядку)";
 "automation.action.add" = "+ Добавить действие";
 "automation.action.lowercased" = "В нижний регистр";
@@ -598,8 +719,8 @@
 "automation.action.trimWhitespace" = "Удалить пробелы";
 "automation.action.removeBlankLines" = "Удалить пустые строки";
 "automation.action.stripRichText" = "Удалить форматирование";
-"automation.action.assignGroup" = "Добавить в коллекцию";
-"automation.action.assignGroup.placeholder" = "Введите название коллекции";
+"automation.action.assignGroup" = "Назначить группу";
+"automation.action.assignGroup.placeholder" = "Введите название группы";
 "automation.action.urlEncode" = "URL-кодирование";
 "automation.action.urlDecode" = "URL-декодирование";
 "automation.action.removeQueryParams" = "Удалить параметры URL";
@@ -614,6 +735,7 @@
 "automation.action.addSuffix.placeholder" = "Введите текст суффикса";
 "automation.preview" = "Тестировать правило";
 "automation.preview.input" = "Вставьте или введите содержимое для тестирования правила…";
+"automation.preview.useClipboard" = "Использовать буфер обмена";
 "automation.preview.output" = "Предпросмотр результата";
 "automation.preview.notMatched" = "Условия не выполнены";
 
@@ -628,25 +750,38 @@
 "automation.action.section.text" = "Текст";
 "automation.action.section.url" = "URL";
 "automation.action.section.advanced" = "Дополнительно";
-"automation.action.section.clipboard" = "Clipboard";
-"automation.action.markSensitive" = "Mark as Sensitive";
-"automation.action.pin" = "Pin";
-"automation.action.skipCapture" = "Skip Capture";
-"automation.rule.notifyOnTrigger" = "Send notification on trigger";
-"automation.notification.title" = "Automation";
-"automation.applied" = "Automation applied";
-"automation.validation.incomplete" = "Cannot enable rule";
-"automation.validation.incompleteMessage" = "Please add at least one condition and one action before enabling.";
-"automation.delete.confirm" = "Delete Rule?";
-"automation.delete.confirmMessage" = "This action cannot be undone.";
-"automation.notification.permissionDenied" = "Notifications Not Allowed";
-"automation.notification.permissionDeniedMessage" = "Please allow notifications for PasteMemo in System Settings.";
-"automation.notification.openSettings" = "Open Settings";
+"automation.action.section.clipboard" = "Буфер обмена";
+"automation.action.markSensitive" = "Пометить как конфиденциальное";
+"automation.action.pin" = "Закрепить";
+"automation.action.skipCapture" = "Не сохранять в историю";
+"automation.action.section.external" = "Внешние";
+"automation.action.runShortcut" = "Запустить быструю команду";
+"automation.action.runShortcut.placeholder" = "Название быстрой команды";
+"automation.action.runShortcut.empty" = "Быстрая команда не выбрана";
+"automation.action.runShortcut.pick" = "Выбрать из списка";
+"automation.action.runShortcut.openInApp" = "Открыть в «Быстрых командах»";
+"automation.action.runShortcut.failed" = "Сбой быстрой команды";
+"automation.action.runShortcut.loading" = "Загрузка…";
+"automation.rule.notifyOnTrigger" = "Отправлять уведомление при срабатывании";
+"automation.rule.writeBackToPasteboard" = "Записывать результат обратно в буфер обмена";
+"automation.rule.writeBackToPasteboard.help" = "Когда включено, результат правила записывается обратно в системный буфер обмена, поэтому ⌘V сразу после копирования вставляет преобразованный текст (форматированный текст становится обычным).";
+"automation.notification.title" = "Автоматизация";
+"automation.applied" = "Автоматизация выполнена";
+"automation.validation.incomplete" = "Не удалось включить правило";
+"automation.validation.incompleteMessage" = "Перед включением добавьте хотя бы одно условие и одно действие.";
+"automation.delete.confirm" = "Удалить правило?";
+"automation.delete.confirmMessage" = "Это действие нельзя отменить.";
+"automation.notification.permissionDenied" = "Уведомления запрещены";
+"automation.notification.permissionDeniedMessage" = "Разрешите уведомления для PasteMemo в Системных настройках.";
+"automation.notification.openSettings" = "Открыть настройки";
 "automation.condition.sourceApp.select" = "Выбрать приложение";
 "automation.condition.sourceApp.add" = "Добавить приложение";
 "automation.condition.sourceApp.empty" = "Приложения не выбраны";
 "automation.editor.definition" = "Определение правила";
 "automation.editor.settings" = "Настройки";
+"automation.editor.triggerAndNotification" = "Триггер и уведомления";
+"automation.rule.status.active" = "Активно";
+"automation.rule.status.inactive" = "Неактивно";
 "automation.editor.save" = "Сохранить";
 "automation.editor.cancel" = "Отмена";
 "automation.editor.edit" = "Редактировать";
@@ -659,6 +794,14 @@
 "automation.condition.containsText.placeholder" = "Введите текстовое содержимое";
 "automation.action.empty" = "Нет действий";
 "quick.pasteToApp" = "Вставить в %@";
+
+/* Sponsor Tab */
+"settings.sponsor" = "Поддержать";
+"sponsor.title" = "Поддержите PasteMemo";
+"sponsor.desc" = "PasteMemo — бесплатное приложение с открытым исходным кодом. Если оно вам полезно, поддержите проект.";
+"sponsor.donate" = "Угостить кофе";
+"sponsor.star" = "Star на GitHub";
+"sponsor.feedback" = "Отправить отзыв";
 
 /* About - Open Source */
 "about.license" = "Лицензия";
@@ -679,12 +822,23 @@
 "onboarding.analytics.hint" = "Вы можете изменить это в Настройки → Конфиденциальность.";
 
 /* OCR */
-"settings.ocr" = "OCR изображений";
+"settings.ocr" = "OCR";
 "settings.ocr.enable" = "Включить OCR изображений";
 "settings.ocr.auto" = "Автоматически обрабатывать новые изображения";
+"settings.ocr.markdown" = "Распознавать разметку как Markdown";
+"settings.ocr.markdown.hint" = "Распознаёт абзацы, списки и таблицы и сохраняет текст в формате Markdown. Требуется macOS 26.";
+"settings.ocr.stopScan" = "Остановить сканирование";
 "settings.ocr.scanExisting" = "Сканировать существующие изображения";
 "settings.ocr.scanStarted" = "Фоновый OCR для существующих изображений запущен.";
 "settings.ocr.hint" = "OCR выполняется на устройстве и делает текст внутри изображений доступным для поиска.";
+"settings.autoCheckUpdates" = "Автоматически проверять обновления";
+"settings.updateCheckInterval" = "Интервал проверки";
+"settings.updateCheckInterval.6h" = "Каждые 6 часов";
+"settings.updateCheckInterval.12h" = "Каждые 12 часов";
+"settings.updateCheckInterval.24h" = "Каждые 24 часа";
+"settings.updateCheckInterval.72h" = "Каждые 3 дня";
+"settings.includeBetaChannel" = "Участвовать в бета-тестировании";
+"settings.includeBetaChannel.hint" = "Раннее тестирование новых функций. Может быть нестабильным. Автоматическое обновление до стабильной версии.";
 "detail.ocr" = "Распознанный текст";
 "detail.ocr.copy" = "Копировать текст";
 "detail.ocr.retry" = "Повторить OCR";
@@ -696,3 +850,52 @@
 "quick.ocrMatch" = "Совпадение в распознанном тексте";
 "cmd.openInPreview" = "Открыть в Просмотре";
 "cmd.retryOCR" = "Повторить OCR";
+"cmd.pasteOCR" = "Вставить OCR-текст";
+
+/* Edit */
+"detail.richText.editWarning" = "При редактировании форматирование будет удалено и текст станет простым.";
+
+/* AI Agents */
+"settings.tab.aiAgents" = "ИИ-агенты";
+"settings.aiAgents.service" = "Сервис";
+"settings.aiAgents.serverRunning" = "MCP-сервер работает";
+"settings.aiAgents.agents" = "Агенты";
+"settings.aiAgents.detected" = "Доступно";
+"settings.aiAgents.notInstalled" = "Не установлено на этом Mac";
+"settings.aiAgents.installed.label" = "Установлено";
+"settings.aiAgents.install" = "Установить";
+"settings.aiAgents.uninstall" = "Удалить";
+"settings.aiAgents.manualConfig" = "Ручная настройка";
+"settings.aiAgents.installed" = "Установлено в %@. Перезапустите %@, чтобы изменения вступили в силу.";
+"settings.aiAgents.uninstalled" = "Удалено из %@.";
+"settings.aiAgents.installFailed" = "Не удалось установить в %@: %@";
+"settings.aiAgents.uninstallFailed" = "Не удалось удалить из %@: %@";
+"settings.aiAgents.privacy" = "Конфиденциальность";
+"settings.aiAgents.allowSensitive" = "Разрешить агенту читать конфиденциальные элементы";
+"settings.aiAgents.master.toggle" = "Включить интеграцию AI-агента";
+"settings.aiAgents.master.detail" = "Разрешить AI-инструментам, таким как Claude и Codex, читать историю буфера обмена через MCP";
+"settings.aiAgents.master.disabledHint" = "Отключено. Включите, чтобы AI-агенты могли получать доступ к буферу обмена через MCP.";
+"settings.aiAgents.sourceBlocklist" = "Чёрный список приложений-источников";
+"settings.aiAgents.binaryMissing" = "Отсутствует бинарный файл pastememo-mcp";
+"settings.aiAgents.binaryMissingDetail" = "Обычно это происходит после обновления внутри приложения с версии без поддержки MCP. Пожалуйста, повторно скачайте DMG с lifedever.com, чтобы устранить проблему.";
+"settings.aiAgents.openDownload" = "Открыть страницу загрузки";
+"settings.aiAgents.blocklist.empty" = "Нет заблокированных приложений";
+"settings.aiAgents.blocklist.add" = "Добавить приложение";
+"settings.aiAgents.manualConfig.title" = "Ручная настройка для %@";
+"settings.aiAgents.manualConfig.subtitle" = "Скопируйте фрагмент ниже и вставьте его в соответствующий файл конфигурации.";
+"settings.aiAgents.manualConfig.copy" = "Копировать в буфер обмена";
+"settings.aiAgents.manualConfig.done" = "Готово";
+
+"settings.diagnostics" = "Диагностика";
+"settings.diagnostics.export" = "Экспортировать журнал диагностики";
+
+/* Image grid (Quick Panel) */
+"settings.imageLayout" = "Отображение изображений";
+"settings.imageLayout.list" = "Список";
+"settings.imageLayout.grid" = "Каскадная сетка";
+"settings.imageGridDensity" = "Плотность сетки";
+"settings.imageGridDensity.sparse" = "Разреженная";
+"settings.imageGridDensity.medium" = "Средняя";
+"settings.imageGridDensity.dense" = "Плотная";
+
+"settings.ocr.memoryHint" = "Когда включено, PasteMemo распознаёт текст на изображениях в фоне с помощью Vision, что может увеличить расход памяти.";

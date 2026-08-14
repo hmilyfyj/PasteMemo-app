@@ -34,7 +34,7 @@ final class HighlightEngine {
     ]
 
     private init() {
-        guard let url = Bundle.module.url(
+        guard let url = Bundle.pasteMemoResources.url(
             forResource: "highlight.min",
             withExtension: "js",
             subdirectory: "Resources"
@@ -98,14 +98,6 @@ final class HighlightEngine {
         let tokens = parseTokens(from: html)
         putCache(cacheKey, tokens)
         return tokens
-    }
-    
-    func highlightAsync(_ code: String, language: String) async -> [HighlightToken] {
-        return await Task.detached(priority: .userInitiated) {
-            await MainActor.run {
-                return self.highlight(code, language: language)
-            }
-        }.value
     }
 
     // MARK: - Cache

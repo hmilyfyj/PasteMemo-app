@@ -4,46 +4,51 @@ import SwiftData
 
 extension Notification.Name {
     static let quickPanelDidShow = Notification.Name("quickPanelDidShow")
-    static let quickPanelLiveResizeDidBegin = Notification.Name("quickPanelLiveResizeDidBegin")
-    static let quickPanelLiveResizeDidEnd = Notification.Name("quickPanelLiveResizeDidEnd")
+    static let quickPanelWillDismiss = Notification.Name("quickPanelWillDismiss")
+    static let quickPanelPinnedResignKey = Notification.Name("quickPanelPinnedResignKey")
+    /// 置顶时全局 ⌘1–9 命中，userInfo["index"] 为 1–9，由 QuickPanelView 粘贴对应项（不关面板）
+    static let quickPanelPasteDigit = Notification.Name("quickPanelPasteDigit")
+    /// 置顶期间用户切到别的前台 App，粘贴目标已更新，QuickPanelView 据此刷新底部"粘贴到 X"
+    static let quickPanelPasteTargetChanged = Notification.Name("quickPanelPasteTargetChanged")
 }
 
 private let DEFAULT_WIDTH: CGFloat = 750
 private let DEFAULT_HEIGHT: CGFloat = 510
-private let MIN_WIDTH: CGFloat = 500
-private let MIN_HEIGHT: CGFloat = 350
-private let VERTICAL_OFFSET: CGFloat = 100
-private let CLASSIC_SIZE_KEY = "quickPanelSize"
-private let BOTTOM_SIZE_KEY = "quickPanelBottomSize"
-private let BOTTOM_WIDTH_IS_CUSTOM_KEY = "quickPanelBottomWidthIsCustom"
-private let POSITION_KEY = "quickPanelPosition"
+private let MIN_WIDTH: CGFloat = 360
+private let MIN_HEIGHT: CGFloat = 420
 
-private enum BottomFloatingAnimationState {
-    case hidden
-    case opening
-    case visible
-    case closing
+/// Below this width the preview pane is hidden and the list fills the full width.
+let QUICK_PANEL_PREVIEW_BREAKPOINT: CGFloat = 620
+
+/// Observable state shared between QuickPanelWindowController (AppKit) and
+/// QuickPanelView (SwiftUI). The controller updates `width` on NSWindow resize;
+/// SwiftUI re-renders the layout reactively.
+@MainActor
+final class QuickPanelLayoutState: ObservableObject {
+    @Published var width: CGFloat
+    init(width: CGFloat) { self.width = width }
+    var shouldShowPreview: Bool { width >= QUICK_PANEL_PREVIEW_BREAKPOINT }
 }
+private let TOP_INSET_RATIO: CGFloat = 0.15
+private let SIZE_KEY = "quickPanelSize"
+private let POSITION_KEY = "quickPanelPosition"
+private let POSITION_SCREEN_KEY = "quickPanelPosition.screenID"
 
 private class KeyablePanel: NSPanel {
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { true }
-    
-    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
-        var frame = frameRect
-        guard let screen = screen ?? NSScreen.main else { return frame }
-        
-        let visibleFrame = screen.visibleFrame
-        
-        let minVisibleX = visibleFrame.minX
-        let maxVisibleX = visibleFrame.maxX - frame.width
-        let minVisibleY = visibleFrame.minY
-        let maxVisibleY = visibleFrame.maxY - frame.height
-        
-        frame.origin.x = max(minVisibleX, min(maxVisibleX, frame.origin.x))
-        frame.origin.y = max(minVisibleY, min(maxVisibleY, frame.origin.y))
-        
-        return frame
+    /// When true, the panel refuses to become key — used in pinned mode so the search
+    /// field's FocusState can't drag keyboard focus back to the panel while the user
+    /// types in another app.
+    var refuseKey = false
+
+    override var canBecomeKey: Bool { !refuseKey }
+    override var canBecomeMain: Bool { !refuseKey }
+
+    // borderless + titled 混合 styleMask 下系统不强制 minSize，手动 clamp
+    override func setFrame(_ frameRect: NSRect, display flag: Bool) {
+        var clamped = frameRect
+        clamped.size.width = max(clamped.size.width, minSize.width)
+        clamped.size.height = max(clamped.size.height, minSize.height)
+        super.setFrame(clamped, display: flag)
     }
 }
 
@@ -56,357 +61,75 @@ private class DragOnlyView: NSView {
     }
 }
 
-private final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
-        true
-    }
-}
-
-private struct ResizeEdges: OptionSet {
-    let rawValue: Int
-
-    static let left = ResizeEdges(rawValue: 1 << 0)
-    static let right = ResizeEdges(rawValue: 1 << 1)
-    static let top = ResizeEdges(rawValue: 1 << 2)
-    static let bottom = ResizeEdges(rawValue: 1 << 3)
-}
-
-private final class ResizeHandleOverlayView: NSView {
-    weak var panel: NSPanel?
-    var isEnabled = false {
-        didSet {
-            needsDisplay = true
-            window?.invalidateCursorRects(for: self)
-        }
-    }
-
-    private let edgeInset: CGFloat = 14
-    private let cornerInset: CGFloat = 22
-    private var activeEdges: ResizeEdges = []
-    private var initialMouseLocation = NSPoint.zero
-    private var initialFrame = NSRect.zero
-    private var isLiveResizing = false
-    private var pendingFrame: NSRect?
-    private var framePump: DispatchSourceTimer?
-    private var lastAppliedFrame = NSRect.zero
-
-    override var acceptsFirstResponder: Bool { false }
-
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        guard isEnabled, resizeEdges(at: point) != [] else { return nil }
-        return self
-    }
-
-    override func resetCursorRects() {
-        guard isEnabled else { return }
-        let width = bounds.width
-        let height = bounds.height
-        let horizontalSpan = max(width - cornerInset * 2, 1)
-        let verticalSpan = max(height - cornerInset * 2, 1)
-
-        addCursorRect(
-            NSRect(x: 0, y: cornerInset, width: edgeInset, height: verticalSpan),
-            cursor: .resizeLeftRight
-        )
-        addCursorRect(
-            NSRect(x: width - edgeInset, y: cornerInset, width: edgeInset, height: verticalSpan),
-            cursor: .resizeLeftRight
-        )
-        addCursorRect(
-            NSRect(x: cornerInset, y: height - edgeInset, width: horizontalSpan, height: edgeInset),
-            cursor: .resizeUpDown
-        )
-        addCursorRect(
-            NSRect(x: cornerInset, y: 0, width: horizontalSpan, height: edgeInset),
-            cursor: .resizeUpDown
-        )
-    }
-
-    override func layout() {
-        super.layout()
-        window?.invalidateCursorRects(for: self)
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        guard let panel else { return }
-        let point = convert(event.locationInWindow, from: nil)
-        activeEdges = resizeEdges(at: point)
-        guard activeEdges != [] else { return }
-        initialMouseLocation = NSEvent.mouseLocation
-        initialFrame = panel.frame
-        lastAppliedFrame = panel.frame.integral
-        startFramePumpIfNeeded()
-        beginLiveResizeIfNeeded()
-    }
-
-    override func mouseDragged(with event: NSEvent) {
-        guard let panel, activeEdges != [] else { return }
-        let mouseLocation = NSEvent.mouseLocation
-        let deltaX = mouseLocation.x - initialMouseLocation.x
-        let deltaY = mouseLocation.y - initialMouseLocation.y
-        var frame = initialFrame
-
-        if activeEdges.contains(.left) {
-            frame.origin.x += deltaX
-            frame.size.width -= deltaX
-        }
-        if activeEdges.contains(.right) {
-            frame.size.width += deltaX
-        }
-        if activeEdges.contains(.bottom) {
-            frame.origin.y += deltaY
-            frame.size.height -= deltaY
-        }
-        if activeEdges.contains(.top) {
-            frame.size.height += deltaY
-        }
-
-        guard let screen = NSScreen.screens.first(where: { $0.visibleFrame.intersects(initialFrame) })
-                ?? panel.screen
-                ?? NSScreen.screenWithMouse
-                ?? NSScreen.main else {
-            queueFrameUpdate(frame.integral)
-            return
-        }
-
-        let allowedMinX = screen.frame.minX + QuickPanelBottomGeometry.horizontalInset
-        let allowedMaxX = screen.frame.maxX - QuickPanelBottomGeometry.horizontalInset
-        let allowedMinY = screen.visibleFrame.minY + QuickPanelBottomGeometry.bottomInset
-        let allowedMaxY = screen.visibleFrame.maxY
-
-        let minWidth = min(panel.minSize.width, allowedMaxX - allowedMinX)
-        let maxWidth = min(panel.maxSize.width, allowedMaxX - allowedMinX)
-        let minHeight = min(panel.minSize.height, allowedMaxY - allowedMinY)
-        let maxHeight = min(panel.maxSize.height, allowedMaxY - allowedMinY)
-
-        if activeEdges.contains(.left) {
-            let right = initialFrame.maxX
-            frame.size.width = min(max(frame.width, minWidth), maxWidth)
-            frame.origin.x = right - frame.width
-            frame.origin.x = max(frame.origin.x, allowedMinX)
-            frame.size.width = right - frame.origin.x
-        } else if activeEdges.contains(.right) {
-            frame.size.width = min(max(frame.width, minWidth), maxWidth)
-            frame.size.width = min(frame.width, allowedMaxX - frame.origin.x)
-        } else {
-            frame.size.width = min(max(frame.width, minWidth), maxWidth)
-        }
-
-        if activeEdges.contains(.bottom) {
-            let top = initialFrame.maxY
-            frame.size.height = min(max(frame.height, minHeight), maxHeight)
-            frame.origin.y = top - frame.height
-            frame.origin.y = max(frame.origin.y, allowedMinY)
-            frame.size.height = top - frame.origin.y
-        } else if activeEdges.contains(.top) {
-            frame.size.height = min(max(frame.height, minHeight), maxHeight)
-            frame.size.height = min(frame.height, allowedMaxY - frame.origin.y)
-        } else {
-            frame.size.height = min(max(frame.height, minHeight), maxHeight)
-        }
-
-        frame.origin.x = min(max(frame.origin.x, allowedMinX), allowedMaxX - frame.width)
-        frame.origin.y = min(max(frame.origin.y, allowedMinY), allowedMaxY - frame.height)
-        queueFrameUpdate(frame.integral)
-    }
-
-    override func mouseUp(with event: NSEvent) {
-        activeEdges = []
-        flushPendingFrameIfNeeded(forceDisplay: true)
-        stopFramePump()
-        endLiveResizeIfNeeded()
-        super.mouseUp(with: event)
-    }
-
-    private func beginLiveResizeIfNeeded() {
-        guard !isLiveResizing else { return }
-        isLiveResizing = true
-        QuickPanelWindowController.shared.beginLiveResize(for: panel)
-    }
-
-    private func endLiveResizeIfNeeded() {
-        guard isLiveResizing else { return }
-        isLiveResizing = false
-        QuickPanelWindowController.shared.endLiveResize(for: panel)
-    }
-
-    private func startFramePumpIfNeeded() {
-        guard framePump == nil else { return }
-        let timer = DispatchSource.makeTimerSource(queue: .main)
-        timer.schedule(deadline: .now(), repeating: .milliseconds(8), leeway: .milliseconds(1))
-        timer.setEventHandler { [weak self] in
-            self?.flushPendingFrameIfNeeded()
-        }
-        framePump = timer
-        timer.resume()
-    }
-
-    private func stopFramePump() {
-        framePump?.setEventHandler {}
-        framePump?.cancel()
-        framePump = nil
-        pendingFrame = nil
-    }
-
-    private func queueFrameUpdate(_ frame: NSRect) {
-        pendingFrame = frame
-    }
-
-    private func flushPendingFrameIfNeeded(forceDisplay: Bool = false) {
-        guard let panel, let frame = pendingFrame else { return }
-        guard frame != lastAppliedFrame else { return }
-        pendingFrame = nil
-        lastAppliedFrame = frame
-        panel.setFrame(frame, display: forceDisplay)
-    }
-
-    private func resizeEdges(at point: NSPoint) -> ResizeEdges {
-        guard bounds.contains(point) else { return [] }
-
-        var edges: ResizeEdges = []
-        if point.x <= edgeInset { edges.insert(.left) }
-        if point.x >= bounds.width - edgeInset { edges.insert(.right) }
-        if point.y <= edgeInset { edges.insert(.bottom) }
-        if point.y >= bounds.height - edgeInset { edges.insert(.top) }
-        return edges
-    }
-}
-
 @MainActor
 final class QuickPanelWindowController {
     static let shared = QuickPanelWindowController()
 
     private var panel: NSPanel?
-    private var resizePersistenceWorkItem: DispatchWorkItem?
-    private var isPanelLiveResizing = false
+    private var layoutState: QuickPanelLayoutState?
     private var clickOutsideMonitor: Any?
-    private var localClickOutsideMonitor: Any?
     private var deactivationObserver: Any?
     private var resignKeyObserver: Any?
+    /// 置顶期间跟踪前台 App 切换，让粘贴目标跟随当前 App
+    private var pinnedActivationObserver: Any?
+    private var resizeObserver: Any?
     private(set) var previousApp: NSRunningApplication?
     private var isWarmedUp = false
-    var isPinned = false
+    var isPinned = false {
+        didSet {
+            guard isPinned != oldValue else { return }
+            (panel as? KeyablePanel)?.refuseKey = isPinned
+            if isPinned {
+                // Post notification so SwiftUI view clears FocusState before we resign key.
+                NotificationCenter.default.post(name: .quickPanelPinnedResignKey, object: nil)
+                // Hand key status to the previously-focused app so the user can type there.
+                if panel?.isKeyWindow == true {
+                    previousApp?.activate(options: [])
+                }
+                // 面板已让出焦点，local 监听器收不到键了；改用全局 ⌘1–9 支持连续快粘。
+                HotkeyManager.shared.registerQuickPasteDigitHotkeys()
+            } else {
+                // 取消置顶：把 ⌘1–9 还给目标 App。
+                HotkeyManager.shared.unregisterQuickPasteDigitHotkeys()
+            }
+        }
+    }
     var suppressDismiss = false
     private var snapGuide: SnapGuideWindow?
-    private weak var dragCoverView: NSView?
-    private weak var resizeHandleOverlayView: ResizeHandleOverlayView?
-    private weak var panelContainerView: NSView?
-    private weak var animatedShellView: NSView?
-    private(set) var bottomMode: QuickPanelBottomMode = .compact
-    private var bottomFloatingAnimationState: BottomFloatingAnimationState = .hidden
-    private var pendingDismissCompletions: [() -> Void] = []
 
-    private var panelStyle: QuickPanelStyle {
-        QuickPanelStyle.stored
-    }
-
-    private var classicPanelWidth: CGFloat {
-        let saved = UserDefaults.standard.double(forKey: "\(CLASSIC_SIZE_KEY).width")
+    private var panelWidth: CGFloat {
+        let saved = UserDefaults.standard.double(forKey: "\(SIZE_KEY).width")
         return saved > 0 ? max(saved, MIN_WIDTH) : DEFAULT_WIDTH
     }
 
-    private var classicPanelHeight: CGFloat {
-        let saved = UserDefaults.standard.double(forKey: "\(CLASSIC_SIZE_KEY).height")
+    private var panelHeight: CGFloat {
+        let saved = UserDefaults.standard.double(forKey: "\(SIZE_KEY).height")
         return saved > 0 ? max(saved, MIN_HEIGHT) : DEFAULT_HEIGHT
     }
 
+    private var positionMode: QuickPanelPositionMode {
+        let rawValue = UserDefaults.standard.string(forKey: QuickPanelPositionSettings.modeKey)
+        return QuickPanelPositionMode(rawValue: rawValue ?? "") ?? .screenCenter
+    }
+
+    private var screenTarget: QuickPanelScreenTarget {
+        let rawValue = UserDefaults.standard.string(forKey: QuickPanelPositionSettings.screenTargetKey)
+        return QuickPanelScreenTarget(rawValue: rawValue ?? "") ?? .active
+    }
+
+    private var specifiedScreenID: String? {
+        let value = UserDefaults.standard.string(forKey: QuickPanelPositionSettings.specifiedScreenIDKey)
+        return value?.isEmpty == true ? nil : value
+    }
+
+    private var isLaunchAnimationEnabled: Bool {
+        guard UserDefaults.standard.object(forKey: QuickPanelSettings.launchAnimationEnabledKey) != nil else {
+            return true
+        }
+        return UserDefaults.standard.bool(forKey: QuickPanelSettings.launchAnimationEnabledKey)
+    }
+
     private init() {}
-
-    var isTransitioning: Bool {
-        bottomFloatingAnimationState == .opening || bottomFloatingAnimationState == .closing
-    }
-
-    private func bottomPanelWidth(for screenFrame: CGRect) -> CGFloat {
-        let widthIsCustom = UserDefaults.standard.bool(forKey: BOTTOM_WIDTH_IS_CUSTOM_KEY)
-        let saved = UserDefaults.standard.double(forKey: "\(BOTTOM_SIZE_KEY).width")
-        guard widthIsCustom, saved > 0 else {
-            return QuickPanelBottomGeometry.panelWidth(for: screenFrame)
-        }
-        return QuickPanelBottomGeometry.clampedWidth(saved, screenFrame: screenFrame)
-    }
-
-    private func bottomPanelHeight(for mode: QuickPanelBottomMode, visibleFrame: CGRect) -> CGFloat {
-        let saved = UserDefaults.standard.double(forKey: "\(BOTTOM_SIZE_KEY).\(mode.rawValue).height")
-        let preferred = saved > 0 ? CGFloat(saved) : QuickPanelBottomGeometry.defaultHeight(for: mode, visibleFrame: visibleFrame)
-        return QuickPanelBottomGeometry.clampedHeight(preferred, visibleFrame: visibleFrame, mode: mode)
-    }
-
-    private func persistCurrentPanelSize(
-        _ size: CGSize,
-        panel: NSPanel?,
-        style: QuickPanelStyle,
-        bottomMode: QuickPanelBottomMode
-    ) {
-        let screenFrame = (panel?.screen?.frame)
-            ?? NSScreen.screens.first(where: { $0.frame.intersects(panel?.frame ?? .zero) })?.frame
-            ?? NSScreen.screenWithMouse?.frame
-            ?? NSScreen.main?.frame
-        QuickPanelSizePersistence.persist(
-            size: size,
-            style: style,
-            bottomMode: bottomMode,
-            screenFrame: screenFrame
-        )
-    }
-
-    private func schedulePanelSizePersistence(for panel: NSPanel) {
-        resizePersistenceWorkItem?.cancel()
-        let size = panel.frame.size
-        let styleSnapshot = panelStyle
-        let bottomModeSnapshot = bottomMode
-        let workItem = DispatchWorkItem { [weak self, weak panel] in
-            guard let self else { return }
-            self.persistCurrentPanelSize(
-                size,
-                panel: panel,
-                style: styleSnapshot,
-                bottomMode: bottomModeSnapshot
-            )
-        }
-        resizePersistenceWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18, execute: workItem)
-    }
-
-    fileprivate func beginLiveResize(for panel: NSPanel?) {
-        guard !isPanelLiveResizing else { return }
-        isPanelLiveResizing = true
-        NotificationCenter.default.post(name: .quickPanelLiveResizeDidBegin, object: panel)
-    }
-
-    fileprivate func endLiveResize(for panel: NSPanel?) {
-        guard isPanelLiveResizing else { return }
-        isPanelLiveResizing = false
-        NotificationCenter.default.post(name: .quickPanelLiveResizeDidEnd, object: panel)
-        if let panel {
-            schedulePanelSizePersistence(for: panel)
-        }
-    }
-
-    func handleStyleChange(to style: QuickPanelStyle) {
-        resizePersistenceWorkItem?.cancel()
-        resizePersistenceWorkItem = nil
-
-        if style == .bottomFloating {
-            bottomMode = .compact
-        }
-
-        guard let panel else { return }
-
-        guard panel.isVisible else {
-            panel.orderOut(nil)
-            panel.close()
-            self.panel = nil
-            isWarmedUp = false
-            bottomFloatingAnimationState = .hidden
-            return
-        }
-
-        applyPanelBehavior(panel)
-        positionPanel(panel)
-        panel.alphaValue = 1
-        panel.orderFrontRegardless()
-        panel.makeKey()
-    }
 
     /// Call once at app launch to pre-build the panel off-screen
     func warmUp(clipboardManager: ClipboardManager, modelContainer: ModelContainer) {
@@ -416,16 +139,24 @@ final class QuickPanelWindowController {
         panel.alphaValue = 0
         panel.orderFrontRegardless()
         panel.displayIfNeeded()
+
+        // 把缩放动画的 anchor point 提前设好，show 时就不会再跳
+        if let contentView = panel.contentView {
+            contentView.wantsLayer = true
+            let bounds = contentView.bounds
+            contentView.layer?.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+            contentView.layer?.position = CGPoint(x: bounds.midX, y: bounds.midY)
+        }
+
         panel.orderOut(nil)
         self.panel = panel
-        bottomFloatingAnimationState = .hidden
         isWarmedUp = true
     }
 
     func show(clipboardManager: ClipboardManager, modelContainer: ModelContainer) {
-        guard !isTransitioning else { return }
         if let existing = panel, existing.isVisible {
-            dismiss()
+            // 再次按开关热键 = 用户主动关闭，置顶时也要关
+            dismiss(force: true)
             return
         }
 
@@ -437,86 +168,140 @@ final class QuickPanelWindowController {
 
         guard let panel else { return }
 
-        if panelStyle == .bottomFloating {
-            bottomMode = .compact
-            bottomFloatingAnimationState = .opening
-            pendingDismissCompletions.removeAll()
+        positionPanel(panel)
+
+        let shouldAnimate = isLaunchAnimationEnabled
+
+        if shouldAnimate {
+            // 起始状态：alpha 0 + scale 0.995（极轻微缩放）
+            panel.alphaValue = 0
+            if let layer = panel.contentView?.layer {
+                CATransaction.begin()
+                CATransaction.setDisableActions(true)
+                layer.removeAnimation(forKey: "showScale")
+                layer.transform = CATransform3DMakeScale(0.995, 0.995, 1)
+                CATransaction.commit()
+            }
+        } else {
+            panel.alphaValue = 1
+            if let layer = panel.contentView?.layer {
+                CATransaction.begin()
+                CATransaction.setDisableActions(true)
+                layer.removeAnimation(forKey: "showScale")
+                layer.transform = CATransform3DIdentity
+                CATransaction.commit()
+            }
         }
 
-        AnimationLogger.shared.log("🚀 [QuickPanel] show() called, panelStyle: \(panelStyle)")
-        
-        applyPanelBehavior(panel)
-        
-        if panelStyle == .bottomFloating {
-            AnimationLogger.shared.log("🚀 [QuickPanel] Calling positionPanelWithAnimation")
-            positionPanelWithAnimation(panel)
-        } else {
-            AnimationLogger.shared.log("🚀 [QuickPanel] Calling positionPanel (classic)")
-            positionPanel(panel)
-            panel.alphaValue = 1
-            panel.orderFrontRegardless()
-            panel.makeKey()
+        panel.orderFrontRegardless()
+        panel.makeKey()
+
+        if shouldAnimate {
+            // 动画到 alpha 1 + scale 1.0（仅作轻微空间引导，时长 0.1s）
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.1
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                panel.animator().alphaValue = 1
+            }
+            if let layer = panel.contentView?.layer {
+                let anim = CABasicAnimation(keyPath: "transform")
+                anim.fromValue = CATransform3DMakeScale(0.995, 0.995, 1)
+                anim.toValue = CATransform3DIdentity
+                anim.duration = 0.1
+                anim.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                layer.add(anim, forKey: "showScale")
+                layer.transform = CATransform3DIdentity
+            }
         }
-        
+
         installClickOutsideMonitor()
         installDeactivationObserver()
         installMoveObserver()
         NotificationCenter.default.post(name: .quickPanelDidShow, object: nil)
+        UsageTracker.pingIfNeeded(source: .quick)
     }
 
-    func dismiss(animated: Bool = true, completion: (() -> Void)? = nil) {
+    /// - Parameter force: 置顶时，粘贴/复制完成的收尾调用（`force == false`）不关闭面板，
+    ///   让用户连续操作；只有用户主动关闭（Esc / 再次按开关热键 / 关闭按钮等）才传 `force: true`。
+    func dismiss(force: Bool = false) {
+        if isPinned && !force { return }
         isPinned = false
-        suppressDismiss = false
         removeClickOutsideMonitor()
         removeDeactivationObserver()
         guard let panel else {
-            bottomFloatingAnimationState = .hidden
             HotkeyManager.shared.isQuickPanelVisible = false
-            completion?()
             return
         }
         removeMoveObserver()
         snapGuide?.orderOut(nil)
         savePosition(panel)
-
-        if let completion {
-            pendingDismissCompletions.append(completion)
+        // 命令面板是 SwiftUI `.popover`（NSPopover 子窗口）。下面 layoutSubtreeIfNeeded 会同步把
+        // showCommandPalette=false 刷下去、触发 NSPopover.close() 的 ~200ms 关闭动画——粘贴瞬间完成、
+        // 浮层还在淡出，就成了"先粘后关"。teardown 时先把子窗口无动画 orderOut，等会触发 close() 时
+        // 已无可见内容可动画，浮层和面板一起干脆消失。
+        for child in panel.childWindows ?? [] {
+            child.animationBehavior = .none
+            child.orderOut(nil)
         }
+        // 先通知视图清理状态（搜索文本、pill 等），强制 SwiftUI 完成一次重绘后再隐藏 panel；
+        // 这样下次打开时首帧是干净状态，不会闪现上次的 `/` 建议浮层
+        NotificationCenter.default.post(name: .quickPanelWillDismiss, object: nil)
+        panel.contentView?.layoutSubtreeIfNeeded()
+        panel.displayIfNeeded()
+        // 焦点交还只发生在用户主动关闭（Esc/热键，force=true）。点击外部时
+        // （force=false）系统正在激活用户点的 App，我们再 activate(previousApp)
+        // 会跟它抢前台——两个激活来回切就是「面板消失时闪来闪去」，且竞态赢了
+        // 还会把焦点从用户点的 App 拉回旧 App。粘贴路径不依赖这里：
+        // dismissAndPaste 自己 activate 目标 App。
+        orderOutAvoidingKeyProposal(panel, restoreFocus: force)
+        HotkeyManager.shared.isQuickPanelVisible = false
+    }
 
-        guard panel.isVisible else {
-            finalizeDismiss(panel)
-            return
-        }
-
-        guard panelStyle == .bottomFloating, animated else {
+    /// macOS 26 (Tahoe) 的窗口协调器（NSWMWindowCoordinator）在 orderOut 一个**可成为
+    /// key** 且仍持有 key 状态的窗口时，会跨进程向窗口服务器提议下一个 key 窗口并同步
+    /// 等待回复；对非激活 App 的 nonactivating 面板，提议得不到应答，主线程干等约 0.4s
+    /// 超时——Esc 关闭面板肉眼可见地卡住。行为探测（探针实测）发现：先把面板置为
+    /// `refuseKey`（canBecomeKey=false）再 orderOut，协调器不再发起提议，orderOut 即刻
+    /// 返回。`restoreFocus` 为 true（用户主动关闭）时顺带把焦点交还目标 App；点击
+    /// 外部触发的 dismiss 传 false——mouseDown 全局监视器早于系统完成「点击激活目标
+    /// App」，此刻面板往往仍是 key，这里再 activate(previousApp) 会跟系统抢前台。
+    private func orderOutAvoidingKeyProposal(_ panel: NSPanel, restoreFocus: Bool) {
+        guard panel.isKeyWindow, let keyable = panel as? KeyablePanel else {
             panel.orderOut(nil)
-            bottomFloatingAnimationState = .hidden
-            HotkeyManager.shared.isQuickPanelVisible = false
-            flushPendingDismissCompletions()
             return
         }
-
-        if bottomFloatingAnimationState == .closing {
-            return
+        keyable.refuseKey = true
+        if restoreFocus {
+            previousApp?.activate(options: [])
         }
-
-        bottomFloatingAnimationState = .closing
-        animateBottomFloatingDismiss(panel)
+        panel.orderOut(nil)
+        // isPinned 在 dismiss 里已重置为 false；恢复可 makeKey 供下次 show 使用
+        keyable.refuseKey = isPinned
     }
 
     func dismissAndPaste(_ item: ClipItem, clipboardManager: ClipboardManager, addNewLine: Bool = false) {
         let appToRestore = previousApp
-        clipboardManager.writeToPasteboard(item)
-        clipboardManager.markItemsAsUsed([item])
+        clipboardManager.writeToPasteboard(item, targetApp: appToRestore)
         SoundManager.playPaste()
 
-        dismiss { [weak self] in
-            self?.previousApp = nil
-
-            if let app = appToRestore {
-                app.activate()
-                clipboardManager.simulatePaste(forceNewLine: addNewLine)
+        // 置顶连续快粘：保留面板、保留 previousApp、不更新 lastUsedAt（否则列表重排、⌘1–9 编号错位）。
+        // 仍激活目标 App 再 ⌘V——面板有时仍是 key window，不激活会把 ⌘V 投给面板自己。
+        if !isPinned {
+            item.lastUsedAt = Date()
+            if let context = item.modelContext {
+                ClipItemStore.saveAndNotifyLastUsed(context)
             }
+            dismiss()
+            previousApp = nil
+        }
+
+        // 延迟 orderOut 机制下 dismiss 返回时面板可能仍持有 key，立刻发合成 ⌘V 会落空
+        // （1.7.12-beta.1 回归：升级后粘贴无效）。排到关闭落地后执行；置顶（未 dismiss）时立即执行。
+        // ⌘V 用 postToPid 直投目标进程（见 simulatePaste），不依赖窗口服务器的键盘路由，
+        // dismiss 一返回立即粘贴——零附加延迟。
+        if let app = appToRestore {
+            app.activate()
+            clipboardManager.simulatePaste(forceNewLine: addNewLine, targetApp: app)
         }
     }
 
@@ -524,90 +309,35 @@ final class QuickPanelWindowController {
         panel?.isVisible ?? false
     }
 
-    var currentPanelFrame: CGRect? {
-        panel?.frame
-    }
-
-    func setQuickLookPreviewVisible(_ isVisible: Bool) {
-        suppressDismiss = isVisible
-    }
-
-    func keepPanelInteractiveDuringQuickLook() {
-        reclaimPanelFocus()
-        // Quick Look 首次创建时会在下一轮 run loop 再次抢回 key window，
-        // 这里补一次延迟回收，避免第一次打开后主面板失去键盘/点击响应。
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { [weak self] in
-            Task { @MainActor [weak self] in
-                self?.reclaimPanelFocus()
-            }
-        }
-    }
-
-    func restorePanelInteractionAfterQuickLookClose() {
-        reclaimPanelFocus()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) { [weak self] in
-            Task { @MainActor [weak self] in
-                self?.reclaimPanelFocus()
-            }
-        }
-    }
-
-    private func reclaimPanelFocus() {
-        guard let panel, panel.isVisible else { return }
-        NSApp.activate(ignoringOtherApps: true)
-        panel.orderFrontRegardless()
-        panel.makeKeyAndOrderFront(nil)
-    }
-
-    func setBottomFloatingMode(_ mode: QuickPanelBottomMode, animated: Bool = true) {
-        bottomMode = mode
-        guard panelStyle == .bottomFloating, let panel, panel.isVisible else { return }
-        guard let screen = NSScreen.screens.first(where: { $0.visibleFrame.intersects(panel.frame) })
-                ?? NSScreen.screenWithMouse
-                ?? panel.screen
-                ?? NSScreen.main
-                ?? NSScreen.screens.first else { return }
-        updateBottomSizeConstraints(for: panel, on: screen)
-        let frame = QuickPanelBottomGeometry.frame(
-            screenFrame: screen.frame,
-            visibleFrame: screen.visibleFrame,
-            mode: mode,
-            preferredWidth: panel.frame.width,
-            preferredHeight: bottomPanelHeight(for: mode, visibleFrame: screen.visibleFrame)
-        )
-        panel.setFrame(frame, display: true, animate: animated)
-    }
-
     // MARK: - Panel Construction
 
     private func buildPanel(clipboardManager: ClipboardManager, modelContainer: ModelContainer) -> NSPanel {
+        let initialWidth = panelWidth
+        let state = QuickPanelLayoutState(width: initialWidth)
+        self.layoutState = state
+
         let content = QuickPanelView()
             .environmentObject(clipboardManager)
+            .environmentObject(state)
             .modelContainer(modelContainer)
 
-        let initialWidth: CGFloat
-        let initialHeight: CGFloat
-        
-        if panelStyle == .bottomFloating {
-            let screen = NSScreen.main ?? NSScreen.screens.first
-            let screenFrame = screen?.frame ?? .zero
-            let visibleFrame = screen?.visibleFrame ?? .zero
-            initialWidth = QuickPanelBottomGeometry.panelWidth(for: screenFrame)
-            initialHeight = QuickPanelBottomGeometry.defaultHeight(for: .compact, visibleFrame: visibleFrame)
-        } else {
-            initialWidth = classicPanelWidth
-            initialHeight = classicPanelHeight
-        }
+        let hosting = NSHostingController(rootView: content.ignoresSafeArea())
 
         let panel = KeyablePanel(
-            contentRect: NSRect(x: 0, y: 0, width: initialWidth, height: initialHeight),
+            contentRect: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight),
             styleMask: [.nonactivatingPanel, .titled, .borderless, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         panel.isFloatingPanel = true
-        panel.level = .floating
-        panel.isMovableByWindowBackground = false
+        // .floating(3) 离 .normal(0) 太近：作为后台非激活面板，前台 App 的普通窗口会被系统
+        // 抬到同层之上，把面板盖住（剪映导出框 level=0 仍遮住面板，issue #78）。提到 .statusBar(25)
+        // 拉开层差，与项目内 Toast / Maccy / Clippy 命令面板的做法一致。
+        panel.level = .statusBar
+        // 跨 Space / 全屏跟随，否则全屏 App 下面板不出现。项目内 Toast / Relay 都设了，唯独这里漏。
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.animationBehavior = .none
+        panel.isMovableByWindowBackground = true
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = true
@@ -626,314 +356,233 @@ final class QuickPanelWindowController {
         coverView.autoresizingMask = [.width]
         titlebarCover.view = coverView
         panel.addTitlebarAccessoryViewController(titlebarCover)
-        dragCoverView = coverView
 
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: initialWidth, height: initialHeight))
+        let hostingView = hosting.view
+        hostingView.translatesAutoresizingMaskIntoConstraints = false
+
+        // Raycast 同款方案：外观锁定的系统材质（浅色外观=浅底、深色=深底，亮度
+        // 不随背后内容漂移），而非 NSGlassEffectView——玻璃的最终亮度由背后内容
+        // 主导且 tintColor 压不住（探针实锤：浅色外观叠黑背景，tint 1.0 仍是中灰，
+        // 黑字直接糊掉），大面积文字面板在外观与背景明暗错配时必然发灰。Liquid
+        // Glass 只用在系统原生支持的场景（设置窗口侧边栏、popover 材质背景）。
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight))
         container.wantsLayer = true
         container.layer?.cornerRadius = 16
         container.layer?.masksToBounds = true
-        panelContainerView = container
 
-        let animatedShell = NSView(frame: container.bounds)
-        animatedShell.wantsLayer = true
-        animatedShell.autoresizingMask = [.width, .height]
-        animatedShell.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.95).cgColor
-        container.addSubview(animatedShell)
-        animatedShellView = animatedShell
+        let visualEffect = NSVisualEffectView(frame: container.bounds)
+        visualEffect.material = .headerView
+        visualEffect.blendingMode = .behindWindow
+        visualEffect.state = .active
+        visualEffect.autoresizingMask = [.width, .height]
+        container.addSubview(visualEffect)
 
-        let hostingView = FirstMouseHostingView(rootView: content.ignoresSafeArea())
-        hostingView.translatesAutoresizingMaskIntoConstraints = false
-        animatedShell.addSubview(hostingView)
+        container.addSubview(hostingView)
         NSLayoutConstraint.activate([
-            hostingView.topAnchor.constraint(equalTo: animatedShell.topAnchor),
-            hostingView.bottomAnchor.constraint(equalTo: animatedShell.bottomAnchor),
-            hostingView.leadingAnchor.constraint(equalTo: animatedShell.leadingAnchor),
-            hostingView.trailingAnchor.constraint(equalTo: animatedShell.trailingAnchor),
+            hostingView.topAnchor.constraint(equalTo: container.topAnchor),
+            hostingView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            hostingView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            hostingView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
         ])
-
-        let resizeOverlay = ResizeHandleOverlayView(frame: animatedShell.bounds)
-        resizeOverlay.translatesAutoresizingMaskIntoConstraints = false
-        resizeOverlay.panel = panel
-        animatedShell.addSubview(resizeOverlay)
-        NSLayoutConstraint.activate([
-            resizeOverlay.topAnchor.constraint(equalTo: animatedShell.topAnchor),
-            resizeOverlay.bottomAnchor.constraint(equalTo: animatedShell.bottomAnchor),
-            resizeOverlay.leadingAnchor.constraint(equalTo: animatedShell.leadingAnchor),
-            resizeOverlay.trailingAnchor.constraint(equalTo: animatedShell.trailingAnchor),
-        ])
-        resizeHandleOverlayView = resizeOverlay
         container.layoutSubtreeIfNeeded()
 
         panel.contentView = container
         panel.minSize = NSSize(width: MIN_WIDTH, height: MIN_HEIGHT)
 
-        // Save size when resized
-        NotificationCenter.default.addObserver(
+        // Save size when resized. warmUp runs once so registering here is safe;
+        // we still track the token so a future rebuild path wouldn't duplicate writes.
+        if let previous = resizeObserver {
+            NotificationCenter.default.removeObserver(previous)
+        }
+        resizeObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didResizeNotification,
             object: panel,
             queue: .main
-        ) { [weak self, weak panel] _ in
+        ) { [weak panel, weak state] _ in
             Task { @MainActor in
-                guard let self, let panel, !self.isPanelLiveResizing else { return }
-                self.schedulePanelSizePersistence(for: panel)
-            }
-        }
-
-        NotificationCenter.default.addObserver(
-            forName: NSWindow.willStartLiveResizeNotification,
-            object: panel,
-            queue: .main
-        ) { [weak self, weak panel] _ in
-            Task { @MainActor in
-                self?.beginLiveResize(for: panel)
-            }
-        }
-
-        NotificationCenter.default.addObserver(
-            forName: NSWindow.didEndLiveResizeNotification,
-            object: panel,
-            queue: .main
-        ) { [weak self, weak panel] _ in
-            Task { @MainActor in
-                self?.endLiveResize(for: panel)
+                guard let size = panel?.frame.size else { return }
+                UserDefaults.standard.set(Double(size.width), forKey: "\(SIZE_KEY).width")
+                UserDefaults.standard.set(Double(size.height), forKey: "\(SIZE_KEY).height")
+                state?.width = size.width
             }
         }
 
         return panel
     }
 
-    private func applyPanelBehavior(_ panel: NSPanel) {
-        let isBottomFloating = panelStyle == .bottomFloating
-        let classicMask: NSWindow.StyleMask = [.nonactivatingPanel, .titled, .borderless, .resizable, .fullSizeContentView]
-        let bottomFloatingMask: NSWindow.StyleMask = [.nonactivatingPanel, .borderless, .resizable]
-
-        panel.styleMask = isBottomFloating ? bottomFloatingMask : classicMask
-        panel.isMovableByWindowBackground = false
-        panel.titlebarAppearsTransparent = !isBottomFloating
-        panel.hasShadow = isBottomFloating
-        dragCoverView?.isHidden = isBottomFloating
-        resizeHandleOverlayView?.isHidden = !isBottomFloating
-        resizeHandleOverlayView?.isEnabled = isBottomFloating
-        panelContainerView?.layer?.cornerRadius = isBottomFloating ? QuickPanelBottomTheme.windowCornerRadius : 16
-        panelContainerView?.layer?.borderWidth = isBottomFloating ? 1 : 0
-        panelContainerView?.layer?.borderColor = NSColor.white.withAlphaComponent(isBottomFloating ? 0.06 : 0).cgColor
-        animatedShellView?.layer?.backgroundColor = isBottomFloating 
-            ? NSColor.controlBackgroundColor.withAlphaComponent(0.95).cgColor
-            : NSColor.windowBackgroundColor.withAlphaComponent(0.95).cgColor
-        panel.minSize = isBottomFloating
-            ? NSSize(width: QuickPanelBottomGeometry.minimumWidth, height: QuickPanelBottomGeometry.minimumHeight(for: bottomMode))
-            : NSSize(width: MIN_WIDTH, height: MIN_HEIGHT)
-        panel.maxSize = isBottomFloating
-            ? NSSize(width: QuickPanelBottomGeometry.maxWidth, height: CGFloat.greatestFiniteMagnitude)
-            : NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
-        if !isBottomFloating {
-            resetAnimatedShellPresentation()
-            bottomFloatingAnimationState = .hidden
+    private func positionPanel(_ panel: NSPanel) {
+        switch positionMode {
+        case .remembered:
+            positionRemembered(panel)
+        case .cursor:
+            positionAtCursor(panel)
+        case .menuBarIcon:
+            positionAtMenuBarIcon(panel)
+        case .windowCenter:
+            positionAtWindowCenter(panel)
+        case .screenCenter:
+            positionAtScreenCenter(panel)
         }
-    }
-
-    private func updateBottomSizeConstraints(for panel: NSPanel, on screen: NSScreen) {
-        let availableWidth = max(screen.frame.width - QuickPanelBottomGeometry.horizontalInset * 2, 0)
-        let availableHeight = max(screen.visibleFrame.height - QuickPanelBottomGeometry.bottomInset, 0)
-        panel.minSize = NSSize(
-            width: min(QuickPanelBottomGeometry.minimumWidth, availableWidth),
-            height: min(QuickPanelBottomGeometry.minimumHeight(for: bottomMode), availableHeight)
-        )
-        panel.maxSize = NSSize(
-            width: min(QuickPanelBottomGeometry.maxWidth, availableWidth),
-            height: availableHeight
-        )
     }
 
     /// Position panel on the screen where the mouse is, using saved relative offset if available.
-    private func positionPanel(_ panel: NSPanel) {
-        let screen = NSScreen.screenWithMouse ?? NSScreen.main ?? NSScreen.screens.first
-        guard let screen else { return }
-        let visibleFrame = screen.visibleFrame
-
-        if panelStyle == .bottomFloating {
-            updateBottomSizeConstraints(for: panel, on: screen)
-            let frame = QuickPanelBottomGeometry.frame(
-                screenFrame: screen.frame,
-                visibleFrame: visibleFrame,
-                mode: bottomMode,
-                preferredWidth: bottomPanelWidth(for: screen.frame),
-                preferredHeight: bottomPanelHeight(for: bottomMode, visibleFrame: visibleFrame)
-            )
-            panel.setFrame(frame, display: true)
-            return
-        }
-
-        panel.setContentSize(NSSize(width: classicPanelWidth, height: classicPanelHeight))
+    private func positionRemembered(_ panel: NSPanel) {
         let hasSaved = UserDefaults.standard.object(forKey: "\(POSITION_KEY).rx") != nil
-        if hasSaved {
-            // Saved offset is relative to the screen's visible frame (0.0~1.0 ratio)
+        if hasSaved,
+           let screen = rememberedScreen() ?? NSScreen.screenWithMouse ?? NSScreen.main ?? NSScreen.screens.first {
+            let visibleFrame = screen.visibleFrame
+            // Saved offset is relative to the screen's visible frame (0.0~1.0 ratio).
+            // Clamp so the panel stays on-screen if the display shrunk or was swapped.
             let rx = UserDefaults.standard.double(forKey: "\(POSITION_KEY).rx")
             let ry = UserDefaults.standard.double(forKey: "\(POSITION_KEY).ry")
-            let x = visibleFrame.origin.x + rx * visibleFrame.width
-            let y = visibleFrame.origin.y + ry * visibleFrame.height
-            panel.setFrameOrigin(NSPoint(x: x, y: y))
+            let origin = CGPoint(
+                x: visibleFrame.origin.x + rx * visibleFrame.width,
+                y: visibleFrame.origin.y + ry * visibleFrame.height
+            )
+            setClampedOrigin(origin, for: panel, on: screen)
         } else {
+            let screen = NSScreen.screenWithMouse ?? NSScreen.main ?? NSScreen.screens.first
+            guard let screen else { return }
             centerOnScreen(panel, screen: screen)
         }
     }
-    
-    /// Position panel at its final frame and animate the shell within the clipped container.
-    private func positionPanelWithAnimation(_ panel: NSPanel) {
-        let screen = NSScreen.screenWithMouse ?? NSScreen.main ?? NSScreen.screens.first
-        guard let screen else { return }
-        let visibleFrame = screen.visibleFrame
-        
-        updateBottomSizeConstraints(for: panel, on: screen)
-        
-        let finalFrame = QuickPanelBottomGeometry.frame(
-            screenFrame: screen.frame,
-            visibleFrame: visibleFrame,
-            mode: bottomMode,
-            preferredWidth: bottomPanelWidth(for: screen.frame),
-            preferredHeight: bottomPanelHeight(for: bottomMode, visibleFrame: visibleFrame)
-        )
 
-        AnimationLogger.shared.log("🔍 [Animation Debug]")
-        AnimationLogger.shared.log("  screen.frame: \(screen.frame)")
-        AnimationLogger.shared.log("  finalFrame: \(finalFrame)")
-
-        let emergeOffset = QuickPanelBottomAnimation.emergeFinalOffset
-        var initialFrame = finalFrame
-        initialFrame.origin.y = visibleFrame.minY - finalFrame.height
-        panel.setFrame(initialFrame, display: true)
-        panel.contentView?.layoutSubtreeIfNeeded()
-        panel.alphaValue = 1
-        prepareBottomFloatingShellForOpen()
-        panel.orderFrontRegardless()
-        AnimationLogger.shared.log("  After orderFrontRegardless, panel.frame: \(panel.frame)")
-        panel.makeKey()
-        animateBottomFloatingOpen(panel, finalFrame: finalFrame, emergeOffset: emergeOffset)
-    }
-
-    private func prepareBottomFloatingShellForOpen() {
-        guard let container = panelContainerView, let shell = animatedShellView else { return }
-        let height = container.bounds.height
-        let initialOffset = QuickPanelBottomAnimation.openingInitialOffset(for: height)
-        shell.frame = container.bounds.offsetBy(dx: 0, dy: initialOffset)
-        container.layer?.borderWidth = 0
-    }
-
-    private func resetAnimatedShellPresentation() {
-        guard let container = panelContainerView, let shell = animatedShellView else { return }
-        shell.frame = container.bounds
-        container.layer?.borderWidth = 1
-    }
-
-    private func setAnimatedShellPresentation(offsetY: CGFloat, alpha: CGFloat) {
-        guard let container = panelContainerView, let shell = animatedShellView else { return }
-        shell.frame = container.bounds.offsetBy(dx: 0, dy: offsetY)
-        shell.alphaValue = alpha
-    }
-
-    private func animateBottomFloatingOpen(_ panel: NSPanel, finalFrame: CGRect, emergeOffset: CGFloat) {
-        guard let shell = animatedShellView else {
-            bottomFloatingAnimationState = .visible
-            return
-        }
-
-        AnimationLogger.shared.log("  Starting open shell animation...")
-
-        NSAnimationContext.runAnimationGroup({ context in
-            context.duration = QuickPanelBottomAnimation.emergeDuration
-            context.timingFunction = PanelAnimationTiming.smoothEaseOut
-            context.allowsImplicitAnimation = true
-            shell.animator().setFrameOrigin(.zero)
-            panel.animator().setFrame(finalFrame, display: false)
-        }, completionHandler: { [weak self, weak panel] in
-            guard let self else { return }
-            self.resetAnimatedShellPresentation()
-            self.bottomFloatingAnimationState = .visible
-            panel?.makeKey()
-            AnimationLogger.shared.log("  Open shell animation completed")
-        })
-    }
-
-    private func animateBottomFloatingDismiss(_ panel: NSPanel) {
-        guard let container = panelContainerView, let shell = animatedShellView else {
-            finalizeDismiss(panel)
-            return
-        }
-
-        container.layer?.borderWidth = 0
-        let targetOffset = QuickPanelBottomAnimation.closingTargetOffset(for: container.bounds.height)
-        
-        guard let screen = NSScreen.screens.first(where: { $0.visibleFrame.intersects(panel.frame) })
-                ?? NSScreen.screenWithMouse
-                ?? panel.screen
-                ?? NSScreen.main else {
-            finalizeDismiss(panel)
-            return
-        }
-        
-        let visibleFrame = screen.visibleFrame
-        var dismissFrame = panel.frame
-        dismissFrame.origin.y = visibleFrame.minY - dismissFrame.height
-        
-        AnimationLogger.shared.log("  Starting close shell animation with window movement...")
-
-        NSAnimationContext.runAnimationGroup({ context in
-            context.duration = QuickPanelBottomAnimation.closeDuration
-            context.timingFunction = PanelAnimationTiming.quickEaseOut
-            context.allowsImplicitAnimation = true
-            shell.animator().setFrameOrigin(NSPoint(x: 0, y: targetOffset))
-            panel.animator().setFrame(dismissFrame, display: false)
-        }, completionHandler: { [weak self, weak panel] in
-            guard let self else { return }
-            self.finalizeDismiss(panel)
-            AnimationLogger.shared.log("  Close shell animation completed")
-        })
-    }
-
-    private func finalizeDismiss(_ panel: NSPanel?) {
-        panel?.orderOut(nil)
-        bottomFloatingAnimationState = .hidden
-        HotkeyManager.shared.isQuickPanelVisible = false
-        flushPendingDismissCompletions()
-    }
-
-    private func flushPendingDismissCompletions() {
-        let completions = pendingDismissCompletions
-        pendingDismissCompletions.removeAll()
-        completions.forEach { $0() }
+    private func rememberedScreen() -> NSScreen? {
+        let screenID = UserDefaults.standard.string(forKey: POSITION_SCREEN_KEY)
+        return ScreenLocator.screen(for: screenID)
     }
 
     private func centerOnScreen(_ panel: NSPanel, screen: NSScreen) {
         let frame = screen.visibleFrame
-        let x = frame.midX - classicPanelWidth / 2
-        let y = frame.midY - classicPanelHeight / 2 + VERTICAL_OFFSET
+        let x = frame.midX - panel.frame.width / 2
+        let y = preferredUpperCenterY(screen: screen, panelHeight: panel.frame.height)
         panel.setFrameOrigin(NSPoint(x: x, y: y))
     }
 
-    func resetPosition() {
-        guard panelStyle == .classic else { return }
-        UserDefaults.standard.removeObject(forKey: "\(POSITION_KEY).rx")
-        UserDefaults.standard.removeObject(forKey: "\(POSITION_KEY).ry")
-        guard let panel, panel.isVisible else { return }
-        let screen = NSScreen.screenWithMouse ?? NSScreen.main ?? NSScreen.screens.first
-        guard let screen else { return }
+    private func centerOnScreenExact(_ panel: NSPanel, screen: NSScreen) {
+        let frame = screen.visibleFrame
+        let x = frame.midX - panel.frame.width / 2
+        let y = frame.midY - panel.frame.height / 2
+        panel.setFrameOrigin(NSPoint(x: x, y: y))
+    }
+
+    /// IME-style placement: anchor the panel to whichever corner of the cursor
+    /// has the most room, so the panel never spills off-screen and never sits
+    /// directly on top of where the user was just looking. Picks horizontal
+    /// side (right vs left of cursor) and vertical side (below vs above)
+    /// independently — the 4 combinations cover any cursor location.
+    private func positionAtCursor(_ panel: NSPanel) {
+        guard let screen = NSScreen.screenWithMouse ?? resolveTargetScreen() else { return }
+        let mouse = NSEvent.mouseLocation
+        let visibleFrame = screen.visibleFrame
+        let panelSize = panel.frame.size
+        let gap: CGFloat = 8
+
+        // Cocoa coords: origin = bottom-left of screen, y grows upward.
+        let spaceRight = visibleFrame.maxX - mouse.x
+        let spaceLeft = mouse.x - visibleFrame.minX
+        let placeRight = spaceRight >= panelSize.width + gap || spaceRight >= spaceLeft
+
+        let spaceBelow = mouse.y - visibleFrame.minY
+        let spaceAbove = visibleFrame.maxY - mouse.y
+        let placeBelow = spaceBelow >= panelSize.height + gap || spaceBelow >= spaceAbove
+
+        let originX = placeRight
+            ? mouse.x + gap
+            : mouse.x - gap - panelSize.width
+        let originY = placeBelow
+            ? mouse.y - gap - panelSize.height
+            : mouse.y + gap
+
+        setClampedOrigin(CGPoint(x: originX, y: originY), for: panel, on: screen)
+    }
+
+    private func positionAtMenuBarIcon(_ panel: NSPanel) {
+        if let anchor = MenuBarIconLocator.iconFrame() {
+            let origin = CGPoint(
+                x: anchor.frame.midX - panel.frame.width / 2,
+                y: anchor.frame.minY - panel.frame.height - 8
+            )
+            setClampedOrigin(origin, for: panel, on: anchor.screen)
+            return
+        }
+
+        guard let screen = resolveTargetScreen() else { return }
+        centerOnScreenExact(panel, screen: screen)
+    }
+
+    private func positionAtWindowCenter(_ panel: NSPanel) {
+        if let frame = ActiveWindowLocator.focusedWindowFrame(),
+           let screen = ScreenLocator.screen(for: frame) {
+            let origin = CGPoint(
+                x: frame.midX - panel.frame.width / 2,
+                y: frame.midY - panel.frame.height / 2
+            )
+            setClampedOrigin(origin, for: panel, on: screen)
+            return
+        }
+
+        guard let screen = resolveTargetScreen() else { return }
+        centerOnScreenExact(panel, screen: screen)
+    }
+
+    private func positionAtScreenCenter(_ panel: NSPanel) {
+        guard let screen = resolveTargetScreen() else { return }
         centerOnScreen(panel, screen: screen)
     }
 
+    private func resolveTargetScreen() -> NSScreen? {
+        switch screenTarget {
+        case .active:
+            ActiveWindowLocator.activeScreen()
+        case .specified:
+            ScreenLocator.screen(for: specifiedScreenID)
+                ?? ActiveWindowLocator.activeScreen()
+                ?? NSScreen.screenWithMouse
+                ?? NSScreen.main
+                ?? NSScreen.screens.first
+        }
+    }
+
+    private func setClampedOrigin(_ origin: CGPoint, for panel: NSPanel, on screen: NSScreen) {
+        let clamped = clampedOrigin(origin, panelSize: panel.frame.size, visibleFrame: screen.visibleFrame)
+        panel.setFrameOrigin(clamped)
+    }
+
+    private func clampedOrigin(_ origin: CGPoint, panelSize: CGSize, visibleFrame: CGRect) -> CGPoint {
+        let maxX = max(visibleFrame.minX, visibleFrame.maxX - panelSize.width)
+        let maxY = max(visibleFrame.minY, visibleFrame.maxY - panelSize.height)
+        return CGPoint(
+            x: min(max(origin.x, visibleFrame.minX), maxX),
+            y: min(max(origin.y, visibleFrame.minY), maxY)
+        )
+    }
+
+    func resetPosition() {
+        UserDefaults.standard.removeObject(forKey: "\(POSITION_KEY).rx")
+        UserDefaults.standard.removeObject(forKey: "\(POSITION_KEY).ry")
+        UserDefaults.standard.removeObject(forKey: POSITION_SCREEN_KEY)
+        guard let panel, panel.isVisible else { return }
+        positionPanel(panel)
+    }
+
     private func savePosition(_ panel: NSPanel) {
-        guard panelStyle == .classic else { return }
         // Save position as relative offset within the screen's visible frame
         guard let screen = NSScreen.screens.first(where: { $0.visibleFrame.intersects(panel.frame) })
                 ?? NSScreen.screenWithMouse else { return }
         let visibleFrame = screen.visibleFrame
+        // Guard against transient 0-sized frames during display reconfiguration,
+        // which would produce NaN and permanently break remembered-position mode.
+        guard visibleFrame.width > 0, visibleFrame.height > 0 else { return }
         let rx = (panel.frame.origin.x - visibleFrame.origin.x) / visibleFrame.width
         let ry = (panel.frame.origin.y - visibleFrame.origin.y) / visibleFrame.height
         UserDefaults.standard.set(rx, forKey: "\(POSITION_KEY).rx")
         UserDefaults.standard.set(ry, forKey: "\(POSITION_KEY).ry")
+        UserDefaults.standard.set(ScreenLocator.identifier(for: screen), forKey: POSITION_SCREEN_KEY)
     }
 
     private func installClickOutsideMonitor() {
-        let handleOutsideClick: (NSEvent) -> Void = { [weak self] event in
+        clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             guard let self else { return }
             if self.isPinned || self.suppressDismiss { return }
             if let panel = self.panel, panel.frame.contains(NSEvent.mouseLocation) { return }
@@ -941,26 +590,12 @@ final class QuickPanelWindowController {
                 self.dismiss()
             }
         }
-
-        // Global monitor: captures events when app is NOT active
-        clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { handleOutsideClick($0) }
-
-        // Local monitor: captures events when app IS active
-        localClickOutsideMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { event in
-            handleOutsideClick(event)
-            return event
-        }
     }
 
     private func removeClickOutsideMonitor() {
-        if let monitor = clickOutsideMonitor {
-            NSEvent.removeMonitor(monitor)
-            clickOutsideMonitor = nil
-        }
-        if let monitor = localClickOutsideMonitor {
-            NSEvent.removeMonitor(monitor)
-            localClickOutsideMonitor = nil
-        }
+        guard let monitor = clickOutsideMonitor else { return }
+        NSEvent.removeMonitor(monitor)
+        clickOutsideMonitor = nil
     }
 
     private func installDeactivationObserver() {
@@ -985,11 +620,35 @@ final class QuickPanelWindowController {
             queue: nil
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                guard let self, !self.isPinned, !self.suppressDismiss else { return }
+                guard let self, !self.suppressDismiss else { return }
+                if self.isPinned {
+                    // When pinned and panel loses key (user clicked another app), release
+                    // the SwiftUI FocusState so it stops fighting to become key again.
+                    NotificationCenter.default.post(name: .quickPanelPinnedResignKey, object: nil)
+                    return
+                }
                 let isMouseDown = NSEvent.pressedMouseButtons != 0
                 let mouseInPanel = self.panel?.frame.contains(NSEvent.mouseLocation) ?? false
                 if isMouseDown, mouseInPanel { return }
                 self.dismiss()
+            }
+        }
+        // 置顶悬浮时用户会在多个 App 间切换。粘贴目标 previousApp 原本只在 show() 时记录一次，
+        // 切到 Word 后还停在打开面板时的 App（如微信）。这里跟踪前台 App 切换，把 previousApp
+        // 实时更新成当前 App（排除 PasteMemo 自己），所有读 previousApp 的粘贴路径自动跟随。
+        pinnedActivationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: nil
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, self.isPinned else { return }
+                // 读 frontmostApplication（刚激活的就是它），避免把 Notification 捕获进
+                // 主 actor 闭包触发数据竞争；也更"实时"。
+                guard let app = NSWorkspace.shared.frontmostApplication,
+                      app.bundleIdentifier != Bundle.main.bundleIdentifier else { return }
+                self.previousApp = app
+                NotificationCenter.default.post(name: .quickPanelPasteTargetChanged, object: nil)
             }
         }
     }
@@ -1003,6 +662,10 @@ final class QuickPanelWindowController {
             NotificationCenter.default.removeObserver(obs)
             resignKeyObserver = nil
         }
+        if let obs = pinnedActivationObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(obs)
+            pinnedActivationObserver = nil
+        }
     }
 
     // MARK: - Snap Guides
@@ -1015,7 +678,6 @@ final class QuickPanelWindowController {
     private var globalMouseUpMonitor: Any?
 
     private func installMoveObserver() {
-        guard panelStyle == .classic else { return }
         moveObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didMoveNotification,
             object: panel,
@@ -1048,7 +710,13 @@ final class QuickPanelWindowController {
     }
 
     private func recommendedTopY(screen: NSScreen, panelHeight: CGFloat) -> CGFloat {
-        screen.visibleFrame.maxY - VERTICAL_OFFSET - panelHeight
+        preferredUpperCenterY(screen: screen, panelHeight: panelHeight)
+    }
+
+    private func preferredUpperCenterY(screen: NSScreen, panelHeight: CGFloat) -> CGFloat {
+        let visibleFrame = screen.visibleFrame
+        let topInset = visibleFrame.height * TOP_INSET_RATIO
+        return visibleFrame.maxY - topInset - panelHeight
     }
 
     private func handleWindowMove() {
@@ -1073,7 +741,7 @@ final class QuickPanelWindowController {
         if showV, !snappedV { hapticFeedback(); snappedV = true }
         if !showV { snappedV = false }
 
-        let guideTopY = visibleFrame.maxY - VERTICAL_OFFSET
+        let guideTopY = visibleFrame.maxY - visibleFrame.height * TOP_INSET_RATIO
         updateSnapGuide(on: screen, horizontal: showH, verticalCenter: showV && !nearTop, recommendedTop: showV && nearTop, guideTopY: guideTopY)
     }
 
@@ -1130,7 +798,8 @@ private class SnapGuideWindow: NSWindow {
         self.isReleasedWhenClosed = false
         self.isOpaque = false
         self.backgroundColor = .clear
-        self.level = .floating + 1
+        // 比面板高 1 层，保证拖动时对齐参考线显示在面板之上（面板已抬到 .statusBar，见 buildPanel）。
+        self.level = .statusBar + 1
         self.ignoresMouseEvents = true
         self.hasShadow = false
         self.contentView = guideView

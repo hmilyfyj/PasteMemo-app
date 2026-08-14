@@ -5,14 +5,21 @@ import UserNotifications
 struct AutomationRuleEditorView: View {
     @Bindable var rule: AutomationRule
     @Environment(\.modelContext) private var modelContext
-    @State private var previewInput = ""
     @State private var isEditing = false
     @State private var draftName = ""
     @State private var draftConditions: [IdentifiedCondition] = []
     @State private var draftActions: [IdentifiedAction] = []
     @State private var draftConditionLogic: ConditionLogic = .all
+    @State private var shortcutPickerIndex: Int? = nil
 
     private var isBuiltIn: Bool { rule.isBuiltIn }
+
+    /// Run-Shortcut actions are async and only run on the manual path; the automatic
+    /// capture path treats them as no-ops. So a rule containing one is locked to manual
+    /// triggering to keep it from silently never firing. (issue #71 review)
+    private var ruleHasRunShortcut: Bool {
+        rule.actions.contains { if case .runShortcut = $0 { return true }; return false }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -23,19 +30,15 @@ struct AutomationRuleEditorView: View {
                     editActionsSection
                     editButtonsSection
                 } else {
+                    enabledHeaderSection
                     viewConditionsSection
                     viewActionsSection
                     settingsSection
-                    previewSection
                 }
             }
             .formStyle(.grouped)
-
-
-
         }
         .onChange(of: rule.ruleID) {
-            previewInput = ""
             isEditing = false
         }
         .onReceive(NotificationCenter.default.publisher(for: .automationEnterEdit)) { _ in
@@ -44,6 +47,50 @@ struct AutomationRuleEditorView: View {
     }
 
     // MARK: - View Mode
+
+    /// Rule-level on/off stays at the top of the editor so it's the first
+    /// thing you see. The subtitle shows both state and trigger mode so a
+    /// glance tells you "on + manual only" vs "on + auto" vs "off".
+    private var enabledHeaderSection: some View {
+        Section {
+            Toggle(isOn: Binding(
+                get: { rule.enabled },
+                set: { newValue in
+                    if newValue {
+                        guard validateRule() else { return }
+                    }
+                    rule.enabled = newValue
+                    saveSettings()
+                }
+            )) {
+                HStack(spacing: 8) {
+                    Image(systemName: rule.enabled
+                          ? "checkmark.circle.fill"
+                          : "circle")
+                        .foregroundStyle(rule.enabled ? .green : .secondary)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(L10n.tr("automation.rule.enabled"))
+                        Text(enabledStatusSubtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .toggleStyle(.switch)
+        }
+    }
+
+    private var enabledStatusSubtitle: String {
+        guard rule.enabled else {
+            return L10n.tr("automation.rule.status.inactive")
+        }
+        let triggerLabel: String
+        switch rule.triggerMode {
+        case .automatic: triggerLabel = L10n.tr("automation.rule.triggerMode.automatic")
+        case .manual: triggerLabel = L10n.tr("automation.rule.triggerMode.manual")
+        }
+        return L10n.tr("automation.rule.status.active") + " · " + triggerLabel
+    }
 
     private var viewConditionsSection: some View {
         Section {
@@ -89,7 +136,7 @@ struct AutomationRuleEditorView: View {
     }
 
     private var settingsSection: some View {
-        Section(L10n.tr("automation.editor.settings")) {
+        Section(L10n.tr("automation.editor.triggerAndNotification")) {
             Picker(L10n.tr("automation.rule.triggerMode"), selection: Binding(
                 get: { rule.triggerMode },
                 set: { rule.triggerMode = $0; saveSettings() }
@@ -97,12 +144,31 @@ struct AutomationRuleEditorView: View {
                 Text(L10n.tr("automation.rule.triggerMode.automatic")).tag(TriggerMode.automatic)
                 Text(L10n.tr("automation.rule.triggerMode.manual")).tag(TriggerMode.manual)
             }
-            .disabled(isBuiltIn)
+            .disabled(isBuiltIn || ruleHasRunShortcut)
 
-            Toggle(L10n.tr("automation.rule.notifyBeforeApply"), isOn: Binding(
-                get: { rule.notifyBeforeApply },
-                set: { rule.notifyBeforeApply = $0; saveSettings() }
-            ))
+            if ruleHasRunShortcut {
+                Text(L10n.tr("automation.rule.triggerMode.shortcutManualOnly"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if rule.triggerMode != .manual {
+                Toggle(isOn: Binding(
+                    get: { rule.writeBackToPasteboard },
+                    set: { rule.writeBackToPasteboard = $0; saveSettings() }
+                )) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(L10n.tr("automation.rule.writeBackToPasteboard"))
+                        Text(L10n.tr("automation.rule.writeBackToPasteboard.help"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Toggle(L10n.tr("automation.rule.notifyBeforeApply"), isOn: Binding(
+                    get: { rule.notifyBeforeApply },
+                    set: { rule.notifyBeforeApply = $0; saveSettings() }
+                ))
+            }
 
             Toggle(L10n.tr("automation.rule.notifyOnTrigger"), isOn: Binding(
                 get: { rule.notifyOnTrigger },
@@ -111,7 +177,8 @@ struct AutomationRuleEditorView: View {
                     saveSettings()
                     if newValue {
                         requestNotificationPermission { granted in
-                            if !granted {
+                            guard !granted else { return }
+                            Task { @MainActor in
                                 rule.notifyOnTrigger = false
                                 saveSettings()
                             }
@@ -119,48 +186,6 @@ struct AutomationRuleEditorView: View {
                     }
                 }
             ))
-
-            Toggle(L10n.tr("automation.rule.enabled"), isOn: Binding(
-                get: { rule.enabled },
-                set: { newValue in
-                    if newValue {
-                        guard validateRule() else { return }
-                    }
-                    rule.enabled = newValue
-                    saveSettings()
-                }
-            ))
-        }
-    }
-
-    @ViewBuilder
-    private var previewSection: some View {
-        Section(L10n.tr("automation.preview")) {
-            LabeledContent {} label: {
-                TextField("", text: $previewInput, prompt: Text(L10n.tr("automation.preview.input")).foregroundStyle(.tertiary))
-            }
-        }
-        if !previewInput.isEmpty {
-            let detected = ClipboardManager.shared.detectContentType(previewInput)
-            let matched = rule.conditions.isEmpty || AutomationEngine.matchesConditions(
-                rule.conditions, logic: rule.conditionLogic, content: previewInput, contentType: detected.type, sourceApp: nil
-            )
-            Section(L10n.tr("automation.preview.output")) {
-                if matched {
-                    let output = AutomationEngine.executeActions(rule.actions, on: previewInput)
-                    LabeledContent {} label: {
-                        Text(output)
-                            .font(.system(.body, design: .monospaced))
-                            .textSelection(.enabled)
-                            .foregroundColor(output == previewInput ? .secondary : .green)
-                    }
-                } else {
-                    LabeledContent {} label: {
-                        Text(L10n.tr("automation.preview.notMatched"))
-                            .foregroundStyle(.orange)
-                    }
-                }
-            }
         }
     }
 
@@ -237,6 +262,7 @@ struct AutomationRuleEditorView: View {
         HStack {
             Menu(L10n.tr("automation.condition.add")) {
                 Button(L10n.tr("automation.condition.contentType")) { draftConditions.append(IdentifiedCondition(value: .contentType(.text))) }
+                Button(L10n.tr("automation.condition.anyText")) { draftConditions.append(IdentifiedCondition(value: .anyText)) }
                 Button(L10n.tr("automation.condition.regexMatch")) { draftConditions.append(IdentifiedCondition(value: .regexMatch(pattern: ""))) }
                 Button(L10n.tr("automation.condition.containsText")) { draftConditions.append(IdentifiedCondition(value: .containsText(text: ""))) }
                 Button(L10n.tr("automation.condition.sourceApp")) { draftConditions.append(IdentifiedCondition(value: .sourceApp(bundleIDs: []))) }
@@ -249,6 +275,11 @@ struct AutomationRuleEditorView: View {
     private var addActionMenu: some View {
         HStack {
         Menu(L10n.tr("automation.action.add")) {
+            Section(L10n.tr("automation.action.section.external")) {
+                Button(L10n.tr("automation.action.runShortcut")) {
+                    draftActions.append(IdentifiedAction(value: .runShortcut(name: "")))
+                }
+            }
             Section(L10n.tr("automation.action.section.text")) {
                 Button(L10n.tr("automation.action.lowercased")) { draftActions.append(IdentifiedAction(value: .lowercased)) }
                 Button(L10n.tr("automation.action.uppercased")) { draftActions.append(IdentifiedAction(value: .uppercased)) }
@@ -285,6 +316,8 @@ struct AutomationRuleEditorView: View {
         switch condition {
         case .contentType(let type):
             LabeledContent(L10n.tr("automation.condition.contentType")) { Text(type.label) }
+        case .anyText:
+            Text(L10n.tr("automation.condition.anyText"))
         case .regexMatch(let pattern):
             LabeledContent(L10n.tr("automation.condition.regexMatch")) {
                 Text(pattern).textFieldStyle(.plain)
@@ -340,6 +373,15 @@ struct AutomationRuleEditorView: View {
             Text(L10n.tr("automation.action.pin"))
         case .skipCapture:
             Text(L10n.tr("automation.action.skipCapture"))
+        case .runShortcut(let name):
+            LabeledContent(L10n.tr("automation.action.runShortcut")) {
+                HStack(spacing: 6) {
+                    Image(systemName: "sparkles")
+                        .foregroundStyle(.purple)
+                    Text(name.isEmpty ? L10n.tr("automation.action.runShortcut.empty") : name)
+                        .foregroundStyle(name.isEmpty ? .tertiary : .primary)
+                }
+            }
         }
     }
 
@@ -357,10 +399,13 @@ struct AutomationRuleEditorView: View {
                         get: { type },
                         set: { draftConditions[index].value = .contentType($0) }
                     )) {
-                        ForEach(ClipContentType.allCases, id: \.self) { t in
+                        ForEach(ClipContentType.ruleEditorVisibleCases, id: \.self) { t in
                             Text(t.label).tag(t)
                         }
                     }
+                case .anyText:
+                    Text(L10n.tr("automation.condition.anyText"))
+                        .foregroundStyle(.secondary)
                 case .regexMatch(let pattern):
                     TextField(L10n.tr("automation.condition.regexMatch"), text: Binding(
                         get: { pattern },
@@ -462,24 +507,57 @@ struct AutomationRuleEditorView: View {
                     set: { draftActions[index].value = .addSuffix(text: $0) }
                 ), prompt: Text(L10n.tr("automation.action.addSuffix.placeholder")))
             case .assignGroup(let name):
-                Text(L10n.tr("automation.action.assignGroup"))
-                Spacer()
-                Picker("", selection: Binding(
+                // Mirror the (normal-height) content-type condition picker exactly: label
+                // as the Picker's own argument, no separate Text/Spacer, no `.fixedSize()`.
+                // The previous empty-label `Picker("")` + `.fixedSize()` sized itself to its
+                // full inlined option list — that blew up the row height and shoved the
+                // "移入分组" label out of the visible card. (issue #71 review)
+                Picker(L10n.tr("automation.action.assignGroup"), selection: Binding(
                     get: { name },
                     set: { draftActions[index].value = .assignGroup(name: $0) }
                 )) {
                     let groups = (try? modelContext.fetch(FetchDescriptor<SmartGroup>(sortBy: [SortDescriptor(\.sortOrder)]))) ?? []
                     ForEach(groups, id: \.name) { group in
-                        Label(group.name, systemImage: group.icon).tag(group.name)
+                        Text(group.name).tag(group.name)
                     }
                 }
-                .fixedSize()
             case .markSensitive:
                 Text(L10n.tr("automation.action.markSensitive"))
             case .pin:
                 Text(L10n.tr("automation.action.pin"))
             case .skipCapture:
                 Text(L10n.tr("automation.action.skipCapture"))
+            case .runShortcut(let name):
+                TextField(L10n.tr("automation.action.runShortcut"), text: Binding(
+                    get: { name },
+                    set: { draftActions[index].value = .runShortcut(name: $0) }
+                ), prompt: Text(L10n.tr("automation.action.runShortcut.placeholder")))
+                Button {
+                    shortcutPickerIndex = index
+                } label: {
+                    Image(systemName: "list.bullet")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.borderless)
+                .help(L10n.tr("automation.action.runShortcut.pick"))
+                .popover(isPresented: Binding(
+                    get: { shortcutPickerIndex == index },
+                    set: { if !$0 { shortcutPickerIndex = nil } }
+                )) {
+                    ShortcutPickerPopover { picked in
+                        draftActions[index].value = .runShortcut(name: picked)
+                        shortcutPickerIndex = nil
+                    }
+                }
+                Button {
+                    ShortcutRunner.openShortcutInApp(name: name)
+                } label: {
+                    Image(systemName: "arrow.up.forward.app")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.borderless)
+                .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                .help(L10n.tr("automation.action.runShortcut.openInApp"))
             }
             Spacer()
             Button { draftActions.remove(at: index) } label: {
@@ -506,6 +584,11 @@ struct AutomationRuleEditorView: View {
         rule.conditions = draftConditions.map(\.value)
         rule.actions = draftActions.map(\.value)
         rule.conditionLogic = draftConditionLogic
+        // Run-Shortcut is manual-only — never leave such a rule on "automatic" where it
+        // would silently never fire. (issue #71 review)
+        if ruleHasRunShortcut {
+            rule.triggerMode = .manual
+        }
         rule.updatedAt = Date()
         try? modelContext.save()
         isEditing = false
@@ -596,4 +679,68 @@ struct IdentifiedCondition: Identifiable {
 struct IdentifiedAction: Identifiable {
     let id = UUID()
     var value: RuleAction
+}
+
+// MARK: - Shortcut picker popover
+//
+// Fetches the Shortcuts list fresh every time it's opened, so a Shortcut the
+// user just created in Shortcuts.app shows up without relaunching PasteMemo.
+
+private struct ShortcutPickerPopover: View {
+    let onPick: (String) -> Void
+    @State private var shortcuts: [String] = []
+    @State private var loading = true
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if loading {
+                HStack(spacing: 8) {
+                    ProgressView().scaleEffect(0.6)
+                    Text(L10n.tr("automation.action.runShortcut.loading"))
+                        .foregroundStyle(.secondary)
+                        .font(.callout)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if shortcuts.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "tray")
+                        .foregroundStyle(.tertiary)
+                        .font(.title2)
+                    Text(L10n.tr("automation.action.runShortcut.empty"))
+                        .foregroundStyle(.secondary)
+                        .font(.callout)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(shortcuts, id: \.self) { name in
+                            Button {
+                                onPick(name)
+                            } label: {
+                                HStack {
+                                    Image(systemName: "sparkles")
+                                        .foregroundStyle(.purple)
+                                        .font(.caption)
+                                    Text(name)
+                                        .foregroundStyle(.primary)
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+        }
+        .frame(width: 260, height: 280)
+        .task {
+            loading = true
+            shortcuts = await ShortcutRunner.listAvailableShortcuts()
+            loading = false
+        }
+    }
 }

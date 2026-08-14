@@ -4,6 +4,8 @@ import SwiftData
 struct DataPorterSection: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var clipItems: [ClipItem]
+    @Query private var groups: [SmartGroup]
+    @Query private var rules: [AutomationRule]
 
     @State private var isEncryptExport = false
     @State private var exportPassword = ""
@@ -22,20 +24,6 @@ struct DataPorterSection: View {
     var body: some View {
         Section(L10n.tr("dataPorter.section")) {
             exportControls
-        }
-
-        Section(L10n.tr("dataPorter.pasteMigration")) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(L10n.tr("dataPorter.pasteMigration.desc"))
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-
-            Button(L10n.tr("dataPorter.pasteMigration.button")) {
-                startPasteAppMigration()
-            }
-            .disabled(isProcessing)
-            .pointerCursor()
         }
     }
 
@@ -64,8 +52,16 @@ struct DataPorterSection: View {
             VStack(spacing: 16) {
                 Text(progressTitle)
                     .font(.headline)
-                ProgressView(value: progressValue, total: 1.0)
-                    .progressViewStyle(.linear)
+                // Switch between indeterminate and determinate so stages with no
+                // measurable progress (decrypt / parse / refresh) still animate
+                // instead of sitting at 0% and looking frozen.
+                if progressValue > 0 && progressValue < 1.0 {
+                    ProgressView(value: progressValue, total: 1.0)
+                        .progressViewStyle(.linear)
+                } else {
+                    ProgressView()
+                        .progressViewStyle(.linear)
+                }
                 Text(importProgress)
                     .font(.system(size: 12, design: .monospaced))
                     .foregroundStyle(.secondary)
@@ -124,6 +120,8 @@ struct DataPorterSection: View {
         progressValue = 0
         let encrypt = isEncryptExport
         let password = exportPassword
+        let snapshotGroups = groups
+        let snapshotRules = rules
         Task { @MainActor in
             let total = clipItems.count
             var exportItems: [ExportItem] = []
@@ -138,7 +136,13 @@ struct DataPorterSection: View {
                 progressValue = Double(end) / Double(max(total, 1))
                 await Task.yield()
             }
-            let payload = ExportPayload(version: 1, exportDate: Date(), items: exportItems)
+            let payload = ExportPayload(
+                version: DataPorter.currentVersion,
+                exportDate: Date(),
+                items: exportItems,
+                groups: snapshotGroups.map(DataPorter.buildSingleExportGroup),
+                rules: snapshotRules.map(DataPorter.buildSingleExportRule)
+            )
             importProgress = L10n.tr("dataPorter.compressing")
             await Task.yield()
             Task.detached {
@@ -195,7 +199,7 @@ struct DataPorterSection: View {
     private func performImport(with fileData: Data, password: String?) {
         progressTitle = L10n.tr("dataPorter.import")
         isProcessing = true
-        importProgress = ""
+        importProgress = L10n.tr("dataPorter.decrypting")
         progressValue = 0
         Task { @MainActor in
             defer {
@@ -204,22 +208,52 @@ struct DataPorterSection: View {
                 progressValue = 0
             }
             do {
-                let jsonData: Data
-                if let password {
-                    jsonData = try DataPorterCrypto.decrypt(fileData: fileData, password: password)
-                } else {
-                    jsonData = try DataPorterCrypto.decrypt(fileData: fileData, password: "")
-                }
+                // SwiftUI may not have committed the `isProcessing = true` state
+                // change yet — without this fence the main actor gets grabbed
+                // by the heavy work below before the sheet renders, so the user
+                // sees a frozen window with a spinning cursor instead of the
+                // progress sheet they're meant to see.
+                try? await Task.sleep(for: .milliseconds(32))
+
+                // PBKDF2 (600k iter) + AES.GCM + zlib + JSON decode on a multi-MB
+                // payload easily eats several seconds. Doing it inline on the
+                // main actor freezes the progress sheet and spins the cursor —
+                // the symptoms the user reported. Run off-actor, then resume.
+                let pwd = password ?? ""
+                let payload: ExportPayload = try await Task.detached(priority: .userInitiated) {
+                    let jsonData = try DataPorterCrypto.decrypt(fileData: fileData, password: pwd)
+                    return try DataPorter.decodePayload(jsonData)
+                }.value
+
+                importProgress = "0 / \(payload.items.count)"
+                progressValue = 0
+
                 ClipItemStore.isBulkOperation = true
                 let result = try await DataPorter.importItems(
-                    from: jsonData,
+                    payload: payload,
                     into: modelContext
                 ) { current, total in
                     importProgress = "\(current) / \(total)"
                     progressValue = Double(current) / Double(max(total, 1))
                 }
                 ClipItemStore.isBulkOperation = false
-                showAlert(L10n.tr("dataPorter.importSuccess") + " (\(result.imported) imported, \(result.skipped) skipped)")
+
+                // Keep the progress sheet on screen with a "refreshing" stage
+                // and synchronously rebuild every live store BEFORE we let the
+                // sheet close. Without this, the immediate save observer fires
+                // on `.receive(on: RunLoop.main)` (async), so the sheet closes
+                // first and the user sees an empty main window flash for a few
+                // seconds before items materialise.
+                importProgress = L10n.tr("dataPorter.refreshing")
+                progressValue = 1.0
+                await Task.yield()
+                ClipItemStore.refreshAllStoresNow()
+
+                var extras: [String] = []
+                if result.importedGroups > 0 { extras.append("+\(result.importedGroups) groups") }
+                if result.importedRules > 0 { extras.append("+\(result.importedRules) rules") }
+                let extrasText = extras.isEmpty ? "" : ", " + extras.joined(separator: ", ")
+                showAlert(L10n.tr("dataPorter.importSuccess") + " (\(result.imported) imported, \(result.skipped) skipped\(extrasText))")
             } catch let error as CryptoError where error == .wrongPassword {
                 showAlert(L10n.tr("dataPorter.wrongPassword"))
             } catch {
@@ -294,10 +328,9 @@ struct DataPorterSection: View {
             defer {
                 isProcessing = false
                 importProgress = ""
-                ClipItemStore.isBulkOperation = false
             }
-            ClipItemStore.isBulkOperation = true
 
+            let preservedGroupNames = SmartGroupRetention.preservedGroupNames(in: modelContext)
             let descriptor: FetchDescriptor<ClipItem>
             if days > 0 {
                 let cutoff = Calendar.current.date(byAdding: .day, value: -days, to: Date())!
@@ -309,74 +342,17 @@ struct DataPorterSection: View {
                     predicate: #Predicate { !$0.isPinned }
                 )
             }
-            guard let items = try? modelContext.fetch(descriptor) else { return }
+            guard let fetchedItems = try? modelContext.fetch(descriptor) else { return }
+            let items = SmartGroupRetention.filterDeletableItems(fetchedItems, preservedGroupNames: preservedGroupNames)
             let total = items.count
-            let batchSize = 100
 
-            for i in stride(from: 0, to: total, by: batchSize) {
-                let end = min(i + batchSize, total)
-                for j in i..<end {
-                    modelContext.delete(items[j])
-                }
-                try? modelContext.save()
-                importProgress = "\(end) / \(total)"
-                progressValue = Double(end) / Double(max(total, 1))
-                await Task.yield()
+            await ClipItemStore.deleteAndNotifyBatched(items, from: modelContext) { done, total in
+                importProgress = "\(done) / \(total)"
+                progressValue = Double(done) / Double(max(total, 1))
             }
 
-            ClipboardManager.shared.recalculateAllGroupCounts(context: modelContext)
             alertMessage = L10n.tr("settings.clearData.result", total)
             showClearResult = true
-        }
-    }
-
-    // MARK: - Paste.app Migration
-
-    private func startPasteAppMigration() {
-        guard PasteAppMigrator.checkPasteAppDatabaseExists() else {
-            showAlert(L10n.tr("dataPorter.pasteMigration.notFound"))
-            return
-        }
-
-        let itemCount = PasteAppMigrator.getPasteAppItemCount()
-        guard itemCount > 0 else {
-            showAlert(L10n.tr("dataPorter.pasteMigration.empty"))
-            return
-        }
-
-        performPasteAppMigration(itemCount: itemCount)
-    }
-
-    private func performPasteAppMigration(itemCount: Int) {
-        progressTitle = L10n.tr("dataPorter.pasteMigration.progress", itemCount)
-        isProcessing = true
-        importProgress = ""
-        progressValue = 0
-        Task { @MainActor in
-            defer {
-                isProcessing = false
-                importProgress = ""
-                progressValue = 0
-                ClipItemStore.isBulkOperation = false
-            }
-            ClipItemStore.isBulkOperation = true
-
-            let result = await PasteAppMigrator.migrate(
-                into: modelContext
-            ) { current, total, status in
-                importProgress = "\(current) / \(total) - \(status)"
-                progressValue = Double(current) / Double(max(total, 1))
-            }
-
-            ClipItemStore.isBulkOperation = false
-            var message = L10n.tr("dataPorter.pasteMigration.success", result.imported, result.skipped)
-            if !result.errors.isEmpty {
-                message += "\n" + L10n.tr("dataPorter.pasteMigration.errors", result.errors.prefix(3).joined(separator: ", "))
-                if result.errors.count > 3 {
-                    message += "..."
-                }
-            }
-            showAlert(message)
         }
     }
 }

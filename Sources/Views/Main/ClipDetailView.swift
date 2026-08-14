@@ -9,18 +9,17 @@ struct ClipDetailView: View {
 
     @State private var isEditing = false
     @State private var editingContent = ""
-    @State private var isOCRExpanded = false
+    @State private var decodedLinkImageData: Data?
+    @State private var ocrCardWidth: CGFloat = 0
     @AppStorage(OCRTaskCoordinator.enableOCRKey) private var ocrEnabled = true
 
     private var isEditableType: Bool {
-        item.contentType == .text || item.contentType == .code || item.contentType == .link
+        item.contentType == .text || item.contentType == .code
     }
 
-    private var canQuickLook: Bool {
-        QuickLookHelper.shared.canOpenInPreview(item: item)
-    }
-
+    @ViewBuilder
     var body: some View {
+        if item.isDeleted { EmptyView() } else {
         VStack(alignment: .leading, spacing: 0) {
             actionBar
                 .padding(.horizontal, 16)
@@ -49,8 +48,8 @@ struct ClipDetailView: View {
         }
         .onChange(of: item.persistentModelID) {
             if isEditing { cancelEdit() }
-            isOCRExpanded = false
         }
+        } // isDeleted guard
     }
 
     // MARK: - Content Area
@@ -59,7 +58,9 @@ struct ClipDetailView: View {
     private var contentArea: some View {
         if isEditing {
             editableTextPreview
-                .padding(16)
+                .padding(.horizontal, 16)
+                .padding(.top, 10)
+                .padding(.bottom, 16)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         } else if item.contentType == .link {
             VStack(alignment: .leading, spacing: 0) {
@@ -102,7 +103,7 @@ struct ClipDetailView: View {
         } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) { contentPreview }
-                    .padding(.leading, 16)
+                    .padding(.horizontal, 16)
                     .padding(.vertical, 16)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
             }
@@ -119,13 +120,16 @@ struct ClipDetailView: View {
 
             HStack {
                 Spacer()
-                copyButton
-                if isEditableType { editButtons }
-                if canQuickLook { quickLookButton }
-                sensitiveButton
-                pinButton
-                if !item.content.isEmpty { relayButton }
-                deleteButton
+                if isEditing {
+                    editButtons
+                } else {
+                    copyButton
+                    if isEditableType { editButtons }
+                    sensitiveButton
+                    pinButton
+                    if !item.content.isEmpty { relayButton }
+                    deleteButton
+                }
             }
         }
     }
@@ -178,10 +182,7 @@ struct ClipDetailView: View {
 
     private var relayButton: some View {
         Button {
-            RelayManager.shared.enqueue(texts: [item.content])
-            if !RelayManager.shared.isActive {
-                RelayManager.shared.activate()
-            }
+            RelayManager.shared.addToQueue(clipItems: [item])
         } label: {
             Label(L10n.tr("relay.addToQueue"), systemImage: "arrow.right.arrow.left")
                 .font(.system(size: 12))
@@ -201,18 +202,6 @@ struct ClipDetailView: View {
         .controlSize(.small)
     }
 
-    private var quickLookButton: some View {
-        Button {
-            QuickLookHelper.shared.toggle(item: item)
-        } label: {
-            Label(L10n.tr("action.preview"), systemImage: "eye")
-                .font(.system(size: 12))
-        }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
-        .help("Space")
-    }
-
     @ViewBuilder
     private var editButtons: some View {
         if isEditing {
@@ -229,10 +218,6 @@ struct ClipDetailView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            
-            if item.contentType == .text || item.contentType == .code {
-                formatMenuButton
-            }
         } else {
             Button { enterEditMode() } label: {
                 Label(L10n.tr("action.edit"), systemImage: "pencil")
@@ -240,82 +225,6 @@ struct ClipDetailView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-        }
-    }
-    
-    private var formatMenuButton: some View {
-        Menu {
-            Button { formatText(.uppercase) } label: {
-                Label(L10n.tr("edit.uppercase"), systemImage: "textformat.alt")
-            }
-            Button { formatText(.lowercase) } label: {
-                Label(L10n.tr("edit.lowercase"), systemImage: "textformat")
-            }
-            Button { formatText(.capitalize) } label: {
-                Label(L10n.tr("edit.capitalize"), systemImage: "textformat.abc")
-            }
-            Divider()
-            Button { formatText(.trimWhitespace) } label: {
-                Label(L10n.tr("edit.trimWhitespace"), systemImage: "scissors")
-            }
-            Button { formatText(.removeExtraSpaces) } label: {
-                Label(L10n.tr("edit.removeExtraSpaces"), systemImage: "text.justify")
-            }
-            Button { formatText(.removeLineBreaks) } label: {
-                Label(L10n.tr("edit.removeLineBreaks"), systemImage: "arrow.right.to.line")
-            }
-            Divider()
-            Button { formatText(.sortLines) } label: {
-                Label(L10n.tr("edit.sortLines"), systemImage: "arrow.up.arrow.down")
-            }
-            Button { formatText(.reverseLines) } label: {
-                Label(L10n.tr("edit.reverseLines"), systemImage: "arrow.up.backward")
-            }
-            Button { formatText(.uniqueLines) } label: {
-                Label(L10n.tr("edit.uniqueLines"), systemImage: "selection.pin.in.out")
-            }
-        } label: {
-            Label(L10n.tr("edit.format"), systemImage: "textformat.abc.dottedunderline")
-                .font(.system(size: 12))
-        }
-        .menuStyle(.borderedButton)
-        .controlSize(.small)
-    }
-    
-    private enum TextFormatAction {
-        case uppercase, lowercase, capitalize
-        case trimWhitespace, removeExtraSpaces, removeLineBreaks
-        case sortLines, reverseLines, uniqueLines
-    }
-    
-    private func formatText(_ action: TextFormatAction) {
-        switch action {
-        case .uppercase:
-            editingContent = editingContent.uppercased()
-        case .lowercase:
-            editingContent = editingContent.lowercased()
-        case .capitalize:
-            editingContent = editingContent.capitalized
-        case .trimWhitespace:
-            editingContent = editingContent.trimmingCharacters(in: .whitespacesAndNewlines)
-        case .removeExtraSpaces:
-            let components = editingContent.components(separatedBy: .whitespacesAndNewlines)
-            editingContent = components.filter { !$0.isEmpty }.joined(separator: " ")
-        case .removeLineBreaks:
-            editingContent = editingContent.replacingOccurrences(of: "\n", with: " ")
-                .replacingOccurrences(of: "\r", with: "")
-        case .sortLines:
-            var lines = editingContent.components(separatedBy: "\n")
-            lines.sort()
-            editingContent = lines.joined(separator: "\n")
-        case .reverseLines:
-            var lines = editingContent.components(separatedBy: "\n")
-            lines.reverse()
-            editingContent = lines.joined(separator: "\n")
-        case .uniqueLines:
-            var seen = Set<String>()
-            let lines = editingContent.components(separatedBy: "\n")
-            editingContent = lines.filter { seen.insert($0).inserted }.joined(separator: "\n")
         }
     }
 
@@ -331,6 +240,10 @@ struct ClipDetailView: View {
 
     private func saveEdit() {
         item.content = editingContent
+        if item.richTextData != nil {
+            item.richTextData = nil
+            item.richTextType = nil
+        }
         item.displayTitle = ClipItem.buildTitle(
             content: item.content,
             contentType: item.contentType,
@@ -341,6 +254,7 @@ struct ClipDetailView: View {
             sourceAppBundleID: nil,
             contentType: item.contentType
         )
+        ClipItemStore.saveAndNotifyContent(modelContext)
         isEditing = false
         textRefreshID = UUID()
     }
@@ -349,8 +263,17 @@ struct ClipDetailView: View {
 
     @ViewBuilder
     private var contentPreview: some View {
-        if item.contentType == .image, item.content != "[Image]", item.imageData == nil {
-            filePreview
+        if item.contentType == .image {
+            if item.content != "[Image]", !item.isSingleFileBackedImage {
+                // 多张图片一次复制：与快捷面板一致，列出全部文件而非只渲染第一张
+                filePreview
+            } else if ClipImagePreviewSource.resolve(from: item) != nil {
+                zoomableImagePreview
+            } else if item.content != "[Image]", item.imageData == nil {
+                filePreview
+            } else {
+                zoomableImagePreview
+            }
         } else {
             contentPreviewByType
         }
@@ -359,8 +282,6 @@ struct ClipDetailView: View {
     @ViewBuilder
     private var contentPreviewByType: some View {
         switch item.contentType {
-        case .image:
-            imagePreview
         case .link:
             linkPreview
         case .video:
@@ -412,18 +333,49 @@ struct ClipDetailView: View {
     }
 
     private var editableTextPreview: some View {
-        NativeTextView(
-            text: editingContent,
-            isEditable: true,
-            onTextChange: { editingContent = $0 }
-        )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        VStack(alignment: .leading, spacing: 10) {
+            if item.richTextData != nil {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text(L10n.tr("detail.richText.editWarning"))
+                        .foregroundStyle(.secondary)
+                }
+                .font(.system(size: 11))
+                .padding(.horizontal, 11)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.orange.opacity(0.08))
+                )
+            }
+            NativeTextView(
+                text: editingContent,
+                isEditable: true,
+                autoFocus: true,
+                onTextChange: { editingContent = $0 },
+                onEscape: { cancelEdit() }
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.primary.opacity(0.08))
+            )
+        }
     }
 
     @State private var textRefreshID = UUID()
 
     private var textPreviewContent: some View {
-        NativeTextView(text: item.content, richTextData: item.richTextData, richTextType: item.richTextType)
+        NativeTextView(
+            text: item.content,
+            richTextData: item.richTextData,
+            richTextType: item.richTextType,
+            allowRichRender: richTextPreviewEnabled,
+            itemID: item.itemID
+        )
             .id("\(item.persistentModelID)-\(textRefreshID)-\(item.content.hashValue)")
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -496,21 +448,39 @@ struct ClipDetailView: View {
     }
 
     @ViewBuilder
-    private var imagePreview: some View {
-        AsyncPreviewImageView(
-            data: item.imageData,
-            cacheKey: item.itemID,
+    private var zoomableImagePreview: some View {
+        ZoomableClipImagePreview(
+            item: item,
+            supplementalData: decodedLinkImageData,
             maxPixelSize: 1400,
             cornerRadius: 8
         )
     }
 
     @AppStorage("webPreviewEnabled") private var webPreviewEnabled = true
+    @AppStorage("imageLinkPreviewEnabled") private var imageLinkPreviewEnabled = true
+    @AppStorage("offlineModeEnabled") private var offlineModeEnabled = false
+    @AppStorage("richTextPreviewEnabled") private var richTextPreviewEnabled = true
 
     @ViewBuilder
     private var linkPreview: some View {
-        if let url = URL(string: item.content.trimmingCharacters(in: .whitespacesAndNewlines)) {
-            if webPreviewEnabled {
+        if item.prefersZoomableLinkImagePreview,
+           ClipImagePreviewSource.resolve(from: item, supplementalData: decodedLinkImageData) != nil {
+            zoomableImagePreview
+                .task(id: item.persistentModelID) {
+                    decodedLinkImageData = nil
+                    guard item.imageData == nil,
+                          DataImageURI.isBase64DataImageURI(item.content) else { return }
+                    let content = item.content
+                    let decoded = await Task.detached(priority: .userInitiated) {
+                        DataImageURI.decodedImageData(from: content)
+                    }.value
+                    guard !Task.isCancelled else { return }
+                    decodedLinkImageData = decoded
+                }
+        } else if let url = item.resolvedURL {
+            if !offlineModeEnabled,
+               (imageLinkPreviewEnabled && LinkMetadataFetcher.isImageURL(item.content)) || webPreviewEnabled {
                 linkWebPreview(url: url)
             } else {
                 linkStaticPreview(url: url)
@@ -636,7 +606,6 @@ struct ClipDetailView: View {
         }
     }
 
-
     // MARK: - Phone Preview
 
     private var phonePreview: some View {
@@ -728,6 +697,7 @@ struct ClipDetailView: View {
                     Button(L10n.tr("detail.ocr.copy")) {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(text, forType: .string)
+                        ToastCenter.shared.show(ToastDescriptor(message: L10n.tr("action.copied"), icon: .success))
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
@@ -745,15 +715,26 @@ struct ClipDetailView: View {
 
             Group {
                 if let text = item.ocrText, !text.isEmpty {
-                    ScrollView {
-                        Text(displayedOCRText)
-                            .font(.system(size: 12))
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 10)
-                            .padding(.bottom, 10)
+                    // 与快捷面板 OCR 卡片同一方案：TextKit 惰性排版（长文本不进
+                    // SwiftUI 布局循环），全文显示，高度贴内容、120pt 封顶滚动。
+                    NativeTextView(
+                        text: text,
+                        allowRichRender: false,
+                        itemID: item.itemID,
+                        fontSize: 12,
+                        textColor: .labelColor
+                    )
+                    .id(item.persistentModelID)
+                    .frame(height: ocrCardWidth > 0
+                        ? min(max(NativeTextView.measuredHeight(text: text, width: ocrCardWidth, fontSize: 12), 36), 120)
+                        : 56)
+                    .onGeometryChange(for: CGFloat.self) { proxy in
+                        proxy.size.width
+                    } action: { width in
+                        ocrCardWidth = width
                     }
-                    .frame(minHeight: 56, maxHeight: isOCRExpanded ? 220 : 120)
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, 10)
                 } else {
                     Text(ocrEmptyText)
                         .font(.system(size: 12))
@@ -798,19 +779,6 @@ struct ClipDetailView: View {
         }
     }
 
-    private var displayedOCRText: String {
-        guard let text = item.ocrText else { return "" }
-        guard !isOCRExpanded else { return text }
-        let limit = 1600
-        guard text.count > limit else { return text }
-        let end = text.index(text.startIndex, offsetBy: limit)
-        return String(text[..<end]) + "\n…"
-    }
-
-    private var shouldShowOCRExpandToggle: Bool {
-        guard let text = item.ocrText else { return false }
-        return text.count > 1600
-    }
 }
 
 // MARK: - File Row with Hover
@@ -826,9 +794,17 @@ struct FileRow: View {
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 20, height: 20)
-            Text(URL(fileURLWithPath: path).lastPathComponent)
-                .font(.system(size: 13))
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(URL(fileURLWithPath: path).lastPathComponent)
+                    .font(.system(size: 13))
+                    .lineLimit(1)
+                Text(path)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+            }
             Spacer()
             if isHovered {
                 Button {
@@ -849,7 +825,8 @@ struct FileRow: View {
             }
         }
         .padding(.vertical, 4)
-        .padding(.horizontal, 6)
+        .padding(.leading, 6)
+        .padding(.trailing, 12)
         .contentShape(Rectangle())
         .background(
             RoundedRectangle(cornerRadius: 6)
@@ -865,6 +842,9 @@ struct SingleFilePreview: View {
     let path: String
     var iconSize: CGFloat = 64
     var nameFont: Font = .system(size: 15, weight: .medium)
+    /// Optional keyboard hint (e.g. "⌘O") shown next to the reveal button. The
+    /// Quick Panel passes this so users see the shortcut; the main window omits it.
+    var shortcutHint: String? = nil
     var onOpenInFinder: (() -> Void)?
     @State private var isButtonHovered = false
 
@@ -885,17 +865,38 @@ struct SingleFilePreview: View {
                 .multilineTextAlignment(.center)
                 .textSelection(.enabled)
 
+            Text(path)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .truncationMode(.middle)
+                .multilineTextAlignment(.center)
+                .textSelection(.enabled)
+                .padding(.horizontal, 24)
+
             Button {
                 onOpenInFinder?()
-                NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: URL(fileURLWithPath: path).deletingLastPathComponent().path)
+                let resolved = (path as NSString).expandingTildeInPath
+                NSWorkspace.shared.selectFile(resolved, inFileViewerRootedAtPath: URL(fileURLWithPath: resolved).deletingLastPathComponent().path)
             } label: {
-                HStack(spacing: 4) {
+                HStack(spacing: 6) {
                     Image(nsImage: finderAppIcon)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 16, height: 16)
                     Text(L10n.tr("detail.openInFinder"))
                         .font(.system(size: 12))
+                    if let shortcutHint {
+                        // Match the footer keycap style (footerKey) so it reads as a
+                        // proper shortcut chip rather than a cramped monospaced tag.
+                        Text(shortcutHint)
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
+                            .padding(.leading, 2)
+                    }
                 }
                 .foregroundStyle(isButtonHovered ? .primary : .secondary)
             }

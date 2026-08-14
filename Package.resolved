@@ -1,13 +1,22 @@
 {
-  "originHash" : "7b6fd3f7ea8860775e8574c8265dfd66f445ab1519078c5c4dabf118125f6f25",
+  "originHash" : "f75296aed5ecadb941fe99181caaf6ecad794caade4a4a871da73814db14301b",
   "pins" : [
+    {
+      "identity" : "permissionflow",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/lifedever/PermissionFlow.git",
+      "state" : {
+        "revision" : "32b37a4e0dad92072501a114602900efbd9af903",
+        "version" : "0.1.1"
+      }
+    },
     {
       "identity" : "sparkle",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sparkle-project/Sparkle",
       "state" : {
-        "revision" : "066e75a8b3e99962685d6a90cdd5293ebffd9261",
-        "version" : "2.9.1"
+        "revision" : "79bc9e872948e47877e76f194cb0c8e0412b0b90",
+        "version" : "2.9.5"
       }
     }
   ],

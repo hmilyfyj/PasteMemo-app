@@ -4,8 +4,8 @@ import UserNotifications
 
 enum AutomationResult: Sendable {
     case unchanged
-    case applied(content: String, ruleName: String, actions: [RuleAction])
-    case pendingConfirmation(content: String, ruleName: String, ruleID: String, actions: [RuleAction])
+    case applied(content: String, ruleName: String, actions: [RuleAction], writeBack: Bool)
+    case pendingConfirmation(content: String, ruleName: String, ruleID: String, actions: [RuleAction], writeBack: Bool)
 }
 
 @MainActor
@@ -32,6 +32,7 @@ final class AutomationEngine {
         var currentContent = content
         var allActions: [RuleAction] = []
         var lastRuleName = ""
+        var writeBack = false
         var needsConfirmation: (ruleName: String, ruleID: String)?
 
         for rule in rules {
@@ -49,10 +50,11 @@ final class AutomationEngine {
             currentContent = processed
             allActions.append(contentsOf: actions)
             lastRuleName = rule.name
+            if rule.writeBackToPasteboard { writeBack = true }
 
             if rule.notifyOnTrigger {
                 let displayName = rule.isBuiltIn ? L10n.tr(rule.name) : rule.name
-                sendNotification(ruleName: displayName, content: processed)
+                sendNotification(ruleName: displayName, content: processed, contentType: contentType)
             }
 
             if rule.notifyBeforeApply, needsConfirmation == nil {
@@ -63,14 +65,20 @@ final class AutomationEngine {
         guard !allActions.isEmpty else { return .unchanged }
 
         if let confirm = needsConfirmation {
-            return .pendingConfirmation(content: currentContent, ruleName: confirm.ruleName, ruleID: confirm.ruleID, actions: allActions)
+            return .pendingConfirmation(content: currentContent, ruleName: confirm.ruleName, ruleID: confirm.ruleID, actions: allActions, writeBack: writeBack)
         }
-        return .applied(content: currentContent, ruleName: lastRuleName, actions: allActions)
+        return .applied(content: currentContent, ruleName: lastRuleName, actions: allActions, writeBack: writeBack)
     }
 
     /// Apply a single action to content. Used by command palette / context menu.
     func applyAction(_ action: RuleAction, to content: String) -> String {
         action.execute(on: content)
+    }
+
+    /// Apply a sequence of actions to content. Pure text transformation, no SwiftData needed.
+    /// Used by Relay mode to transform queue items at paste time / for preview.
+    nonisolated static func apply(_ actions: [RuleAction], to content: String) -> String {
+        actions.reduce(content) { $1.execute(on: $0) }
     }
 
     // MARK: - Static Helpers (testable without ModelContext)
@@ -130,9 +138,16 @@ final class AutomationEngine {
 
     // MARK: - Private
 
-    private func sendNotification(ruleName: String, content: String) {
+    private func sendNotification(ruleName: String, content: String, contentType: ClipContentType) {
         guard Bundle.main.bundleIdentifier != nil else { return }
-        let body = content.count > 80 ? String(content.prefix(80)) + "…" : content
+        // Text clips show a content preview; image/file/etc. clips show their type
+        // name instead of the raw "[Image]" placeholder or a file path. (issue #71)
+        let body: String
+        if contentType.isMergeable {
+            body = content.count > 80 ? String(content.prefix(80)) + "…" : content
+        } else {
+            body = contentType.label
+        }
         let notifContent = UNMutableNotificationContent()
         notifContent.title = L10n.tr("automation.notification.title") + ": " + ruleName
         notifContent.body = body

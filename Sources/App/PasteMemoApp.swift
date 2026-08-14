@@ -6,17 +6,67 @@ import AppKit
 struct PasteMemoApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @AppStorage("appearanceMode") private var appearanceMode: String = "system"
-    @AppStorage("menuBarIconStyle") private var menuBarIconStyle: String = "outline"
-    @ObservedObject private var clipboardManager = ClipboardManager.shared
+    @AppStorage("alwaysOnTop") private var alwaysOnTop = false
+
+    init() {
+        // 必须在 sharedModelContainer 首次访问前跑 —— container init 会创建 App
+        // Support 目录,目录一旦存在,迁移判定就会把全新安装错判成"老用户"。
+        Self.migrateMCPEnabledIfNeeded()
+    }
+
+    /// One-time migration: 决定 `mcpEnabled` 的默认值。
+    /// - 老用户(从 1.7.x 升级):App Support 目录已存在 → 默认开启,保持原行为
+    /// - 新装用户:目录还没创建 → 默认关闭,按需开启(隐私优先)
+    /// issue #50
+    private static func migrateMCPEnabledIfNeeded() {
+        let migrationKey = "mcpEnabled.migrationApplied"
+        let ud = UserDefaults.standard
+        guard !ud.bool(forKey: migrationKey) else { return }
+
+        let bundleID = Bundle.main.bundleIdentifier ?? "com.lifedever.pastememo"
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let storeDir = appSupport.appendingPathComponent(bundleID)
+        let isExistingUser = FileManager.default.fileExists(atPath: storeDir.path)
+
+        ud.set(isExistingUser, forKey: "mcpEnabled")
+        ud.set(true, forKey: migrationKey)
+    }
+
+    /// Settings scene 的兜底内容:被意外呈现时立即关掉自己并转到 AppKit 设置窗口。
+    private struct SettingsSceneRedirect: View {
+        @Environment(\.dismiss) private var dismiss
+
+        var body: some View {
+            Color.clear
+                .frame(width: 1, height: 1)
+                .onAppear {
+                    dismiss()
+                    showSettingsWindowAppKit()
+                }
+        }
+    }
 
     var body: some Scene {
-        Window(L10n.tr("app.name"), id: "main") {
-            MainWindowView()
-                .environmentObject(ClipboardManager.shared)
-                .modelContainer(Self.sharedModelContainer)
+        // 主管理器 / 自动化管理器不再用 SwiftUI `Window` scene:登录自启时 App 在
+        // 后台启动,SwiftUI 不创建任何窗口,依赖视图 onAppear 注册的开窗闭包永远
+        // 不会注册,状态栏「管理器/设置」点了没反应(issue #66)。两个窗口改走
+        // AppKit WindowManager(见 WindowHelper.swift),闭包在 AppDelegate 启动时注册。
+        // Settings scene 正常不可达(Cmd+, 已指到 AppKit 窗口,showSettingsWindow:
+        // 自 Sonoma 起不再创建此窗口)。真实设置 UI 已是 NavigationSplitView,放进
+        // Settings scene 会触发尺寸爆炸——万一未来某处加了 SettingsLink 把 scene
+        // 呈现出来,这里只重定向到 AppKit 设置窗口,不承载真实 UI。
+        Settings {
+            SettingsSceneRedirect()
         }
-        .defaultSize(width: 900, height: 560)
         .commands {
+            // 「设置…」(Cmd+,)指到 AppKit 设置窗口 —— Settings scene 的
+            // showSettingsWindow: 在 macOS 14+ 已不可靠,见 WindowHelper.swift。
+            CommandGroup(replacing: .appSettings) {
+                Button(L10n.tr("menu.settings")) {
+                    AppAction.shared.openSettings?()
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
             CommandGroup(after: .appInfo) {
                 Button(L10n.tr("menu.checkForUpdates")) {
                     SparkleUpdater.shared.checkForUpdates()
@@ -61,6 +111,21 @@ struct PasteMemoApp: App {
                     }
                 }
             }
+            CommandGroup(after: .windowArrangement) {
+                Button {
+                    alwaysOnTop.toggle()
+                    for window in NSApp.windows where window.canBecomeMain {
+                        window.level = alwaysOnTop ? .floating : .normal
+                    }
+                } label: {
+                    if alwaysOnTop {
+                        Text("✓ " + L10n.tr("menu.alwaysOnTop"))
+                    } else {
+                        Text("    " + L10n.tr("menu.alwaysOnTop"))
+                    }
+                }
+                .keyboardShortcut("t", modifiers: [.command, .shift])
+            }
             CommandGroup(replacing: .help) {
                 Button(L10n.tr("menu.help")) {
                     showHelpWindow()
@@ -70,28 +135,8 @@ struct PasteMemoApp: App {
             }
         }
 
-        Window(L10n.tr("automation.window.title"), id: "automationManager") {
-            AutomationManagerView()
-                .modelContainer(Self.sharedModelContainer)
-        }
-        .defaultSize(width: 700, height: 500)
-
-        Settings {
-            SettingsView()
-                .environmentObject(ClipboardManager.shared)
-                .modelContainer(Self.sharedModelContainer)
-        }
-
-        MenuBarExtra {
-            MenuBarContent()
-        } label: {
-            if let image = Self.menuBarIcon(paused: clipboardManager.isPaused, relay: RelayManager.shared.isActive, filled: menuBarIconStyle == "filled") {
-                Image(nsImage: image)
-            } else {
-                Image(systemName: "doc.on.clipboard")
-            }
-        }
-        .menuBarExtraStyle(.menu)
+        // 状态栏图标改用 AppKit 的 NSStatusItem 实现（StatusBarController），
+        // 这样能区分左/右键、支持左键自定义动作。AppDelegate 在启动时安装。
     }
 
     // MARK: - Menu Bar Icon
@@ -100,7 +145,7 @@ struct PasteMemoApp: App {
         return menuBarIcon(paused: false, filled: filled)
     }
 
-    private static func menuBarIcon(paused: Bool, relay: Bool = false, filled: Bool = false) -> NSImage? {
+    static func menuBarIcon(paused: Bool, relay: Bool = false, filled: Bool = false) -> NSImage? {
         let size = NSSize(width: 18, height: 18)
         let image = NSImage(size: size, flipped: true) { rect in
             drawCards(in: rect, filled: filled)
@@ -281,25 +326,65 @@ struct PasteMemoApp: App {
         let storeDir = appSupport.appendingPathComponent(bundleID)
         try? FileManager.default.createDirectory(at: storeDir, withIntermediateDirectories: true)
         let storeURL = storeDir.appendingPathComponent("PasteMemo.store")
-        ensureIndexes(at: storeURL)
         let config = ModelConfiguration(url: storeURL)
         do {
-            return try ModelContainer(for: schema, configurations: [config])
+            let container = try ModelContainer(for: schema, configurations: [config])
+            // Must run AFTER ModelContainer creates the SQLite schema. ensureIndexes
+            // (and ensureFTS inside it) builds indexes, the clip_fts mirror table and
+            // its sync triggers — all of which reference ZCLIPITEM / ZSMARTGROUP, so
+            // those tables have to exist first. Running it BEFORE meant that on a
+            // fresh install's first launch the store file didn't exist yet, the
+            // fileExists guard short-circuited, and clip_fts + triggers were never
+            // created for that session → quick-panel search silently returned empty
+            // until the next relaunch self-healed it (issue #61).
+            ensureIndexes(at: storeURL)
+            // Run AFTER ModelContainer creates the ZCONTENTTYPERAW column
+            migrateContentTypeColumn(at: storeURL)
+            return container
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }
     }()
+
+    /// One-time migration: copy ZCONTENTTYPE → ZCONTENTTYPERAW for existing rows
+    /// after the storage was changed from enum to raw String.
+    /// TODO: Remove after v1.4.0 — by then all users will have migrated.
+    /// Also remove the `migrateContentTypeColumn` call in `sharedModelContainer`.
+    private static func migrateContentTypeColumn(at storeURL: URL) {
+        // v2: previous migration ran before ModelContainer (column didn't exist yet),
+        // so reset the old flag to re-run for users who got the broken 1.2.4.
+        let key = "contentTypeRawMigrated_v2"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        guard FileManager.default.fileExists(atPath: storeURL.path) else { return }
+        guard let db = SQLiteConnection(path: storeURL.path) else { return }
+        defer { db.close() }
+        db.execute("""
+            UPDATE ZCLIPITEM SET ZCONTENTTYPERAW = ZCONTENTTYPE
+            WHERE ZCONTENTTYPE IS NOT NULL AND ZCONTENTTYPE != ''
+            AND (ZCONTENTTYPERAW IS NULL OR ZCONTENTTYPERAW = 'text')
+            AND ZCONTENTTYPE != 'text'
+        """)
+        UserDefaults.standard.set(true, forKey: key)
+    }
 
     private static func ensureIndexes(at storeURL: URL) {
         guard FileManager.default.fileExists(atPath: storeURL.path) else { return }
         guard let db = SQLiteConnection(path: storeURL.path) else { return }
         defer { db.close() }
 
+        // Drop legacy index on old column name before recreating on correct column
+        db.execute("DROP INDEX IF EXISTS idx_clip_type")
+
+        // Defensive: ensure ZPRESERVESITEMS column exists on older stores where
+        // SwiftData's lightweight migration may not have run yet. SQLite errors
+        // on duplicate column are silently swallowed by execute().
+        db.execute("ALTER TABLE ZSMARTGROUP ADD COLUMN ZPRESERVESITEMS INTEGER DEFAULT 0")
+
         // Regular indexes
         let indexes = [
             "CREATE INDEX IF NOT EXISTS idx_clip_lastused ON ZCLIPITEM (ZLASTUSEDAT DESC)",
             "CREATE INDEX IF NOT EXISTS idx_clip_created ON ZCLIPITEM (ZCREATEDAT DESC)",
-            "CREATE INDEX IF NOT EXISTS idx_clip_type ON ZCLIPITEM (ZCONTENTTYPE)",
+            "CREATE INDEX IF NOT EXISTS idx_clip_type ON ZCLIPITEM (ZCONTENTTYPERAW)",
             "CREATE INDEX IF NOT EXISTS idx_clip_pinned_lastused ON ZCLIPITEM (ZISPINNED, ZLASTUSEDAT DESC)",
             "CREATE INDEX IF NOT EXISTS idx_clip_sourceapp ON ZCLIPITEM (ZSOURCEAPP)",
             "CREATE INDEX IF NOT EXISTS idx_clip_itemid ON ZCLIPITEM (ZITEMID)",
@@ -322,9 +407,19 @@ struct PasteMemoApp: App {
             )
         """)
 
-        // Auto-sync triggers
+        // Auto-sync triggers. The `WHEN length(...) <= 262144` guard skips FTS
+        // indexing for content over 256 KB — trigram tokenization on multi-MB
+        // strings (e.g. inline base64 `data:image/...` URIs) blocks the SQLite
+        // commit on the main thread for several seconds. Skipping these from
+        // search is acceptable: substring search across megabytes of base64 is
+        // not useful, and the row itself remains fully addressable by metadata.
+        // Drop & recreate so existing stores pick up the guard.
+        db.execute("DROP TRIGGER IF EXISTS clip_fts_insert")
+        db.execute("DROP TRIGGER IF EXISTS clip_fts_update")
         db.execute("""
-            CREATE TRIGGER IF NOT EXISTS clip_fts_insert AFTER INSERT ON ZCLIPITEM BEGIN
+            CREATE TRIGGER clip_fts_insert AFTER INSERT ON ZCLIPITEM
+            WHEN COALESCE(length(NEW.ZCONTENT), 0) <= 262144
+            BEGIN
                 INSERT INTO clip_fts(itemID, content, displayTitle, linkTitle, ocrText)
                 VALUES (NEW.ZITEMID, COALESCE(NEW.ZCONTENT, ''), COALESCE(NEW.ZDISPLAYTITLE, ''), COALESCE(NEW.ZLINKTITLE, ''), COALESCE(NEW.ZOCRTEXT, ''));
             END
@@ -334,21 +429,31 @@ struct PasteMemoApp: App {
                 DELETE FROM clip_fts WHERE itemID = OLD.ZITEMID;
             END
         """)
+        // The DELETE runs unconditionally so a row that grew past the size guard
+        // gets removed from FTS even when the new content can't be re-indexed.
+        // The INSERT uses a `WHERE` selector instead of a trigger-level `WHEN`
+        // so the same trigger can both clean up and (when small enough) re-add.
         db.execute("""
-            CREATE TRIGGER IF NOT EXISTS clip_fts_update AFTER UPDATE OF ZCONTENT, ZDISPLAYTITLE, ZLINKTITLE, ZOCRTEXT ON ZCLIPITEM BEGIN
+            CREATE TRIGGER clip_fts_update AFTER UPDATE OF ZCONTENT, ZDISPLAYTITLE, ZLINKTITLE, ZOCRTEXT ON ZCLIPITEM
+            BEGIN
                 DELETE FROM clip_fts WHERE itemID = OLD.ZITEMID;
                 INSERT INTO clip_fts(itemID, content, displayTitle, linkTitle, ocrText)
-                VALUES (NEW.ZITEMID, COALESCE(NEW.ZCONTENT, ''), COALESCE(NEW.ZDISPLAYTITLE, ''), COALESCE(NEW.ZLINKTITLE, ''), COALESCE(NEW.ZOCRTEXT, ''));
+                SELECT NEW.ZITEMID, COALESCE(NEW.ZCONTENT, ''), COALESCE(NEW.ZDISPLAYTITLE, ''), COALESCE(NEW.ZLINKTITLE, ''), COALESCE(NEW.ZOCRTEXT, '')
+                WHERE COALESCE(length(NEW.ZCONTENT), 0) <= 262144;
             END
         """)
 
-        // Populate FTS from existing data if empty
+        // Populate FTS from existing data if empty. Mirror the trigger guard
+        // so a one-time backfill doesn't choke on legacy rows that pre-date
+        // the size cap (e.g. 10 MB base64 data URIs ingested before the
+        // pre-decode landed).
         let count = db.queryStrings("SELECT COUNT(*) FROM clip_fts")
         if count.first == "0" {
             db.execute("""
                 INSERT INTO clip_fts(itemID, content, displayTitle, linkTitle, ocrText)
                 SELECT ZITEMID, COALESCE(ZCONTENT, ''), COALESCE(ZDISPLAYTITLE, ''), COALESCE(ZLINKTITLE, ''), COALESCE(ZOCRTEXT, '')
                 FROM ZCLIPITEM
+                WHERE COALESCE(length(ZCONTENT), 0) <= 262144
             """)
         }
     }

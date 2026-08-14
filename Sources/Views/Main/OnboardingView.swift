@@ -12,16 +12,11 @@ struct OnboardingView: View {
     @AppStorage("retentionDays") private var retentionDays = 90
     @AppStorage("sensitiveDetectionEnabled") private var sensitiveDetectionEnabled = true
     @AppStorage("soundEnabled") private var soundEnabled = false
-    @AppStorage(QuickPanelStyle.storageKey) private var quickPanelStyle = QuickPanelStyle.bottomFloating.rawValue
+    @AppStorage(UsageTracker.ANALYTICS_ENABLED_KEY) private var analyticsEnabled = true
     @State private var detectedManagers: [(bundleID: String, name: String, icon: NSImage)] = []
     @State private var selectedManagerIDs: Set<String> = []
-    @State private var hasPasteApp = false
-    @State private var pasteAppItemCount = 0
-    @State private var isMigrating = false
-    @State private var migrationProgress = ""
-    @State private var migrationResult: String?
 
-    private let totalSteps = 7
+    private let totalSteps = 8
     private let allRetentionOptions = [1, 3, 7, 14, 30, 60, 90, 180, 365]
 
     private var availableOptions: [Int] { allRetentionOptions }
@@ -37,9 +32,10 @@ struct OnboardingView: View {
                 case 1: accessibilityStep
                 case 2: privacyAppsStep
                 case 3: preferencesStep
-                case 4: migrationStep
-                case 5: relayIntroStep
+                case 4: relayIntroStep
+                case 5: aiAgentIntroStep
                 case 6: shortcutStep
+                case 7: analyticsStep
                 default: EmptyView()
                 }
             }
@@ -208,13 +204,10 @@ struct OnboardingView: View {
                 }
                 accessibilityStepRow("3") {
                     HStack(spacing: 3) {
-                        Text(L10n.tr("accessibility.step3.add"))
+                        Image(systemName: "hand.point.up.left.fill")
                             .foregroundStyle(.secondary)
-                        Image(systemName: "plus").foregroundStyle(.secondary)
-                        Text(L10n.tr("accessibility.step3.readd"))
+                        Text(L10n.tr("accessibility.step3.dragFromPanel"))
                             .foregroundStyle(.secondary)
-                        appLogoMini
-                        Text("PasteMemo").bold()
                     }
                     .font(.callout)
                 }
@@ -228,7 +221,7 @@ struct OnboardingView: View {
     private var accessibilityActionButton: some View {
         VStack(spacing: 8) {
             Button(L10n.tr("onboarding.accessibility.grant")) {
-                ClipboardManager.shared.requestAccessibilityPermission()
+                AccessibilityMonitor.shared.openAccessibilitySettings()
                 startAccessibilityPolling()
             }
             .buttonStyle(.borderedProminent)
@@ -285,6 +278,11 @@ struct OnboardingView: View {
                     .font(.callout)
                     .padding(.top, 4)
             } else {
+                Text(L10n.tr("onboarding.privacy.hint"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 360)
                 privacyAppsList
             }
         }
@@ -318,6 +316,9 @@ struct OnboardingView: View {
                         Text(app.name)
                             .font(.system(size: 13))
                         Spacer()
+                        Text(isSelected ? L10n.tr("onboarding.privacy.ignored") : L10n.tr("onboarding.privacy.notIgnored"))
+                            .font(.caption)
+                            .foregroundStyle(isSelected ? Color.accentColor : .secondary)
                         Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                             .foregroundStyle(isSelected ? Color.accentColor : .secondary)
                             .font(.system(size: 16))
@@ -373,30 +374,6 @@ struct OnboardingView: View {
                 )
                 Divider().padding(.leading, 42)
                 HStack(spacing: 10) {
-                    Image(systemName: "rectangle.3.group")
-                        .frame(width: 20)
-                        .foregroundStyle(.secondary)
-                    Text(L10n.tr("settings.quickPanelStyle"))
-                    Spacer()
-                    Picker("", selection: $quickPanelStyle) {
-                        Text(L10n.tr("settings.quickPanelStyle.classic")).tag(QuickPanelStyle.classic.rawValue)
-                        Text(L10n.tr("settings.quickPanelStyle.bottomFloating")).tag(QuickPanelStyle.bottomFloating.rawValue)
-                    }
-                    .labelsHidden()
-                    .onChange(of: quickPanelStyle) { _, newValue in
-                        let newStyle = QuickPanelStyle(rawValue: newValue) ?? .classic
-                        if newStyle == .bottomFloating {
-                            QuickPanelBottomDefaults.resetStoredSizing()
-                        } else if newStyle == .classic {
-                            QuickPanelBottomDefaults.resetClassicSizing()
-                        }
-                        QuickPanelWindowController.shared.handleStyleChange(to: newStyle)
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                Divider().padding(.leading, 42)
-                HStack(spacing: 10) {
                     Image(systemName: "clock")
                         .frame(width: 20)
                         .foregroundStyle(.secondary)
@@ -434,128 +411,6 @@ struct OnboardingView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-    }
-
-    private var migrationStep: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "arrow.left.arrow.right")
-                .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 60, height: 60)
-                .background(Color.orange, in: Circle())
-
-            Text(L10n.tr("onboarding.migration.title"))
-                .font(.title2)
-                .fontWeight(.bold)
-
-            Text(L10n.tr("onboarding.migration.desc"))
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 360)
-
-            if isMigrating {
-                VStack(spacing: 8) {
-                    ProgressView()
-                        .scaleEffect(0.8)
-                    Text(migrationProgress)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.top, 4)
-            } else if let result = migrationResult {
-                VStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 32))
-                        .foregroundStyle(.green)
-                    Text(result)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                .padding(.top, 4)
-            } else if hasPasteApp {
-                VStack(spacing: 12) {
-                    HStack(spacing: 10) {
-                        Image(systemName: "externaldrive.fill.badge.icloud")
-                            .font(.system(size: 20))
-                            .foregroundStyle(.orange)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Paste.app")
-                                .font(.callout)
-                                .fontWeight(.medium)
-                            Text(L10n.tr("onboarding.migration.found", pasteAppItemCount))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                    }
-                    .padding(12)
-                    .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
-                    .frame(maxWidth: 320)
-
-                    Button(L10n.tr("onboarding.migration.import")) {
-                        performMigration()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .pointerCursor()
-                }
-                .padding(.top, 4)
-            } else {
-                VStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle")
-                        .font(.system(size: 32))
-                        .foregroundStyle(.green)
-                    Text(L10n.tr("onboarding.migration.none"))
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.top, 4)
-            }
-        }
-        .padding(28)
-        .onAppear {
-            checkPasteApp()
-        }
-    }
-
-    private func checkPasteApp() {
-        hasPasteApp = PasteAppMigrator.checkPasteAppDatabaseExists()
-        if hasPasteApp {
-            pasteAppItemCount = PasteAppMigrator.getPasteAppItemCount()
-        }
-    }
-
-    @MainActor
-    private func performMigration() {
-        guard !isMigrating else { return }
-        
-        isMigrating = true
-        migrationProgress = ""
-        migrationResult = nil
-        
-        Task {
-            let container = PasteMemoApp.sharedModelContainer
-            let context = container.mainContext
-            
-            let result = await PasteAppMigrator.migrate(
-                into: context
-            ) { current, total, status in
-                Task { @MainActor in
-                    migrationProgress = "\(current) / \(total) - \(status)"
-                }
-            }
-            
-            isMigrating = false
-            migrationProgress = ""
-            
-            var message = L10n.tr("onboarding.migration.success", result.imported)
-            if result.skipped > 0 {
-                message += " " + L10n.tr("onboarding.migration.skipped", result.skipped)
-            }
-            migrationResult = message
-        }
     }
 
     private var relayIntroStep: some View {
@@ -597,6 +452,34 @@ struct OnboardingView: View {
         }
     }
 
+    private var aiAgentIntroStep: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "sparkles.rectangle.stack")
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 60, height: 60)
+                .background(Color.orange, in: Circle())
+
+            Text(L10n.tr("onboarding.aiAgent.title"))
+                .font(.title2)
+                .fontWeight(.bold)
+
+            Text(L10n.tr("onboarding.aiAgent.desc"))
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 360)
+
+            VStack(alignment: .leading, spacing: 8) {
+                relayFeatureRow(icon: "magnifyingglass", text: L10n.tr("onboarding.aiAgent.feature1"))
+                relayFeatureRow(icon: "bolt", text: L10n.tr("onboarding.aiAgent.feature2"))
+                relayFeatureRow(icon: "lock.shield", text: L10n.tr("onboarding.aiAgent.feature3"))
+            }
+            .padding(.top, 4)
+        }
+        .padding(28)
+    }
+
     private var shortcutStep: some View {
         VStack(spacing: 16) {
             Image(systemName: "command")
@@ -630,6 +513,49 @@ struct OnboardingView: View {
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
                 .padding(.top, 8)
+        }
+        .padding(28)
+    }
+
+    private var analyticsStep: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "chart.bar.fill")
+                .font(.system(size: 28))
+                .foregroundStyle(.white)
+                .frame(width: 60, height: 60)
+                .background(Color.orange, in: Circle())
+
+            Text(L10n.tr("onboarding.analytics.title"))
+                .font(.title2)
+                .fontWeight(.bold)
+
+            Text(L10n.tr("onboarding.analytics.desc"))
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 360)
+
+            VStack(spacing: 0) {
+                HStack(spacing: 10) {
+                    Image(systemName: "chart.line.uptrend.xyaxis")
+                        .frame(width: 20)
+                        .foregroundStyle(.secondary)
+                    Text(L10n.tr("settings.privacy.analyticsToggle"))
+                    Spacer()
+                    Toggle("", isOn: $analyticsEnabled)
+                        .labelsHidden()
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+            }
+            .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+            .frame(maxWidth: 340)
+
+            Text(L10n.tr("onboarding.analytics.hint"))
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+                .padding(.top, 4)
         }
         .padding(28)
     }
@@ -683,26 +609,22 @@ struct OnboardingView: View {
             }
         }
 
+        UsageTracker.markConsentAsked()
         UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
         HotkeyManager.shared.register()
         WindowManager.shared.close(id: "onboarding")
 
-        // 直接打开剪贴板列表（QuickPanel），而不是管理器窗口
-        // 让用户立即看到剪贴板历史，提供更好的首次使用体验
-        QuickPanelWindowController.shared.show(
-            clipboardManager: ClipboardManager.shared,
-            modelContainer: PasteMemoApp.sharedModelContainer
-        )
-        
-        // 首次完成时显示帮助窗口
+        // Open main window. First-time completion: open the product homepage
+        // (was /help/ previously — homepage gives a friendlier overview /
+        // download CTA / What's New, which is what new users actually want).
+        AppAction.shared.openMainWindow?()
         if !UserDefaults.standard.bool(forKey: "hasShownFirstHelp") {
             UserDefaults.standard.set(true, forKey: "hasShownFirstHelp")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                showHelpWindow()
+                showHomePage()
             }
         }
 
-        // Sparkle 更新检查已在 AppDelegate.performDeferredInitialization 中启动
-        // 无需在这里手动调用
+        SparkleUpdater.shared.checkForUpdatesInBackground()
     }
 }

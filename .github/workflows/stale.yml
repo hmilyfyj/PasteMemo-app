@@ -1,0 +1,19 @@
+name: Close stale issues
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/stale@v9
+        with:
+          days-before-stale: -1
+          days-before-close: 7
+          only-labels: 'waiting-for-response'
+          close-issue-message: 'This issue has been closed due to no response for 7 days. Feel free to reopen if the issue persists.'
+          stale-issue-label: 'stale'

@@ -12,6 +12,7 @@ struct BackupSettingsSection: View {
     @AppStorage("webdavPassword") private var webdavPassword = ""
     @State private var isTestingConnection = false
     @State private var isBackingUp = false
+    @State private var showBackupProgress = false
     @State private var isRestoring = false
     @State private var showRestoreSheet = false
     @State private var alertMessage = ""
@@ -48,6 +49,12 @@ struct BackupSettingsSection: View {
                 pendingRestore: $pendingRestore,
                 showRestoreConfirm: $showRestoreConfirm
             )
+        }
+        .sheet(isPresented: $showBackupProgress) {
+            BackupProgressSheet()
+        }
+        .onChange(of: BackupScheduler.shared.isBackingUp) { _, newValue in
+            showBackupProgress = newValue
         }
         .alert(L10n.tr("backup.restore.confirm"), isPresented: $showRestoreConfirm) {
             Button(L10n.tr("action.cancel"), role: .cancel) { pendingRestore = nil }
@@ -346,5 +353,41 @@ private struct RestoreSheetView: View {
         let formatter = ByteCountFormatter()
         formatter.countStyle = .file
         return formatter.string(fromByteCount: bytes)
+    }
+}
+
+// MARK: - Backup Progress Sheet
+
+private struct BackupProgressSheet: View {
+    var body: some View {
+        let current = BackupScheduler.shared.backupProgressCurrent
+        let total = BackupScheduler.shared.backupProgressTotal
+        let isFinalizing = BackupScheduler.shared.backupIsFinalizing
+
+        VStack(spacing: 16) {
+            Text(L10n.tr("backup.backupNow"))
+                .font(.headline)
+            if isFinalizing {
+                // Compression + upload running off the main actor — show an
+                // animated indeterminate bar so users can tell work is still in progress.
+                ProgressView()
+                    .progressViewStyle(.linear)
+                Text(L10n.tr("backup.progress.finalizing"))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            } else if total > 0 {
+                ProgressView(value: Double(current) / Double(total), total: 1.0)
+                    .progressViewStyle(.linear)
+                Text("\(current) / \(total)")
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            } else {
+                ProgressView()
+                    .progressViewStyle(.linear)
+            }
+        }
+        .padding(30)
+        .frame(width: 300)
+        .interactiveDismissDisabled()
     }
 }

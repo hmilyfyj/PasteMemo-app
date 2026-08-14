@@ -29,9 +29,7 @@ final class SparkleUpdater: ObservableObject {
     }
 
     func checkForUpdatesInBackground() {
-        Task {
-            await updater.checkForUpdates()
-        }
+        updater.checkForUpdatesInBackground()
     }
 }
 

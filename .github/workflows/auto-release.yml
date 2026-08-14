@@ -1,0 +1,72 @@
+name: Auto-release staged drafts
+
+on:
+  schedule:
+    # 00:00 Asia/Shanghai (UTC+8) = 16:00 UTC (previous day)
+    - cron: '0 16 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    if: github.repository == 'lifedever/PasteMemo-app'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out workflow scripts
+        uses: actions/checkout@v4
+
+      - name: Find draft releases with release-meta.json
+        id: drafts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh api "/repos/$REPO/releases" \
+              --jq '[.[] | select(.draft == true) | select([.assets[].name] | index("release-meta.json")) | .tag_name]' \
+              > drafts.json
+          echo "tags=$(jq -c . drafts.json)" >> "$GITHUB_OUTPUT"
+          cat drafts.json
+
+      - name: Publish each staged draft
+        if: steps.drafts.outputs.tags != '[]'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          CROSS_REPO_PAT: ${{ secrets.CROSS_REPO_PAT }}
+          REPO: ${{ github.repository }}
+        run: |
+          # Publish each staged draft sequentially. If one fails the job
+          # fails loudly — no silent skip.
+          jq -r '.[]' drafts.json | while read -r tag; do
+              echo "::group::Publishing $tag"
+              ./.github/scripts/publish-release.sh "$tag"
+              echo "::endgroup::"
+          done
+
+      - name: Sync main to the published release
+        if: steps.drafts.outputs.tags != '[]'
+        run: |
+          # main mirrors "what users are running": fast-forward it to the tag
+          # we just published, and only then. develop pushes no longer touch
+          # main (the old sync-main.yml mirror is gone). Betas never reach
+          # this workflow, so they never move main.
+          git config user.name "lifedever-bot"
+          git config user.email "bot@lifedever.com"
+          git fetch origin main
+          # Loop order above publishes drafts.json front-to-back, so the last
+          # entry is the last tag published — that's where main should point.
+          LAST_TAG=$(jq -r '.[-1]' drafts.json)
+          git fetch origin "refs/tags/$LAST_TAG:refs/tags/$LAST_TAG"
+          TARGET=$(git rev-parse "$LAST_TAG^{commit}")
+          if ! git merge-base --is-ancestor origin/main "$TARGET"; then
+            echo "::error::main has commits not reachable from $LAST_TAG — resolve manually (git log origin/main..$LAST_TAG)."
+            exit 1
+          fi
+          if [ "$(git rev-parse origin/main)" = "$TARGET" ]; then
+            echo "main already at $LAST_TAG ($TARGET)"
+          else
+            git push origin "$TARGET:refs/heads/main"
+            echo "main fast-forwarded to $LAST_TAG ($TARGET)"
+          fi

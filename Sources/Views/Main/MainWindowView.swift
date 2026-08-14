@@ -6,6 +6,7 @@ enum SidebarFilter: Equatable {
     case all
     case pinned
     case sensitive
+    case aiAgent
     case type(ClipContentType)
     case app(String)
     case group(String)
@@ -16,6 +17,7 @@ enum SidebarFilter: Equatable {
         case .all: return L10n.tr("filter.all")
         case .pinned: return L10n.tr("filter.pinned")
         case .sensitive: return L10n.tr("filter.sensitive")
+        case .aiAgent: return L10n.tr("filter.aiAgent")
         case .type(let t): return t.label
         case .app(let name): return name.isEmpty ? L10n.tr("filter.other") : name
         case .group(let name): return name
@@ -38,24 +40,43 @@ struct MainWindowView: View {
         guard selectedItems.count == 1, let id = selectedItems.first else { return nil }
         return store.items.first { $0.persistentModelID == id }
     }
-    @Environment(\.openWindow) private var openWindow
+    // 诊断(issue #66):随主窗口一起存活/销毁,deinit 即视图被拆。
+    @StateObject private var lifecycleProbe = WindowLifecycleProbe("MainWindow")
     @State private var showDeleteConfirm = false
-    @State private var showCopiedToast = false
-    @State private var toastMessage = ""
+    @State private var isClearing = false
+    @State private var clearTitle = ""
+    @State private var clearProgress: Double = 0
+    @State private var clearProgressText = ""
     @State private var keyMonitor: Any?
     @State private var flagsMonitor: Any?
     @State private var scrollTarget: ClipItem.ID?
     @State private var relaySplitText: String?
     @State private var showCommandPalette = false
+    @State private var cachedGroupedItems: [GroupedItem<ClipItem>] = []
+    @State private var cachedHistoryRows: [ClipHistoryListBuilder.Row] = []
+    @State private var cachedHistoryRowIndexByID: [PersistentIdentifier: Int] = [:]
+    @State private var cachedHistoryItemMap: [PersistentIdentifier: ClipItem] = [:]
+    @State private var cachedVisualOrderedItems: [ClipItem] = []
     @AppStorage("hideDockIcon") private var hideDockIcon = false
+    @AppStorage("alwaysOnTop") private var alwaysOnTop = false
 
     private var sourceApps: [String] { store.sourceApps }
 
     private func bundleIDForApp(_ appName: String) -> String? {
-        store.items.first { $0.sourceApp == appName }?.sourceAppBundleID
+        store.sourceAppBundleIDs[appName]
     }
 
-    private var filteredItems: [ClipItem] { store.items }
+    private var filteredItems: [ClipItem] { store.items.filter { !$0.isDeleted } }
+
+    private func rebuildHistoryCache() {
+        // 主界面滚动时如果每次 body 重算都重新分组/建索引，会比 quick panel 明显更卡。
+        // 这里把历史列表需要的派生数据一次性缓存，后续滚动只读缓存结果。
+        cachedGroupedItems = groupItemsByTime(filteredItems)
+        cachedHistoryRows = ClipHistoryListBuilder.makeRows(from: cachedGroupedItems)
+        cachedHistoryRowIndexByID = ClipHistoryListBuilder.rowIndexByItemID(rows: cachedHistoryRows)
+        cachedVisualOrderedItems = cachedGroupedItems.flatMap(\.items)
+        cachedHistoryItemMap = Dictionary(cachedVisualOrderedItems.map { ($0.persistentModelID, $0) }, uniquingKeysWith: { _, last in last })
+    }
 
     var body: some View {
         NavigationSplitView {
@@ -68,26 +89,39 @@ struct MainWindowView: View {
         .searchable(text: $searchText, prompt: L10n.tr("search.placeholder"))
         .onChange(of: selectedFilter) {
             selectedItems.removeAll()
+            selectionAnchor = nil
             syncStoreFilter()
         }
         .onChange(of: searchText) {
             selectedItems.removeAll()
+            selectionAnchor = nil
             store.searchText = searchText
+        }
+        .onChange(of: store.items) {
+            rebuildHistoryCache()
         }
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("clearSelection"))) { _ in
             selectedItems.removeAll()
+            selectionAnchor = nil
         }
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("deleteSelectedFromDetail"))) { _ in
             deleteSelectedItems()
         }
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("copyItemFromDetail"))) { _ in
-            showCopiedToast = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { showCopiedToast = false }
+            ToastCenter.shared.show(ToastDescriptor(message: L10n.tr("action.copied"), icon: .success))
         }
         .onAppear {
             store.sortPinnedFirst = true
             store.isActive = true
             store.configure(modelContext: modelContext)
+            rebuildHistoryCache()
+            if alwaysOnTop {
+                DispatchQueue.main.async {
+                    for window in NSApp.windows where window.canBecomeMain {
+                        window.level = .floating
+                    }
+                }
+            }
             keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
                 guard let window = event.window, window.canBecomeMain,
                       !HotkeyManager.shared.isQuickPanelVisible else { return event }
@@ -228,7 +262,7 @@ struct MainWindowView: View {
                 Button {
                     AppAction.shared.openSettings?()
                 } label: {
-                    Label(L10n.tr("settings.title"), systemImage: "gearshape")
+                    Label(L10n.tr("menu.settings"), systemImage: "gearshape")
                 }
             }
             ToolbarItem(placement: .destructiveAction) {
@@ -238,54 +272,42 @@ struct MainWindowView: View {
             }
         }
         .overlay {
-            if showCopiedToast {
-                VStack {
-                    Spacer()
-                    Text(toastMessage.isEmpty ? L10n.tr("action.copied") : toastMessage)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(.black.opacity(0.75), in: Capsule())
-                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
-                        .padding(.bottom, 20)
-                }
-                .animation(.easeInOut(duration: 0.2), value: showCopiedToast)
-            }
         }
         .localized()
+        .sheet(isPresented: $isClearing) {
+            VStack(spacing: 16) {
+                Text(clearTitle)
+                    .font(.headline)
+                ProgressView(value: clearProgress, total: 1.0)
+                    .progressViewStyle(.linear)
+                Text(clearProgressText)
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(30)
+            .frame(width: 300)
+            .interactiveDismissDisabled()
+        }
         .alert(L10n.tr("action.clearAll"), isPresented: $showDeleteConfirm) {
             Button(L10n.tr("action.delete"), role: .destructive) {
                 let descriptor = FetchDescriptor<ClipItem>(
                     predicate: #Predicate { !$0.isPinned }
                 )
                 if let items = try? modelContext.fetch(descriptor) {
-                    for item in items { modelContext.delete(item) }
+                    let preserved = SmartGroupRetention.preservedGroupNames(in: modelContext)
+                    let deletable = SmartGroupRetention.filterDeletableItems(items, preservedGroupNames: preserved)
+                    runBulkClear(title: L10n.tr("action.clearAll"), items: deletable)
                 }
-                try? modelContext.save()
-                ClipboardManager.shared.recalculateAllGroupCounts(context: modelContext)
             }
             Button(L10n.tr("action.cancel"), role: .cancel) {}
         } message: {
             Text(L10n.tr("action.clearConfirm"))
         }
-        .onAppear {
-            AppAction.shared.openMainWindow = { [openWindow] in
-                openWindow(id: "main")
-                if !UserDefaults.standard.bool(forKey: "hideDockIcon") {
-                    NSApp.setActivationPolicy(.regular)
-                }
-                NSApp.activate(ignoringOtherApps: true)
-            }
-        }
         .onChange(of: relaySplitText) {
             guard let text = relaySplitText else { return }
             SplitWindowController.shared.show(text: text) { delimiter in
                 guard let parts = RelaySplitter.split(text, by: delimiter) else { return }
-                RelayManager.shared.enqueue(texts: parts)
-                if !RelayManager.shared.isActive {
-                    RelayManager.shared.activate()
-                }
+                RelayManager.shared.addToQueue(texts: parts)
             }
             relaySplitText = nil
         }
@@ -296,6 +318,7 @@ struct MainWindowView: View {
     private func syncStoreFilter() {
         store.pinnedOnly = false
         store.sensitiveOnly = false
+        store.aiAgentOnly = false
         store.filterType = nil
         store.sourceApp = nil
         store.groupName = nil
@@ -303,6 +326,7 @@ struct MainWindowView: View {
         case .all: break
         case .pinned: store.pinnedOnly = true
         case .sensitive: store.sensitiveOnly = true
+        case .aiAgent: store.aiAgentOnly = true
         case .type(let t): store.filterType = t
         case .app(let name):
             store.sourceApp = name.isEmpty ? .unknown : .named(name)
@@ -326,6 +350,13 @@ struct MainWindowView: View {
                     }
                 }
 
+                let aiAgentCount = store.sidebarCounts.aiAgent
+                if aiAgentCount > 0 {
+                    sidebarRow(L10n.tr("filter.aiAgent"), icon: "sparkles", badge: aiAgentCount, isActive: selectedFilter == .aiAgent) {
+                        selectedFilter = .aiAgent
+                    }
+                }
+
                 let sensitiveCount = store.sidebarCounts.sensitive
                 if sensitiveCount > 0 {
                     sidebarRow(L10n.tr("filter.sensitive"), icon: "lock.shield", badge: sensitiveCount, isActive: selectedFilter == .sensitive) {
@@ -340,6 +371,11 @@ struct MainWindowView: View {
                     if count > 0 {
                         sidebarRow(type.label, icon: type.icon, badge: count, isActive: selectedFilter == .type(type)) {
                             selectedFilter = .type(type)
+                        }
+                        .contextMenu {
+                            Button(L10n.tr("action.clearScope.type"), role: .destructive) {
+                                clearItems(inScope: .type(type))
+                            }
                         }
                         .onDrag {
                             draggingType = type
@@ -357,7 +393,7 @@ struct MainWindowView: View {
             if !store.sidebarCounts.byGroup.isEmpty {
                 Section(L10n.tr("filter.groups")) {
                     ForEach(store.sidebarCounts.byGroup, id: \.name) { group in
-                        sidebarRow(group.name, icon: group.icon, badge: group.count, isActive: selectedFilter == .group(group.name)) {
+                        sidebarRow(group.name, icon: group.icon, badge: group.count, showsPreservedBadge: group.preservesItems, isActive: selectedFilter == .group(group.name)) {
                             selectedFilter = .group(group.name)
                         }
                         .contextMenu {
@@ -368,6 +404,11 @@ struct MainWindowView: View {
                                 changeGroupIcon(name: group.name)
                             }
                             Divider()
+                            Button(L10n.tr("action.clearScope.group"), role: .destructive) {
+                                clearItems(inScope: .group(group.name))
+                            }
+                            .disabled(group.preservesItems)
+                            .help(group.preservesItems ? L10n.tr("action.clearScope.group.disabledHelp") : "")
                             Button(L10n.tr("action.deleteGroup"), role: .destructive) {
                                 let alert = NSAlert()
                                 alert.messageText = L10n.tr("action.deleteGroup")
@@ -403,6 +444,11 @@ struct MainWindowView: View {
                     let displayName = isUnknown ? L10n.tr("filter.other") : appName
                     appSidebarRow(displayName, badge: count, isActive: selectedFilter == .app(appName)) {
                         selectedFilter = .app(appName)
+                    }
+                    .contextMenu {
+                        Button(L10n.tr("action.clearScope.app"), role: .destructive) {
+                            clearItems(inScope: .app(appName))
+                        }
                     }
                 }
             }
@@ -452,13 +498,19 @@ struct MainWindowView: View {
         )
     }
 
-    private func sidebarRow(_ title: String, icon: String, badge: Int = 0, isActive: Bool, action: @escaping () -> Void) -> some View {
+    private func sidebarRow(_ title: String, icon: String, badge: Int = 0, showsPreservedBadge: Bool = false, isActive: Bool, action: @escaping () -> Void) -> some View {
         HStack {
             Image(systemName: icon)
                 .foregroundStyle(isActive ? .white : .secondary)
                 .frame(width: 18)
             Text(title)
                 .foregroundStyle(isActive ? .white : .primary)
+            if showsPreservedBadge {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(isActive ? .white.opacity(0.95) : .secondary)
+                    .help(L10n.tr("group.preserveItems.badge"))
+            }
             Spacer()
             if badge > 0 {
                 Text("\(badge)")
@@ -489,39 +541,87 @@ struct MainWindowView: View {
     // MARK: - Clip List
 
     private var groupedFilteredItems: [GroupedItem<ClipItem>] {
-        groupItemsByTime(filteredItems)
+        cachedGroupedItems
+    }
+
+    private var historyRows: [ClipHistoryListBuilder.Row] {
+        cachedHistoryRows
+    }
+
+    private var historyRowIndexByID: [PersistentIdentifier: Int] {
+        cachedHistoryRowIndexByID
+    }
+
+    private var historyItemMap: [PersistentIdentifier: ClipItem] {
+        cachedHistoryItemMap
     }
 
     /// Items in visual display order (matching grouped section rendering)
     private var visualOrderedItems: [ClipItem] {
-        groupedFilteredItems.flatMap(\.items)
+        cachedVisualOrderedItems
     }
 
     private var clipListView: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(groupedFilteredItems, id: \.group) { group in
-                        Text(group.group.label)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.tertiary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 16)
-                            .padding(.top, 10)
-                            .padding(.bottom, 2)
-
-                        ForEach(group.items) { item in
-                            mainListRow(item: item)
-                        }
-                    }
+        NativeClipHistoryList(
+            rows: historyRows,
+            rowIndexByItemID: historyRowIndexByID,
+            itemsByID: historyItemMap,
+            canLoadMore: store.hasMore,
+            selectedItemIDs: selectedItems,
+            focusedItemID: navigationCursor ?? selectedItems.first,
+            scrollTargetID: scrollTarget,
+            showCommandPalette: showCommandPalette,
+            allowMultipleSelection: true,
+            scrollAlignment: .center,
+            itemRowHeight: 48,
+            headerRowHeight: 28,
+            onItemTap: { id in
+                guard let item = historyItemMap[id] else { return }
+                handleRowClick(item)
+            },
+            onItemRightClick: { id in
+                if !selectedItems.contains(id) {
+                    selectedItems = [id]
+                    navigationCursor = id
+                    selectionAnchor = id
                 }
-                .padding(.vertical, 4)
+            },
+            onCommandPaletteDismiss: {
+                showCommandPalette = false
+            },
+            onLoadMore: {
+                store.loadMore()
+            },
+            rowContent: { item, isSelected in
+                mainListRowContent(item: item, isSelected: isSelected)
+            },
+            headerContent: { group in
+                Text(group.label)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 10)
+                    .padding(.bottom, 2)
+            },
+            contextMenu: { item in
+                mainListContextMenu(item: item)
+            },
+            commandPaletteContent: { item in
+                CommandPaletteContent(
+                    item: item,
+                    isMultiSelected: selectedItems.count > 1,
+                    manualRules: manualRulesForPalette(item: item),
+                    preservedGroupNames: SmartGroupRetention.preservedGroupNames(in: modelContext),
+                    onAction: { handleMainCommandAction($0, item: item) },
+                    onDismiss: { showCommandPalette = false }
+                )
             }
-            .onChange(of: scrollTarget) { _, target in
-                guard let target else { return }
-                withAnimation(.easeInOut(duration: 0.15)) {
-                    proxy.scrollTo(target, anchor: .center)
-                }
+        )
+        .onChange(of: scrollTarget) { _, target in
+            guard target != nil else { return }
+            // 只把 scrollTarget 当成一次性脉冲使用，交给原生列表消费后立即清掉。
+            DispatchQueue.main.async {
                 scrollTarget = nil
             }
         }
@@ -530,10 +630,7 @@ struct MainWindowView: View {
         .navigationSplitViewColumnWidth(min: 250, ideal: 300, max: 450)
     }
 
-    @ViewBuilder
-    private func mainListRow(item: ClipItem) -> some View {
-        if item.isDeleted { EmptyView() } else {
-        let isSelected = selectedItems.contains(item.persistentModelID)
+    private func mainListRowContent(item: ClipItem, isSelected: Bool) -> some View {
         ClipItemListRow(
             item: item,
             isSelected: isSelected,
@@ -549,168 +646,103 @@ struct MainWindowView: View {
                     .padding(.vertical, 1)
             )
             .padding(.trailing, 4)
-            .contentShape(Rectangle())
-            .id(item.persistentModelID)
-            .onAppear {
-                if item.id == filteredItems.last?.id { store.loadMore() }
+    }
+
+    @ViewBuilder
+    private func mainListContextMenu(item: ClipItem) -> some View {
+        if item.isDeleted { EmptyView() } else {
+            Button(L10n.tr("action.mergeCopy")) {
+                if selectedItems.contains(item.persistentModelID), selectedItems.count > 1 {
+                    copySelectedToClipboard()
+                } else {
+                    copyToClipboard(item)
+                }
             }
-            .popover(
-                isPresented: Binding(
-                    get: {
-                        showCommandPalette && isSelected
-                        && (selectedItems.count <= 1 || (navigationCursor ?? selectedItems.first) == item.persistentModelID)
-                    },
-                    set: { if !$0 { showCommandPalette = false } }
-                ),
-                arrowEdge: .trailing
-            ) {
-                CommandPaletteContent(
-                    item: item,
-                    isMultiSelected: selectedItems.count > 1,
-                    onAction: { handleMainCommandAction($0, item: item) },
-                    onDismiss: { showCommandPalette = false }
-                )
+            Button(item.isPinned ? L10n.tr("action.unpin") : L10n.tr("action.pin")) {
+                if selectedItems.contains(item.persistentModelID), selectedItems.count > 1 {
+                    let items = selectedClipItems
+                    let shouldPin = !items.contains(where: \.isPinned)
+                    for i in items { i.isPinned = shouldPin }
+                } else {
+                    item.isPinned.toggle()
+                }
+                ClipItemStore.saveAndNotify(modelContext)
+                selectedItems.removeAll()
             }
-            .onTapGesture { handleRowClick(item) }
-            .contextMenu {
-                Button(item.isPinned ? L10n.tr("action.unpin") : L10n.tr("action.pin")) {
-                    if selectedItems.contains(item.persistentModelID), selectedItems.count > 1 {
-                        let items = selectedClipItems
-                        let shouldPin = !items.contains(where: \.isPinned)
-                        for i in items { i.isPinned = shouldPin }
-                    } else {
-                        item.isPinned.toggle()
-                    }
-                    ClipItemStore.saveAndNotify(modelContext)
-                    selectedItems.removeAll()
+            Button(item.isSensitive ? L10n.tr("sensitive.unmarkSensitive") : L10n.tr("sensitive.markSensitive")) {
+                if selectedItems.contains(item.persistentModelID), selectedItems.count > 1 {
+                    let items = selectedClipItems
+                    let hasSensitive = items.contains(where: \.isSensitive)
+                    for i in items { i.isSensitive = !hasSensitive }
+                } else {
+                    item.isSensitive.toggle()
                 }
-                Button(item.isSensitive ? L10n.tr("sensitive.unmarkSensitive") : L10n.tr("sensitive.markSensitive")) {
-                    if selectedItems.contains(item.persistentModelID), selectedItems.count > 1 {
-                        let items = selectedClipItems
-                        let hasSensitive = items.contains(where: \.isSensitive)
-                        for i in items { i.isSensitive = !hasSensitive }
-                    } else {
-                        item.isSensitive.toggle()
-                    }
-                    ClipItemStore.saveAndNotify(modelContext)
-                }
-                Button(L10n.tr("action.mergeCopy")) {
-                    if selectedItems.contains(item.persistentModelID), selectedItems.count > 1 {
-                        copySelectedToClipboard()
-                    } else {
-                        copyToClipboard(item)
-                    }
-                }
-                // 文件类型：提供"作为文本路径复制"选项（支持多选）
-                let fileTypes: Set<ClipContentType> = [.file, .image, .video, .audio, .document, .archive, .application]
-                let isMultiSelect = selectedItems.contains(item.persistentModelID) && selectedItems.count > 1
-                let checkItems = isMultiSelect ? selectedClipItems : [item]
-                if checkItems.contains(where: { fileTypes.contains($0.contentType) }) {
-                    Button(L10n.tr("action.copyAsFilePath")) {
-                        let merged = checkItems.map(\.content).joined(separator: "\n")
-                        let pasteboard = NSPasteboard.general
-                        pasteboard.clearContents()
-                        pasteboard.setString(merged, forType: .string)
-                        clipboardManager.lastChangeCount = pasteboard.changeCount
-                        showCopiedToast = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                            showCopiedToast = false
-                        }
-                    }
-                }
-                // 文本类型：如果内容是有效文件路径，提供"作为文件粘贴"选项（支持多选）
-                if checkItems.allSatisfy({ $0.contentType == .text || $0.contentType == .link }) {
-                    let validPathItems = checkItems.filter { clipboardManager.canPasteAsFile($0) }
-                    if !validPathItems.isEmpty {
-                        Button(L10n.tr("action.pasteAsFile")) {
-                            let merged = validPathItems.map(\.content).joined(separator: "\n")
-                            let tempItem = ClipItem(content: merged, contentType: .text)
-                            _ = clipboardManager.writeAsFileReference(tempItem)
-                            showCopiedToast = true
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                                showCopiedToast = false
+                ClipItemStore.saveAndNotify(modelContext)
+            }
+            if selectedItems.count > 1, selectedClipItems.allSatisfy({ $0.contentType.isMergeable }) {
+                Button(L10n.tr("action.merge")) { mergeSelectedItems() }
+            }
+            if ProManager.AUTOMATION_ENABLED {
+                let applicableRules = fetchEnabledAutomationRules()
+                    .filter { $0.triggerMode == .manual && $0.matches(item: item) }
+                if !applicableRules.isEmpty {
+                    Divider()
+                    Menu(L10n.tr("cmd.automation")) {
+                        ForEach(applicableRules) { rule in
+                            Button(rule.isBuiltIn ? L10n.tr(rule.name) : rule.name) {
+                                applyAutomationRule(rule, to: item)
                             }
                         }
                     }
                 }
-                if selectedItems.count > 1, selectedClipItems.allSatisfy({ $0.contentType.isMergeable }) {
-                    Button(L10n.tr("action.merge")) { mergeSelectedItems() }
-                }
-                if item.contentType.isMergeable,
-                   ProManager.AUTOMATION_ENABLED {
-                    let rules = fetchEnabledAutomationRules()
-                    if !rules.isEmpty {
-                        Divider()
-                        Menu(L10n.tr("cmd.automation")) {
-                            ForEach(rules) { rule in
-                                Button(rule.isBuiltIn ? L10n.tr(rule.name) : rule.name) {
-                                    applyAutomationRule(rule, to: item)
-                                }
-                            }
+            }
+            Divider()
+            let targetItems = selectedItems.contains(item.persistentModelID) ? selectedClipItems : [item]
+            let groupNames = Set(targetItems.compactMap(\.groupName))
+            let currentGroup = groupNames.count == 1 ? groupNames.first : nil
+            Menu(L10n.tr("action.assignGroup")) {
+                ForEach(store.sidebarCounts.byGroup, id: \.name) { group in
+                    if group.name == currentGroup {
+                        Button {} label: {
+                            Label(group.name, systemImage: "checkmark")
                         }
-                    }
-                }
-                Divider()
-                let targetItems = selectedItems.contains(item.persistentModelID) ? selectedClipItems : [item]
-                let groupNames = Set(targetItems.compactMap(\.groupName))
-                let currentGroup = groupNames.count == 1 ? groupNames.first : nil
-                Menu(L10n.tr("action.assignGroup")) {
-                    ForEach(store.sidebarCounts.byGroup, id: \.name) { group in
-                        if group.name == currentGroup {
-                            Button {
-                                // Already in this group — no-op
-                            } label: {
-                                Label(group.name, systemImage: "checkmark")
-                            }
-                        } else {
-                            Button(group.name) {
-                                assignToGroup(items: targetItems, name: group.name)
-                            }
-                        }
-                    }
-                    if !store.sidebarCounts.byGroup.isEmpty {
-                        Divider()
-                    }
-                    Button(L10n.tr("action.newGroup")) {
-                        showNewGroupAlert(for: targetItems)
-                    }
-                }
-                if targetItems.contains(where: { $0.groupName != nil }) {
-                    Button(L10n.tr("action.removeFromGroup")) {
-                        removeFromGroup(items: targetItems)
-                    }
-                }
-                Divider()
-                if selectedItems.count > 1 {
-                    Button(L10n.tr("relay.addToQueue")) {
-                        let texts = selectedClipItems.compactMap(\.content)
-                        RelayManager.shared.enqueue(texts: texts)
-                        if !RelayManager.shared.isActive {
-                            RelayManager.shared.activate()
-                        }
-                    }
-                } else if !item.content.isEmpty {
-                    Button(L10n.tr("relay.addToQueue")) {
-                        RelayManager.shared.enqueue(texts: [item.content])
-                        if !RelayManager.shared.isActive {
-                            RelayManager.shared.activate()
-                        }
-                    }
-                    Button(L10n.tr("relay.splitAndRelay")) {
-                        relaySplitText = item.content
-                    }
-                }
-                Divider()
-                Button(L10n.tr("action.delete"), role: .destructive) {
-                    if selectedItems.contains(item.persistentModelID) {
-                        deleteSelectedItems()
                     } else {
-                        if let groupName = item.groupName, !groupName.isEmpty {
-                            ClipboardManager.shared.decrementSmartGroup(name: groupName, context: modelContext)
+                        Button(group.name) {
+                            assignToGroup(items: targetItems, name: group.name)
                         }
-                        modelContext.delete(item)
                     }
                 }
+                if !store.sidebarCounts.byGroup.isEmpty {
+                    Divider()
+                }
+                Button(L10n.tr("action.newGroup")) {
+                    showNewGroupAlert(for: targetItems)
+                }
+            }
+            if targetItems.contains(where: { $0.groupName != nil }) {
+                Button(L10n.tr("action.removeFromGroup")) {
+                    removeFromGroup(items: targetItems)
+                }
+            }
+            Divider()
+            if selectedItems.count > 1 {
+                Button(L10n.tr("relay.addToQueue")) {
+                    RelayManager.shared.addToQueue(clipItems: selectedClipItems)
+                }
+            } else if !item.content.isEmpty || item.imageData != nil {
+                Button(L10n.tr("relay.addToQueue")) {
+                    RelayManager.shared.addToQueue(clipItems: [item])
+                }
+                Button(L10n.tr("relay.splitAndRelay")) {
+                    relaySplitText = item.content
+                }
+            }
+            Divider()
+            Button(L10n.tr("action.delete"), role: .destructive) {
+                if !selectedItems.contains(item.persistentModelID) {
+                    selectedItems = [item.persistentModelID]
+                }
+                deleteSelectedItems()
             }
         }
     }
@@ -718,38 +750,88 @@ struct MainWindowView: View {
     private func handleRowClick(_ item: ClipItem) {
         let flags = NSApp.currentEvent?.modifierFlags ?? []
         let id = item.persistentModelID
+        let now = Date()
+
+        // 双击复制：检测到 0.3s 内同行二次点击，先把 click 1 改动的选中态还原回去
+        // （避免 detail pane 闪一下又变化），再按右键菜单"复制"的语义执行——
+        // 多选包含当前行就合并复制，否则单条复制。单击响应不延迟。
+        if lastClickedID == id, now.timeIntervalSince(lastClickTime) < 0.3 {
+            if let snap = preClickSnapshot {
+                selectedItems = snap.selected
+                selectionAnchor = snap.anchor
+                navigationCursor = snap.cursor
+            }
+            if selectedItems.contains(id), selectedItems.count > 1 {
+                copySelectedToClipboard()
+            } else {
+                copyToClipboard(item)
+            }
+            lastClickedID = nil
+            lastClickTime = .distantPast
+            preClickSnapshot = nil
+            return
+        }
+
+        // 在改动选中态前保存快照，留给紧随其后的可能双击还原。
+        preClickSnapshot = (selectedItems, selectionAnchor, navigationCursor)
+
+        let previousCursor = navigationCursor
         navigationCursor = id
 
         if flags.contains(.command) {
             // Cmd+Click: toggle this item in selection
             if selectedItems.contains(id) {
                 selectedItems.remove(id)
+                if selectionAnchor == id {
+                    selectionAnchor = previousCursor == id ? nil : previousCursor
+                }
             } else {
                 selectedItems.insert(id)
+                selectionAnchor = selectionAnchor ?? id
             }
-        } else if flags.contains(.shift), let lastID = selectedItems.first {
+        } else if flags.contains(.shift) {
             // Shift+Click: range select
             let items = visualOrderedItems
-            guard let lastIdx = items.firstIndex(where: { $0.persistentModelID == lastID }),
-                  let clickIdx = items.firstIndex(where: { $0.persistentModelID == id }) else {
+            let anchor = ClipHistorySelectionHelper.resolvedAnchor(
+                existingAnchor: selectionAnchor,
+                focusedID: previousCursor,
+                fallbackSelectedID: selectedItems.first,
+                targetID: id
+            )
+            guard let selection = ClipHistorySelectionHelper.rangeSelection(
+                orderedIDs: items.map(\.persistentModelID),
+                anchorID: anchor,
+                targetID: id
+            ) else {
                 selectedItems = [id]
+                selectionAnchor = id
+                lastClickedID = id
+                lastClickTime = now
                 return
             }
-            let range = min(lastIdx, clickIdx)...max(lastIdx, clickIdx)
-            selectedItems = Set(items[range].map(\.persistentModelID))
+            selectedItems = selection
+            selectionAnchor = anchor
         } else {
             if selectedItems == [id] {
                 selectedItems.removeAll()
+                selectionAnchor = nil
             } else {
                 selectedItems = [id]
+                selectionAnchor = id
             }
         }
+
+        lastClickedID = id
+        lastClickTime = now
     }
 
     private enum MoveDirection { case up, down }
 
     @State private var navigationCursor: ClipItem.ID?
     @State private var selectionAnchor: ClipItem.ID?
+    @State private var lastClickedID: ClipItem.ID?
+    @State private var lastClickTime: Date = .distantPast
+    @State private var preClickSnapshot: (selected: Set<ClipItem.ID>, anchor: ClipItem.ID?, cursor: ClipItem.ID?)?
 
     private func moveSelection(direction: MoveDirection, extendSelection: Bool = false) {
         let items = visualOrderedItems
@@ -787,8 +869,7 @@ struct MainWindowView: View {
         let merged = items.map(\.content).joined(separator: "\n")
         let newItem = ClipItem(content: merged, contentType: .text)
         modelContext.insert(newItem)
-        for old in items { modelContext.delete(old) }
-        try? modelContext.save()
+        ClipItemStore.deleteAndNotify(items, from: modelContext)
         let newID = newItem.persistentModelID
         selectedItems = [newID]
         navigationCursor = newID
@@ -801,16 +882,28 @@ struct MainWindowView: View {
         switch action {
         case .paste:
             copyToClipboard(item)
+        case .pasteAndDestroy:
+            // Main window has no target app to paste into, so fall back to
+            // "copy to clipboard, then destroy history" — users can then paste
+            // elsewhere and the sensitive entry is gone regardless.
+            if !item.isPinned && !item.isFavorite,
+               !isItemInPreservedGroup(item) {
+                copyToClipboard(item)
+                let context = modelContext
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(500))
+                    DeleteUndoCoordinator.shared.scheduleUndoableDelete(items: [item], context: context)
+                }
+            }
         case .cmdEnter:
             if item.contentType == .link,
-               let url = URL(string: item.content.trimmingCharacters(in: .whitespacesAndNewlines)) {
+               let url = item.resolvedURL {
                 NSWorkspace.shared.open(url)
             } else {
                 let pasteboard = NSPasteboard.general
                 pasteboard.clearContents()
                 pasteboard.setString(item.content, forType: .string)
-                showCopiedToast = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { showCopiedToast = false }
+                ToastCenter.shared.show(ToastDescriptor(message: L10n.tr("action.copied"), icon: .success))
             }
         case .copy:
             if selectedItems.count > 1 {
@@ -822,13 +915,33 @@ struct MainWindowView: View {
             if item.contentType == .image, item.imageData != nil {
                 OCRTaskCoordinator.shared.retry(itemID: item.itemID)
             }
+        case .pasteOCR:
+            // The main window has no target app to paste into — copy the OCR text
+            // to the clipboard instead (mirrors how `.paste` behaves here).
+            if let ocr = item.ocrText, !ocr.isEmpty {
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.setString(ocr, forType: .string)
+                ToastCenter.shared.show(ToastDescriptor(message: L10n.tr("action.copied"), icon: .success))
+            } else {
+                // Auto-OCR may be off / not run yet: recognize on demand, then copy.
+                let id = item.itemID
+                Task {
+                    if let text = await OCRTaskCoordinator.shared.recognizeOnDemand(itemID: id), !text.isEmpty {
+                        let pasteboard = NSPasteboard.general
+                        pasteboard.clearContents()
+                        pasteboard.setString(text, forType: .string)
+                        ToastCenter.shared.show(ToastDescriptor(message: L10n.tr("action.copied"), icon: .success))
+                    } else {
+                        ToastCenter.shared.show(ToastDescriptor(message: L10n.tr("detail.ocr.empty"), icon: .info))
+                    }
+                }
+            }
         case .openInPreview:
             QuickLookHelper.shared.openInPreviewApp(item: item)
         case .addToRelay:
             let items = selectedItems.count > 1 ? selectedClipItems : [item]
-            let texts = items.compactMap { $0.content.isEmpty ? nil : $0.content }
-            RelayManager.shared.enqueue(texts: texts)
-            if !RelayManager.shared.isActive { RelayManager.shared.activate() }
+            RelayManager.shared.addToQueue(clipItems: items)
         case .splitAndRelay:
             if !item.content.isEmpty { relaySplitText = item.content }
         case .pin:
@@ -853,8 +966,7 @@ struct MainWindowView: View {
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
             pasteboard.setString(format, forType: .string)
-            showCopiedToast = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { showCopiedToast = false }
+            ToastCenter.shared.show(ToastDescriptor(message: L10n.tr("action.copied"), icon: .success))
         case .showInFinder:
             let paths = item.content.components(separatedBy: "\n").filter { !$0.isEmpty }
             if let first = paths.first {
@@ -862,16 +974,44 @@ struct MainWindowView: View {
             }
         case .transform(let ruleAction):
             let processed = AutomationEngine.shared.applyAction(ruleAction, to: item.content)
+            let contentChanged = processed != item.content
             item.content = processed
             item.displayTitle = ClipItem.buildTitle(content: processed, contentType: item.contentType)
-            if ruleAction == .stripRichText {
+            if contentChanged || ruleAction == .stripRichText {
                 item.richTextData = nil
                 item.richTextType = nil
             }
             ClipItemStore.saveAndNotify(modelContext)
         case .delete:
             deleteSelectedItems()
+        case .runRule(let ruleID, _):
+            let descriptor = FetchDescriptor<AutomationRule>(
+                predicate: #Predicate { $0.ruleID == ruleID }
+            )
+            if let rule = try? modelContext.fetch(descriptor).first {
+                applyAutomationRule(rule, to: item)
+            }
         }
+    }
+
+    /// Manual-trigger rules surfaced inline in the ⌘K palette. Capped to 5.
+    private func manualRulesForPalette(item: ClipItem) -> [AutomationRule] {
+        guard ProManager.AUTOMATION_ENABLED else { return [] }
+        let descriptor = FetchDescriptor<AutomationRule>(
+            predicate: #Predicate { $0.enabled },
+            sortBy: [SortDescriptor(\.sortOrder)]
+        )
+        let enabled = (try? modelContext.fetch(descriptor)) ?? []
+        let filtered = enabled.filter {
+            $0.triggerMode == .manual && $0.matches(item: item)
+        }
+        return Array(filtered.prefix(5))
+    }
+
+    private func isItemInPreservedGroup(_ item: ClipItem) -> Bool {
+        guard let group = item.groupName, !group.isEmpty else { return false }
+        let preserved = SmartGroupRetention.preservedGroupNames(in: modelContext)
+        return preserved.contains(group)
     }
 
     private func copySelectedToClipboard() {
@@ -881,16 +1021,12 @@ struct MainWindowView: View {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(merged, forType: .string)
-        showCopiedToast = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { showCopiedToast = false }
+        ToastCenter.shared.show(ToastDescriptor(message: L10n.tr("action.copied"), icon: .success))
     }
 
     private func copyToClipboard(_ item: ClipItem) {
         clipboardManager.writeToPasteboard(item)
-        showCopiedToast = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            showCopiedToast = false
-        }
+        ToastCenter.shared.show(ToastDescriptor(message: L10n.tr("action.copied"), icon: .success))
     }
 
     private func fetchEnabledAutomationRules() -> [AutomationRule] {
@@ -912,53 +1048,82 @@ struct MainWindowView: View {
         let actions = rule.actions
         guard !actions.isEmpty else { return }
 
-        let hasSpecialActions = actions.contains { action in
-            switch action {
-            case .stripRichText, .assignGroup, .markSensitive, .pin, .skipCapture: return true
-            default: return false
+        // runShortcut is async, targets a single clip, and writes its output to
+        // the pasteboard (so the next capture becomes a new item). It bypasses
+        // the in-place text mutation path entirely.
+        if actions.contains(where: { if case .runShortcut = $0 { return true }; return false }) {
+            Task { @MainActor in
+                await runRuleViaShortcut(rule, on: items.first ?? item)
             }
+            return
         }
+
+        let hasSpecialActions = AutomationEngine.containsSpecialAction(actions)
 
         ClipItemStore.isBulkOperation = true
         for target in items {
             let processed = AutomationEngine.executeActions(actions, on: target.content)
-            guard processed != target.content || hasSpecialActions else { continue }
+            let contentChanged = processed != target.content
+            guard contentChanged || hasSpecialActions else { continue }
             target.content = processed
             target.displayTitle = ClipItem.buildTitle(content: processed, contentType: target.contentType)
-            if actions.contains(.stripRichText) {
+            // Clear rich text if content changed — the stale rich formatting
+            // no longer matches the new plain text and would leak through the
+            // preview pane (which prefers rich content when present).
+            if contentChanged || actions.contains(.stripRichText) {
                 target.richTextData = nil
                 target.richTextType = nil
             }
-            if actions.contains(.markSensitive) {
-                target.isSensitive = true
-            }
-            if actions.contains(.pin) {
-                target.isPinned = true
-            }
-            if let groupAction = actions.first(where: {
-                if case .assignGroup = $0 { return true }
-                return false
-            }), case .assignGroup(let name) = groupAction, !name.isEmpty {
-                target.groupName = name
-                ClipboardManager.shared.upsertSmartGroup(name: name, context: modelContext)
-            }
+            // markSensitive / pin / move-to-group — shared with the capture & quick-panel paths.
+            ClipboardManager.shared.applyMetadataActions(actions, to: target, context: modelContext)
             // skipCapture is only meaningful during clipboard capture, not manual apply
         }
         ClipItemStore.saveAndNotify(modelContext)
         ClipItemStore.isBulkOperation = false
 
-        toastMessage = L10n.tr("automation.applied")
-        showCopiedToast = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { showCopiedToast = false; toastMessage = "" }
+        ToastCenter.shared.show(ToastDescriptor(message: L10n.tr("automation.applied"), icon: .success))
+    }
+
+    @MainActor
+    private func runRuleViaShortcut(_ rule: AutomationRule, on item: ClipItem) async {
+        // Run the shortcut (plus any preceding text transforms). The Shortcut
+        // itself is responsible for whatever output handling it wants — copy
+        // to clipboard, post to a webhook, speak, write a file… PasteMemo just
+        // pipes the clip in and triggers. We never touch NSPasteboard here.
+        var currentContent = item.content
+        // Verbatim original (not the thumbnail) — the Shortcut may save/process the image.
+        let currentImageData = item.imageBytesForExport()
+        let currentContentType = item.contentType
+
+        for action in rule.actions {
+            if case .runShortcut(let name) = action {
+                do {
+                    _ = try await ShortcutRunner.run(
+                        name: name,
+                        content: currentContent,
+                        imageData: currentImageData,
+                        contentType: currentContentType
+                    )
+                } catch {
+                    ShortcutErrorNotifier.show(name: name, error: error)
+                    return
+                }
+            } else {
+                currentContent = action.execute(on: currentContent)
+            }
+        }
+
+        let displayName = rule.isBuiltIn ? L10n.tr(rule.name) : rule.name
+        ShortcutNotifier.showSuccess(ruleName: displayName)
     }
 
     private func changeGroupIcon(name: String) {
         let descriptor = FetchDescriptor<SmartGroup>(predicate: #Predicate { $0.name == name })
         guard let group = try? modelContext.fetch(descriptor).first else { return }
-        guard let result = GroupEditorPanel.show(name: group.name, icon: group.icon) else { return }
+        guard let result = GroupEditorPanel.show(name: group.name, icon: group.icon, preservesItems: group.preservesItems) else { return }
         group.icon = result.icon
-        try? modelContext.save()
-        store.refreshSidebarCounts()
+        group.preservesItems = result.preservesItems
+        ClipItemStore.saveAndNotify(modelContext)
     }
 
     private func editGroup(name: String) {
@@ -972,12 +1137,11 @@ struct MainWindowView: View {
             if let items = try? modelContext.fetch(itemDescriptor) {
                 for item in items { item.groupName = group.name }
             }
-            try? modelContext.save()
+            ClipItemStore.saveAndNotify(modelContext)
             if selectedFilter == .group(oldName) {
                 selectedFilter = .group(group.name)
             }
         }
-        store.refreshSidebarCounts()
     }
 
     private func assignToGroup(items: [ClipItem], name: String) {
@@ -989,8 +1153,7 @@ struct MainWindowView: View {
                 ClipboardManager.shared.decrementSmartGroup(name: oldGroup, context: modelContext)
             }
         }
-        try? modelContext.save()
-        store.refreshSidebarCounts()
+        ClipItemStore.saveAndNotify(modelContext)
     }
 
     private func removeFromGroup(items: [ClipItem]) {
@@ -999,16 +1162,105 @@ struct MainWindowView: View {
             item.groupName = nil
             ClipboardManager.shared.decrementSmartGroup(name: name, context: modelContext)
         }
-        try? modelContext.save()
-        store.refreshSidebarCounts()
+        ClipItemStore.saveAndNotify(modelContext)
     }
 
     private func showNewGroupAlert(for items: [ClipItem]) {
         guard let result = GroupEditorPanel.show() else { return }
-        AppMenuActions.upsertGroup(name: result.name, icon: result.icon, context: modelContext)
+        // Ensure group exists (upsert)
+        let name = result.name
+        let descriptor = FetchDescriptor<SmartGroup>(predicate: #Predicate { $0.name == name })
+        if let existing = try? modelContext.fetch(descriptor).first {
+            existing.icon = result.icon
+            existing.preservesItems = result.preservesItems
+        } else {
+            let maxOrder = (try? modelContext.fetch(FetchDescriptor<SmartGroup>()))?.map(\.sortOrder).max() ?? -1
+            let group = SmartGroup(name: result.name, icon: result.icon, sortOrder: maxOrder + 1, preservesItems: result.preservesItems)
+            modelContext.insert(group)
+        }
         try? modelContext.save()
         assignToGroup(items: items, name: result.name)
     }
+
+    /// Right-click "Clear items under this filter" handler. Honors the same
+    /// safety rules as global Clear All: skips pinned items and items in groups
+    /// flagged as `preservesItems`.
+    private func clearItems(inScope scope: SidebarFilter) {
+        let preserved = SmartGroupRetention.preservedGroupNames(in: modelContext)
+        let descriptor: FetchDescriptor<ClipItem>
+        switch scope {
+        case .type(let type):
+            let raw = type.rawValue
+            descriptor = FetchDescriptor<ClipItem>(
+                predicate: #Predicate { !$0.isPinned && $0.contentTypeRaw == raw }
+            )
+        case .group(let name):
+            descriptor = FetchDescriptor<ClipItem>(
+                predicate: #Predicate { !$0.isPinned && $0.groupName == name }
+            )
+        case .app(let appName):
+            if appName.isEmpty {
+                descriptor = FetchDescriptor<ClipItem>(
+                    predicate: #Predicate { !$0.isPinned && $0.sourceApp == nil }
+                )
+            } else {
+                descriptor = FetchDescriptor<ClipItem>(
+                    predicate: #Predicate { !$0.isPinned && $0.sourceApp == appName }
+                )
+            }
+        case .all, .pinned, .sensitive, .aiAgent:
+            return
+        }
+
+        guard let fetched = try? modelContext.fetch(descriptor) else { return }
+        let deletable = SmartGroupRetention.filterDeletableItems(fetched, preservedGroupNames: preserved)
+        guard !deletable.isEmpty else {
+            let info = NSAlert()
+            info.messageText = L10n.tr("action.clearScope.empty")
+            info.alertStyle = .informational
+            info.addButton(withTitle: L10n.tr("action.confirm"))
+            info.runModal()
+            return
+        }
+
+        let alert = NSAlert()
+        alert.messageText = L10n.tr("action.clearScope.title", scope.title)
+        alert.informativeText = L10n.tr("action.clearScope.confirm", deletable.count)
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: L10n.tr("action.delete"))
+        alert.addButton(withTitle: L10n.tr("action.cancel"))
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        if selectedFilter == scope {
+            selectedFilter = .all
+        }
+        runBulkClear(title: L10n.tr("action.clearScope.title", scope.title), items: deletable)
+    }
+
+    /// Show a non-blocking progress sheet (when the set is large enough to feel
+    /// laggy) and dispatch deletion through the batched async path. Smaller sets
+    /// fall through to the synchronous path so the sheet doesn't flash.
+    private func runBulkClear(title: String, items: [ClipItem]) {
+        guard !items.isEmpty else { return }
+        let total = items.count
+        if total < Self.bulkClearProgressThreshold {
+            ClipItemStore.deleteAndNotify(items, from: modelContext)
+            return
+        }
+        clearTitle = title
+        clearProgress = 0
+        clearProgressText = "0 / \(total)"
+        isClearing = true
+        Task { @MainActor in
+            await ClipItemStore.deleteAndNotifyBatched(items, from: modelContext) { done, total in
+                clearProgress = Double(done) / Double(max(total, 1))
+                clearProgressText = "\(done) / \(total)"
+            }
+            isClearing = false
+        }
+    }
+
+    private static let bulkClearProgressThreshold = 200
 
     private func deleteSelectedItems() {
         let items = visualOrderedItems
@@ -1016,23 +1268,11 @@ struct MainWindowView: View {
         let idsToDelete = selectedItems.intersection(visibleIDs)
         guard !idsToDelete.isEmpty else { return }
 
-        let alert = NSAlert()
-        alert.messageText = L10n.tr("action.deleteSelected.confirm", idsToDelete.count)
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: L10n.tr("action.delete"))
-        alert.addButton(withTitle: L10n.tr("action.cancel"))
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-
         // Find the lowest index among deleted items for successor selection
         let firstDeletedIdx = items.firstIndex { idsToDelete.contains($0.persistentModelID) }
 
-        for item in items where idsToDelete.contains(item.persistentModelID) {
-            if let groupName = item.groupName, !groupName.isEmpty {
-                ClipboardManager.shared.decrementSmartGroup(name: groupName, context: modelContext)
-            }
-            modelContext.delete(item)
-        }
-        ClipItemStore.saveAndNotify(modelContext)
+        let itemsToDelete = items.filter { idsToDelete.contains($0.persistentModelID) }
+        DeleteUndoCoordinator.shared.scheduleUndoableDelete(items: itemsToDelete, context: modelContext)
 
         // Select next item after deletion
         let remaining = items.filter { !idsToDelete.contains($0.persistentModelID) }
@@ -1041,13 +1281,13 @@ struct MainWindowView: View {
             let nextID = remaining[nextIdx].persistentModelID
             selectedItems = [nextID]
             navigationCursor = nextID
+            selectionAnchor = nextID
             scrollTarget = nextID
         } else {
             selectedItems.removeAll()
             navigationCursor = nil
+            selectionAnchor = nil
         }
-
-        store.refreshSidebarCounts()
     }
 
     // MARK: - Detail
@@ -1130,9 +1370,7 @@ struct MainWindowView: View {
                     }
                 }
                 multiActionRow(L10n.tr("relay.addToQueue"), icon: "arrow.right.arrow.left") {
-                    let texts = items.compactMap { $0.content.isEmpty ? nil : $0.content }
-                    RelayManager.shared.enqueue(texts: texts)
-                    if !RelayManager.shared.isActive { RelayManager.shared.activate() }
+                    RelayManager.shared.addToQueue(clipItems: items)
                 }
 
                 // Separator before delete
@@ -1220,7 +1458,7 @@ struct MainWindowView: View {
         let counts = items.reduce(into: [ClipContentType: Int]()) { $0[$1.contentType, default: 0] += 1 }
         let sorted = counts.sorted { $0.value > $1.value }
 
-        HStack(spacing: 6) {
+        WrappingHStack(spacing: 6, lineSpacing: 6) {
             ForEach(sorted, id: \.key) { type, count in
                 HStack(spacing: 4) {
                     Image(systemName: type.icon)
@@ -1231,12 +1469,14 @@ struct MainWindowView: View {
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                 }
+                .fixedSize()
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
                 .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 5))
                 .foregroundStyle(.secondary)
             }
         }
+        .padding(.horizontal, 12)
     }
 
     private func multiSelectCard(item: ClipItem) -> some View {
@@ -1377,7 +1617,7 @@ struct GroupDropDelegate: DropDelegate {
         for (idx, name) in currentOrder.enumerated() {
             groups.first { $0.name == name }?.sortOrder = idx
         }
-        try? modelContext.save()
+        ClipItemStore.saveAndNotify(modelContext)
         return true
     }
 
@@ -1411,5 +1651,82 @@ extension NSView {
             if let match = sub.findSubview(ofType: type) { return match }
         }
         return nil
+    }
+}
+
+// MARK: - WrappingHStack
+
+/// Flow layout that wraps children onto additional lines when they don't fit
+/// on one row. Used by the multi-select type chips so 10+ types don't get
+/// squeezed into vertical single-glyph columns.
+struct WrappingHStack: Layout {
+    var spacing: CGFloat = 6
+    var lineSpacing: CGFloat = 6
+    var alignment: HorizontalAlignment = .center
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        return computeLayout(maxWidth: maxWidth, subviews: subviews).size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let result = computeLayout(maxWidth: bounds.width, subviews: subviews)
+        for (idx, frame) in result.frames.enumerated() {
+            subviews[idx].place(
+                at: CGPoint(x: bounds.minX + frame.origin.x, y: bounds.minY + frame.origin.y),
+                proposal: ProposedViewSize(width: frame.size.width, height: frame.size.height)
+            )
+        }
+    }
+
+    private func computeLayout(maxWidth: CGFloat, subviews: Subviews) -> (size: CGSize, frames: [CGRect]) {
+        var rows: [[(index: Int, size: CGSize)]] = [[]]
+        var rowWidth: CGFloat = 0
+        var totalHeight: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var contentWidth: CGFloat = 0
+
+        for (idx, sub) in subviews.enumerated() {
+            let size = sub.sizeThatFits(.unspecified)
+            let needsNewRow = !rows.last!.isEmpty && rowWidth + spacing + size.width > maxWidth
+            if needsNewRow {
+                totalHeight += rowHeight + lineSpacing
+                rows.append([])
+                rowWidth = 0
+                rowHeight = 0
+            }
+            rows[rows.count - 1].append((idx, size))
+            rowWidth += (rows.last!.count == 1 ? 0 : spacing) + size.width
+            rowHeight = max(rowHeight, size.height)
+            contentWidth = max(contentWidth, rowWidth)
+        }
+        totalHeight += rowHeight
+
+        var frames = Array(repeating: CGRect.zero, count: subviews.count)
+        var y: CGFloat = 0
+        for row in rows {
+            let rowTotalWidth = row.reduce(CGFloat(0)) { $0 + $1.size.width } + spacing * CGFloat(max(row.count - 1, 0))
+            let rowRowHeight = row.map(\.size.height).max() ?? 0
+            var x: CGFloat
+            switch alignment {
+            case .leading:
+                x = 0
+            case .trailing:
+                x = max(0, maxWidth - rowTotalWidth)
+            default:
+                x = max(0, (maxWidth - rowTotalWidth) / 2)
+            }
+            for entry in row {
+                frames[entry.index] = CGRect(
+                    x: x,
+                    y: y + (rowRowHeight - entry.size.height) / 2,
+                    width: entry.size.width,
+                    height: entry.size.height
+                )
+                x += entry.size.width + spacing
+            }
+            y += rowRowHeight + lineSpacing
+        }
+        return (CGSize(width: contentWidth, height: totalHeight), frames)
     }
 }

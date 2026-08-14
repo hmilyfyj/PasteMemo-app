@@ -9,7 +9,14 @@ struct ClipRow: View {
     var groupIcon: String?
     var showGroupLabel: Bool = true
     var searchText: String = ""
+    /// Dense single-line layout for the no-preview (narrow) quick panel list:
+    /// smaller thumbnail, title-only (the date section headers carry time),
+    /// text badges suppressed. Defaults off so MainWindow stays untouched.
+    var compact: Bool = false
     @AppStorage(OCRTaskCoordinator.enableOCRKey) private var ocrEnabled = true
+    @AppStorage("imageLinkPreviewEnabled") private var imageLinkPreviewEnabled = true
+    @AppStorage("offlineModeEnabled") private var offlineModeEnabled = false
+    @State private var dataURIThumbnailImage: NSImage?
 
     var body: some View {
         if item.isDeleted {
@@ -19,6 +26,19 @@ struct ClipRow: View {
                 if showThumbnail {
                     ZStack(alignment: .topLeading) {
                         thumbnail
+                            .overlay(alignment: .bottomTrailing) {
+                                if item.agentSource != nil, !compact {
+                                    Text("AI")
+                                        .font(.system(size: 8, weight: .semibold, design: .rounded))
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 4)
+                                        .padding(.vertical, 1)
+                                        .background(
+                                            Color(red: 0.55, green: 0.30, blue: 0.90),
+                                            in: Capsule()
+                                        )
+                                }
+                            }
                         if item.isPinned {
                             Image(systemName: "pin.fill")
                                 .font(.system(size: 9))
@@ -28,39 +48,45 @@ struct ClipRow: View {
                     }
                 }
 
-                VStack(alignment: .leading, spacing: 3) {
+                if compact {
                     HStack(spacing: 4) {
-                        if searchText.isEmpty {
-                            Text(displayTitle)
-                                .font(.system(size: 13))
-                                .lineLimit(1)
-                        } else {
-                            HighlightedText(displayTitle, query: extractSearchQuery(from: searchText))
-                                .font(.system(size: 13))
-                                .lineLimit(1)
-                        }
+                        Text(displayTitle)
+                            .font(.system(size: 14))
+                            .lineLimit(1)
 
                         if ocrEnabled, item.matchesOCROnly(searchText: searchText) {
                             ocrBadge
                         }
 
-                        Spacer()
-
-                        fileCountBadge
+                        Spacer(minLength: 0)
                     }
+                } else {
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 4) {
+                            Text(displayTitle)
+                                .font(.system(size: 13))
+                                .lineLimit(1)
 
-                    HStack(spacing: 4) {
-                        Text(formatTimeAgo(item.lastUsedAt))
-                            .font(.system(size: 11))
-                            .foregroundStyle(.tertiary)
-                        if showGroupLabel, let groupName = item.groupName, !groupName.isEmpty {
-                            Spacer().frame(width: 2)
-                            Image(systemName: groupIcon ?? "folder")
-                                .font(.system(size: 9))
-                                .foregroundStyle(.tertiary)
-                            Text(groupName)
+                            if ocrEnabled, item.matchesOCROnly(searchText: searchText) {
+                                ocrBadge
+                            }
+
+                            Spacer()
+                        }
+
+                        HStack(spacing: 4) {
+                            Text(formatTimeAgo(item.lastUsedAt))
                                 .font(.system(size: 11))
                                 .foregroundStyle(.tertiary)
+                            if showGroupLabel, let groupName = item.groupName, !groupName.isEmpty {
+                                Spacer().frame(width: 2)
+                                Image(systemName: groupIcon ?? "folder")
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(.tertiary)
+                                Text(groupName)
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.tertiary)
+                            }
                         }
                     }
                 }
@@ -69,6 +95,9 @@ struct ClipRow: View {
     }
 
     // MARK: - Thumbnail
+
+    /// Thumbnail edge length — shrinks in compact so rows can pack tighter.
+    private var thumbSize: CGFloat { compact ? 24 : 36 }
 
     @State private var videoThumb: NSImage?
 
@@ -85,48 +114,104 @@ struct ClipRow: View {
             Image(nsImage: img)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
-                .frame(width: 36, height: 36)
+                .frame(width: thumbSize, height: thumbSize)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
-        } else if item.contentType == .link, let data = item.faviconData,
-                  let img = ImageCache.shared.favicon(for: data, key: item.content) {
-            ZStack(alignment: .bottomTrailing) {
-                Image(nsImage: img)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 20, height: 20)
-                    .frame(width: 36, height: 36)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(Color.primary.opacity(0.05))
-                    )
-                Image(systemName: "globe")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 14, height: 14)
-                    .background(Color.blue, in: Circle())
-                    .offset(x: 2, y: 2)
+                .overlay(alignment: .bottomTrailing) {
+                    // 多图文件条目：右下角与其他多文件条目一致放数量角标；
+                    // 格式角标只描述第一张，对多文件条目反而误导，让位。
+                    if !compact, item.isMultiFileImage {
+                        multiFileCountBadge
+                            .offset(x: 2, y: 2)
+                    } else {
+                        imageFormatBadge
+                    }
+                }
+        } else if item.contentType == .link, imageLinkPreviewEnabled,
+                  let data = item.imageData,
+                  let img = ImageCache.shared.thumbnail(for: data, key: item.itemID) {
+            // Fast path: data URI links pre-decoded at capture time keep the
+            // bytes in `imageData`, so we render synchronously like raw image clips
+            // instead of decoding the multi-megabyte URI string on every appearance.
+            Image(nsImage: img)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: thumbSize, height: thumbSize)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(alignment: .bottomTrailing) { imageFormatBadge }
+        } else if item.contentType == .link, imageLinkPreviewEnabled,
+                  DataImageURI.isBase64DataImageURI(item.content) {
+            // Legacy fallback: pre-existing data URI clips ingested before the
+            // `imageData` pre-decode. Async-decode the URI string so the main
+            // thread doesn't block on multi-MB base64.
+            Group {
+                if let img = dataURIThumbnailImage {
+                    Image(nsImage: img)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: thumbSize, height: thumbSize)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .overlay(alignment: .bottomTrailing) { imageFormatBadge }
+                } else {
+                    linkFaviconThumbnail
+                }
             }
+            .task(id: item.itemID) {
+                let key = item.itemID
+                if let cached = ImageCache.shared.cachedThumbnail(for: key, size: 36) {
+                    dataURIThumbnailImage = cached
+                    return
+                }
+                dataURIThumbnailImage = nil
+                let content = item.content
+                let image = await Task.detached(priority: .userInitiated) {
+                    guard let data = DataImageURI.decodedImageData(from: content) else { return nil as NSImage? }
+                    return ImageCache.shared.thumbnail(for: data, key: key, size: 36)
+                }.value
+                guard !Task.isCancelled, let image else { return }
+                dataURIThumbnailImage = image
+            }
+        } else if item.contentType == .link, imageLinkPreviewEnabled, !offlineModeEnabled,
+                  LinkMetadataFetcher.isImageURL(item.content) {
+            if let url = URL(string: item.content) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: thumbSize, height: thumbSize)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .overlay(alignment: .bottomTrailing) { imageFormatBadge }
+                    default:
+                        linkFaviconThumbnail
+                    }
+                }
+            } else {
+                linkFaviconThumbnail
+            }
+        } else if item.contentType == .link {
+            linkFaviconThumbnail
         } else if item.contentType == .color, let parsed = ColorConverter.parse(item.content) {
             Circle()
                 .fill(Color(nsColor: parsed.nsColor))
-                .frame(width: 28, height: 28)
+                .frame(width: compact ? 18 : 28, height: compact ? 18 : 28)
                 .overlay(
                     Circle().strokeBorder(Color.primary.opacity(0.15), lineWidth: 1)
                 )
                 .shadow(color: Color(nsColor: parsed.nsColor).opacity(0.3), radius: 3, y: 1)
-                .frame(width: 36, height: 36)
+                .frame(width: thumbSize, height: thumbSize)
         } else if item.contentType.isFileBased, item.contentType != .image, !item.content.contains("\n") {
             let path = item.content.components(separatedBy: "\n").first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if isDirectory(path), !path.hasSuffix(".app") {
                 Image(nsImage: NSWorkspace.shared.icon(for: .folder))
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 36, height: 36)
+                    .frame(width: thumbSize, height: thumbSize)
             } else {
                 Image(nsImage: ImageCache.shared.fileIcon(forPath: path))
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 36, height: 36)
+                    .frame(width: thumbSize, height: thumbSize)
             }
         } else if isMultiFile {
             let paths = item.content.components(separatedBy: "\n").filter { !$0.isEmpty }
@@ -135,39 +220,121 @@ struct ClipRow: View {
                 Image(nsImage: ImageCache.shared.fileIcon(forPath: firstPath))
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 36, height: 36)
-                Text("\(paths.count)")
-                    .font(.system(size: 9, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 3)
-                    .padding(.vertical, 1)
-                    .background(Color.accentColor, in: Capsule())
-                    .offset(x: 2, y: 2)
+                    .frame(width: thumbSize, height: thumbSize)
+                if !compact {
+                    multiFileCountBadge
+                        .offset(x: 2, y: 2)
+                }
             }
         } else if let data = item.imageData,
                   let img = ImageCache.shared.thumbnail(for: data, key: item.itemID) {
             Image(nsImage: img)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
-                .frame(width: 36, height: 36)
+                .frame(width: thumbSize, height: thumbSize)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(alignment: .bottomTrailing) { imageFormatBadge }
         } else if item.contentType == .code {
-            LanguageIcon(language: item.resolvedCodeLanguage ?? .unknown, size: 36)
+            LanguageIcon(language: item.resolvedCodeLanguage ?? .unknown, size: thumbSize)
         } else if item.contentType == .text || item.contentType == .email {
             Text(item.richTextData != nil ? "R" : "T")
-                .font(.system(size: 15, weight: .bold, design: .serif))
+                .font(.system(size: compact ? 13 : 15, weight: .bold, design: .serif))
                 .foregroundStyle(.secondary)
-                .frame(width: 36, height: 36)
+                .frame(width: thumbSize, height: thumbSize)
                 .background(
                     RoundedRectangle(cornerRadius: 7)
                         .fill(Color.primary.opacity(0.06))
                 )
         } else {
-            let icon = thumbnailIcon
+            fileIconThumb(thumbnailIcon)
+        }
+    }
+
+    @ViewBuilder
+    private var imageFormatBadge: some View {
+        if !compact, let label = resolvedImageFormatLabel {
+            Text(label)
+                .font(.system(size: 8, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 1)
+                .background(.black.opacity(0.55), in: Capsule())
+        }
+    }
+
+    private var resolvedImageFormatLabel: String? {
+        // Data URI image: parse MIME from header (cheap, no decode).
+        if DataImageURI.isDataImageURI(item.content) {
+            return DataImageURI.formatLabel(in: item.content)
+        }
+        // File-backed image: derive from path extension (cheap, no data read).
+        if item.content != "[Image]", !item.content.isEmpty {
+            let firstPath = item.content.components(separatedBy: "\n").first ?? ""
+            if let label = imageFormatLabel(forPath: firstPath) { return label }
+        }
+        // Raw clipboard image cached to disk: derive from the cache file's extension —
+        // `imageData` is now a JPEG thumbnail, so sniffing it would mislabel the original.
+        if let cached = item.originalImageFilePath {
+            if let label = imageFormatLabel(forPath: cached) { return label }
+        }
+        // Legacy raw clip (full original still inline): sniff magic bytes from the stored bytes.
+        if let data = item.imageData {
+            return imageFormatLabel(fromData: data)
+        }
+        return nil
+    }
+
+    @ViewBuilder
+    private func fileIconThumb(_ icon: FileIconInfo) -> some View {
+        ZStack(alignment: .bottom) {
             Image(systemName: icon.symbol)
-                .font(.system(size: 14))
+                .font(.system(size: compact ? 12 : 14))
                 .foregroundStyle(icon.color)
-                .frame(width: 36, height: 36)
+                .frame(width: thumbSize, height: thumbSize)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.primary.opacity(0.05))
+                )
+            if let badge = icon.badge, !compact {
+                Text(badge)
+                    .font(.system(size: 7, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 3)
+                    .padding(.vertical, 1)
+                    .background(Color.gray.opacity(0.85), in: Capsule())
+                    .offset(y: -3)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var linkFaviconThumbnail: some View {
+        if let data = item.faviconData,
+           let img = ImageCache.shared.favicon(for: data, key: item.content) {
+            ZStack(alignment: .bottomTrailing) {
+                Image(nsImage: img)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: compact ? 15 : 20, height: compact ? 15 : 20)
+                    .frame(width: thumbSize, height: thumbSize)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.primary.opacity(0.05))
+                    )
+                if !compact {
+                    Image(systemName: "globe")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 14, height: 14)
+                        .background(Color.blue, in: Circle())
+                        .offset(x: 2, y: 2)
+                }
+            }
+        } else {
+            Image(systemName: "link")
+                .font(.system(size: compact ? 12 : 14))
+                .foregroundStyle(.blue)
+                .frame(width: thumbSize, height: thumbSize)
                 .background(
                     RoundedRectangle(cornerRadius: 6)
                         .fill(Color.primary.opacity(0.05))
@@ -181,19 +348,14 @@ struct ClipRow: View {
                 Image(nsImage: thumb)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .frame(width: 36, height: 36)
+                    .frame(width: thumbSize, height: thumbSize)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                 Image(systemName: "play.fill")
                     .font(.system(size: 10))
                     .foregroundStyle(.white)
                     .shadow(radius: 2)
             } else {
-                let icon = thumbnailIcon
-                Image(systemName: icon.symbol)
-                    .font(.system(size: 14))
-                    .foregroundStyle(icon.color)
-                    .frame(width: 36, height: 36)
-                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.05)))
+                fileIconThumb(thumbnailIcon)
             }
         }
         .task(id: item.content) {
@@ -220,23 +382,20 @@ struct ClipRow: View {
     @AppStorage("showLinkURL") private var showLinkURL = false
 
     private var displayTitle: String {
-        if item.isSensitive, !(isSelected && OptionKeyMonitor.shared.isOptionPressed) { return partialMask(item.content) }
+        // Holding Option reveals every sensitive row's content in the list, not just the
+        // selected one. (Each row reads `isOptionPressed` here, so all re-render on toggle.)
+        if item.isSensitive, !OptionKeyMonitor.shared.isOptionPressed { return partialMask(item.content) }
         if item.contentType == .link, !showLinkURL, let linkTitle = item.linkTitle {
             return linkTitle
         }
-        return item.displayTitle ?? item.content
-    }
-    
-    private func extractSearchQuery(from searchText: String) -> String {
-        // 移除正则搜索前缀
-        if searchText.hasPrefix("regex:") {
-            return String(searchText.dropFirst(6))
-        }
-        // 移除模糊搜索前缀
-        if searchText.hasPrefix("fuzzy:") {
-            return String(searchText.dropFirst(6))
-        }
-        return searchText
+        if let title = item.displayTitle { return title }
+        // Fallback for legacy items without a precomputed displayTitle — never
+        // render megabytes of raw content: a truncated first-line preview is
+        // enough for a list row and avoids freezing SwiftUI on huge pastes.
+        let cap = 500
+        let head = item.content.prefix(cap)
+        let firstLine = head.split(separator: "\n", omittingEmptySubsequences: false).first.map(String.init) ?? String(head)
+        return firstLine
     }
 
     private func partialMask(_ text: String) -> String {
@@ -256,9 +415,9 @@ struct ClipRow: View {
     private var sensitiveThumbnail: some View {
         ZStack(alignment: .bottomTrailing) {
             Image(systemName: "lock.shield.fill")
-                .font(.system(size: 16))
+                .font(.system(size: compact ? 13 : 16))
                 .foregroundStyle(.orange)
-                .frame(width: 36, height: 36)
+                .frame(width: thumbSize, height: thumbSize)
                 .background(
                     RoundedRectangle(cornerRadius: 7)
                         .fill(Color.orange.opacity(0.1))
@@ -294,6 +453,9 @@ struct ClipRow: View {
                 ? FileIconInfo(symbol: "square.stack.3d.up.fill", color: .cyan)
                 : fileIconInfo(firstPath)
         }
+        if item.contentType == .mixed {
+            return FileIconInfo(symbol: "square.stack.3d.up.fill", color: .orange)
+        }
         return FileIconInfo(symbol: item.contentType.icon, color: .secondary)
     }
 
@@ -308,16 +470,15 @@ struct ClipRow: View {
             && item.content != "[Image]"
     }
 
-    @ViewBuilder
-    private var fileCountBadge: some View {
-        if isMultiFile {
-            let count = item.content.components(separatedBy: "\n").count
-            Text("\(count)")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.tertiary)
-                .padding(.horizontal, 5)
-                .padding(.vertical, 1)
-                .background(Color.primary.opacity(0.06), in: Capsule())
-        }
+    /// 多文件条目的数量角标（文件图标缩略图与多图缩略图共用同一款）
+    private var multiFileCountBadge: some View {
+        let count = item.content.components(separatedBy: "\n").filter { !$0.isEmpty }.count
+        return Text("\(count)")
+            .font(.system(size: 9, weight: .bold, design: .rounded))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 3)
+            .padding(.vertical, 1)
+            .background(Color.accentColor, in: Capsule())
     }
+
 }

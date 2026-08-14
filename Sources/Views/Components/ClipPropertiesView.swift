@@ -6,12 +6,51 @@ struct ClipPropertiesView: View {
     var fontSize: CGFloat = 12
     var onLocationTap: ((String) -> Void)?
 
+    struct TextStats: Equatable, Sendable {
+        let chars: Int
+        let lines: Int
+        let words: Int
+    }
+
+    @State private var textStats: TextStats?
+    @State private var dataImageDimensions: CGSize?
+
+    @ViewBuilder
     var body: some View {
+        if item.isDeleted { EmptyView() } else {
         VStack(alignment: .leading, spacing: 0) {
             commonProperties
             typeSpecificProperties
             propDivider
             propRow(L10n.tr("detail.created"), formatDate(item.createdAt))
+        }
+        .task(id: "\(item.itemID):\(item.content.count)") {
+            textStats = nil
+            guard item.contentType == .text || item.contentType == .code else { return }
+            let content = item.content
+            let stats = await Task.detached(priority: .userInitiated) {
+                let lines = content.components(separatedBy: .newlines)
+                let words = content.components(separatedBy: .whitespacesAndNewlines)
+                    .reduce(into: 0) { acc, s in if !s.isEmpty { acc += 1 } }
+                return TextStats(chars: content.count, lines: lines.count, words: words)
+            }.value
+            if !Task.isCancelled {
+                textStats = stats
+            }
+        }
+        .task(id: "\(item.itemID):dataimg") {
+            dataImageDimensions = nil
+            guard item.contentType == .link,
+                  DataImageURI.isBase64DataImageURI(item.content) else { return }
+            let content = item.content
+            let dims = await Task.detached(priority: .userInitiated) { () -> CGSize? in
+                guard let data = DataImageURI.decodedImageData(from: content) else { return nil }
+                return DataImageURI.dimensions(of: data)
+            }.value
+            if !Task.isCancelled {
+                dataImageDimensions = dims
+            }
+        }
         }
     }
 
@@ -31,6 +70,10 @@ struct ClipPropertiesView: View {
             propDivider
             if let app = item.sourceApp {
                 appSourceRow(app)
+            }
+            if let agent = item.agentSource, !agent.isEmpty {
+                propDivider
+                aiAgentRow(agent)
             }
             if let groupName = item.groupName, !groupName.isEmpty {
                 propDivider
@@ -126,21 +169,60 @@ struct ClipPropertiesView: View {
 
     @ViewBuilder
     private var imageProperties: some View {
-        if let data = item.imageData, let dimensions = ImageCache.shared.imageDimensions(for: data) {
+        // For file-backed clips, read dimensions / size / format from the original
+        // file on disk so the panel reports the real picture stats — not the small
+        // thumbnail we keep in `imageData` for in-app preview.
+        if let sourceURL = item.sourceImageFileURL {
+            let dimensions = ImageCache.shared.imageDimensions(at: sourceURL)
+            // Resolve symlinks before reading the file size — some sources
+            // (Telegram's group container places the pasteboard image on a
+            // *.jpg symlink to an extension-less real file) would otherwise
+            // report the link node's size (~174 bytes, just the target path
+            // string) instead of the actual image's size.
+            let resolvedURL = sourceURL.resolvingSymlinksInPath()
+            let fileSize = (try? resolvedURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+            if let dimensions {
+                propDivider
+                propRow(L10n.tr("detail.dimensions"), "\(Int(dimensions.width))×\(Int(dimensions.height))")
+            }
+            if fileSize > 0 {
+                propDivider
+                propRow(L10n.tr("detail.size"), formatFileSize(fileSize))
+            }
+            propDivider
+            propRow(L10n.tr("detail.format"), formatFromExtension(sourceURL))
+            let location = sourceURL.deletingLastPathComponent().path
+            if !location.isEmpty {
+                propDivider
+                locationRow(location)
+            }
+        } else if let data = item.imageData, let dimensions = ImageCache.shared.imageDimensions(for: data) {
+            // Raw pasteboard image (screenshot etc.) — `imageData` holds the originals.
             propDivider
             propRow(L10n.tr("detail.dimensions"), "\(Int(dimensions.width))×\(Int(dimensions.height))")
             propDivider
             propRow(L10n.tr("detail.size"), formatFileSize(data.count))
             propDivider
             propRow(L10n.tr("detail.format"), detectImageFormat(data))
-            if item.content != "[Image]" {
-                let location = URL(fileURLWithPath: item.content.components(separatedBy: "\n").first ?? "")
-                    .deletingLastPathComponent().path
-                if !location.isEmpty {
-                    propDivider
-                    locationRow(location)
-                }
-            }
+        }
+    }
+
+    /// Best-effort image format label from a file extension. Used for file-backed
+    /// clips where reading the magic bytes would require loading the original
+    /// (potentially large) bytes; the extension is a reliable indicator for the
+    /// formats Finder produces.
+    private func formatFromExtension(_ url: URL) -> String {
+        let ext = url.pathExtension.lowercased()
+        switch ext {
+        case "png": return "PNG"
+        case "jpg", "jpeg": return "JPEG"
+        case "gif": return "GIF"
+        case "webp": return "WebP"
+        case "heic", "heif": return "HEIC"
+        case "tiff", "tif": return "TIFF"
+        case "bmp": return "BMP"
+        case "svg": return "SVG"
+        default: return ext.isEmpty ? "—" : ext.uppercased()
         }
     }
 
@@ -169,7 +251,16 @@ struct ClipPropertiesView: View {
 
     // MARK: - Link
 
+    @ViewBuilder
     private var linkProperties: some View {
+        if DataImageURI.isDataImageURI(item.content) {
+            dataImageProperties
+        } else {
+            regularLinkProperties
+        }
+    }
+
+    private var regularLinkProperties: some View {
         let trimmed = item.content.trimmingCharacters(in: .whitespacesAndNewlines)
         return Group {
             if let title = item.linkTitle {
@@ -187,18 +278,53 @@ struct ClipPropertiesView: View {
         }
     }
 
+    /// Properties for inline `data:image/...` clipboard items — show the same
+    /// dimensions/size/format trio as regular images so the panel doesn't fall
+    /// silent for a clip type that's clearly a picture.
+    @ViewBuilder
+    private var dataImageProperties: some View {
+        // Prefer the pre-decoded `imageData` populated at capture time: reading
+        // dimensions / size / format from bytes is O(1) and skips re-decoding
+        // the URI string. Falls back to the async-derived dimensions and the
+        // URI header for legacy clips ingested before the pre-decode.
+        if let data = item.imageData {
+            if let dims = ImageCache.shared.imageDimensions(for: data) {
+                propDivider
+                propRow(L10n.tr("detail.dimensions"), "\(Int(dims.width))×\(Int(dims.height))")
+            }
+            propDivider
+            propRow(L10n.tr("detail.size"), formatFileSize(data.count))
+            if let format = imageFormatLabel(fromData: data) {
+                propDivider
+                propRow(L10n.tr("detail.format"), format)
+            }
+        } else {
+            if let dims = dataImageDimensions {
+                propDivider
+                propRow(L10n.tr("detail.dimensions"), "\(Int(dims.width))×\(Int(dims.height))")
+            }
+            if DataImageURI.isBase64DataImageURI(item.content),
+               let bytes = DataImageURI.estimatedDecodedSize(in: item.content) {
+                propDivider
+                propRow(L10n.tr("detail.size"), formatFileSize(bytes))
+            }
+            if let format = DataImageURI.formatLabel(in: item.content) {
+                propDivider
+                propRow(L10n.tr("detail.format"), format)
+            }
+        }
+    }
+
     // MARK: - Text
 
     private var textProperties: some View {
-        let lines = item.content.components(separatedBy: .newlines)
-        let words = item.content.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
-        return Group {
+        Group {
             propDivider
-            propRow(L10n.tr("detail.chars"), "\(item.content.count)")
+            propRow(L10n.tr("detail.chars"), textStats.map { "\($0.chars)" } ?? "…")
             propDivider
-            propRow(L10n.tr("detail.lines"), "\(lines.count)")
+            propRow(L10n.tr("detail.lines"), textStats.map { "\($0.lines)" } ?? "…")
             propDivider
-            propRow(L10n.tr("detail.words"), "\(words.count)")
+            propRow(L10n.tr("detail.words"), textStats.map { "\($0.words)" } ?? "…")
         }
     }
 
@@ -224,6 +350,47 @@ struct ClipPropertiesView: View {
             }
         }
         .padding(.vertical, fontSize <= 11 ? 3 : 4)
+    }
+
+    private func aiAgentRow(_ agentSource: String) -> some View {
+        HStack {
+            Text(L10n.tr("detail.aiAgent"))
+                .font(.system(size: fontSize))
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+            Spacer()
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(Self.agentColor(for: agentSource))
+                    .frame(width: fontSize - 2, height: fontSize - 2)
+                Text(Self.agentDisplayName(for: agentSource))
+                    .font(.system(size: fontSize))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .padding(.vertical, fontSize <= 11 ? 3 : 4)
+    }
+
+    /// 已知 agent 的稳定颜色;未知 agent 用灰色兜底,文本就显示原始 clientName。
+    static func agentColor(for source: String) -> Color {
+        switch source.lowercased() {
+        case "claude-code", "claude":           return .orange
+        case "cursor", "cursor-vscode":         return .blue
+        case "codex", "codex-cli":              return .green
+        case "cline":                           return .purple
+        default:                                return .gray
+        }
+    }
+
+    static func agentDisplayName(for source: String) -> String {
+        switch source.lowercased() {
+        case "claude-code", "claude":           return "Claude Code"
+        case "cursor", "cursor-vscode":         return "Cursor"
+        case "codex", "codex-cli":              return "Codex"
+        case "cline":                           return "Cline"
+        default:                                return source
+        }
     }
 
     private func locationRow(_ path: String) -> some View {

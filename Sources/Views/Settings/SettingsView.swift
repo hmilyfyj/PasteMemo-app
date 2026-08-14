@@ -4,49 +4,131 @@ import ServiceManagement
 import Carbon
 
 struct SettingsView: View {
+    @State private var selection: SettingsCategory? = .general
+
     var body: some View {
-        TabView {
-            GeneralTab()
-                .tabItem { Label(L10n.tr("settings.general"), systemImage: "gear") }
-            PreferencesTab()
-                .tabItem { Label(L10n.tr("settings.preferences"), systemImage: "slider.horizontal.3") }
-            RelayTab()
-                .tabItem { Label(L10n.tr("relay.tab"), systemImage: "arrow.forward") }
-            PrivacyTab()
-                .tabItem { Label(L10n.tr("settings.privacy"), systemImage: "lock.shield") }
-            if ProManager.AUTOMATION_ENABLED {
-                AutomationTab()
-                    .tabItem { Label(L10n.tr("settings.automation"), systemImage: "gearshape.2") }
+        // NavigationSplitView 让侧边栏拿到系统原生质感(macOS 26 上即悬浮
+        // Liquid Glass)。窗口不再随内容自适应高度,改为固定尺寸+面板内滚动
+        // (Form(.grouped) 自带滚动),与系统设置一致。
+        NavigationSplitView {
+            List(selection: $selection) {
+                Section {
+                    ForEach(SettingsCategory.functionGroup.filter(isVisible)) { sidebarRow($0) }
+                }
+                Section {
+                    ForEach(SettingsCategory.dataPrivacyGroup) { sidebarRow($0) }
+                }
+                Section {
+                    ForEach(SettingsCategory.aboutGroup) { sidebarRow($0) }
+                }
             }
-            DataTab()
-                .tabItem { Label(L10n.tr("dataPorter.section"), systemImage: "externaldrive") }
-            AboutTab()
-                .tabItem { Label(L10n.tr("settings.about"), systemImage: "info.circle") }
+            .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 230)
+        } detail: {
+            detailView(for: selection ?? .general)
         }
-        .frame(width: 540)
-        .fixedSize(horizontal: false, vertical: true)
-        .scrollDisabled(true)
+        .frame(minWidth: 700, minHeight: 460)
         .localized()
+    }
+
+    private func sidebarRow(_ category: SettingsCategory) -> some View {
+        Label(L10n.tr(category.titleKey), systemImage: category.icon)
+            .tag(category)
+    }
+
+    /// 自动化条目仅在启用时出现。
+    private func isVisible(_ category: SettingsCategory) -> Bool {
+        category != .automation || ProManager.AUTOMATION_ENABLED
+    }
+
+    @ViewBuilder
+    private func detailView(for category: SettingsCategory) -> some View {
+        switch category {
+        case .general: GeneralPane()
+        case .appearance: AppearancePane()
+        case .quickPanel: QuickPanelPane()
+        case .preview: PreviewPane()
+        case .shortcuts: ShortcutsTab()
+        case .relay: RelayTab()
+        case .privacy: PrivacyTab()
+        case .aiAgents: AIAgentIntegrationView()
+        case .automation: AutomationTab()
+        case .data: DataTab()
+        case .about: AboutTab()
+        }
     }
 }
 
-// MARK: - General Tab
+// MARK: - Settings Category
 
-struct GeneralTab: View {
-    @AppStorage("appearanceMode") private var appearanceMode = "system"
-    @AppStorage("menuBarIconStyle") private var menuBarIconStyle = "outline"
-    @ObservedObject private var languageManager = LanguageManager.shared
+enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
+    case general, appearance, quickPanel, preview
+    case shortcuts, relay, privacy, aiAgents, automation, data
+    case about
+
+    var id: String { rawValue }
+
+    /// 功能设置：基础(通用/外观) → 快捷面板(快捷键/面板/预览与识别) → 进阶(接力/AI/自动化)。
+    static let functionGroup: [SettingsCategory] =
+        [.general, .appearance, .shortcuts, .quickPanel, .preview,
+         .relay, .aiAgents, .automation]
+
+    /// 数据与隐私。
+    static let dataPrivacyGroup: [SettingsCategory] = [.privacy, .data]
+
+    /// 应用信息。
+    static let aboutGroup: [SettingsCategory] = [.about]
+
+    var titleKey: String {
+        switch self {
+        case .general: return "settings.general"
+        case .appearance: return "settings.appearance"
+        case .quickPanel: return "settings.quickPanel"
+        case .preview: return "settings.previewRecognition"
+        case .shortcuts: return "settings.shortcuts"
+        case .relay: return "relay.tab"
+        case .privacy: return "settings.privacy"
+        case .aiAgents: return "settings.tab.aiAgents"
+        case .automation: return "settings.automation"
+        case .data: return "dataPorter.section"
+        case .about: return "settings.about"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .general: return "gear"
+        case .appearance: return "paintbrush"
+        case .quickPanel: return "list.bullet.rectangle"
+        case .preview: return "text.viewfinder"
+        case .shortcuts: return "keyboard"
+        case .relay: return "arrow.forward"
+        case .privacy: return "lock.shield"
+        case .aiAgents: return "sparkles.rectangle.stack"
+        case .automation: return "gearshape.2"
+        case .data: return "externaldrive"
+        case .about: return "info.circle"
+        }
+    }
+}
+
+// MARK: - General Pane
+
+struct GeneralPane: View {
     @AppStorage("launchAtLogin") private var launchAtLogin = false
     @AppStorage("hideDockIcon") private var hideDockIcon = false
     @State private var showHideDockConfirm = false
-    @AppStorage("soundEnabled") private var soundEnabled = true
+    // 默认值必须与 SoundManager.isEnabled 的兜底一致（false），否则界面显示开、播放层读到关
+    @AppStorage("soundEnabled") private var soundEnabled = false
     @AppStorage("copySoundName") private var copySoundName = "custom:sound2"
     @AppStorage("pasteSoundName") private var pasteSoundName = "custom:sound1"
+    @AppStorage("clipboardMonitoringEnabled") private var clipboardMonitoringEnabled = true
+    @ObservedObject private var languageManager = LanguageManager.shared
     @State private var previousLanguage = LanguageManager.shared.current
 
     var body: some View {
         Form {
             Section(L10n.tr("settings.general")) {
+                Toggle(L10n.tr("settings.clipboardMonitoring"), isOn: $clipboardMonitoringEnabled)
                 Toggle(L10n.tr("settings.launchAtLogin"), isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) {
                         if launchAtLogin {
@@ -82,8 +164,108 @@ struct GeneralTab: View {
                 Text(L10n.tr("settings.hideDockIcon.hint"))
                     .font(.callout)
                     .foregroundStyle(.tertiary)
+                Picker(L10n.tr("settings.language"), selection: $languageManager.current) {
+                    ForEach(L10n.supportedLanguages, id: \.code) { lang in
+                        Text(lang.name).tag(lang.code)
+                    }
+                }
+                .onChange(of: languageManager.current) {
+                    guard languageManager.current != previousLanguage else { return }
+                    previousLanguage = languageManager.current
+                    showLanguageRestartAlert()
+                }
             }
 
+            Section(L10n.tr("settings.sound")) {
+                Toggle(L10n.tr("settings.sound.enabled"), isOn: $soundEnabled)
+                if soundEnabled {
+                    soundPicker(
+                        label: L10n.tr("settings.sound.copy"),
+                        selection: $copySoundName
+                    )
+                    soundPicker(
+                        label: L10n.tr("settings.sound.paste"),
+                        selection: $pasteSoundName
+                    )
+                }
+            }
+
+            Section {
+                Button(L10n.tr("settings.showGuide")) {
+                    showOnboardingWindow()
+                }
+                .pointerCursor()
+            }
+
+            // 诊断:导出日志(issue #66,查清后移除)
+            Section(L10n.tr("settings.diagnostics")) {
+                Button((DiagnosticLog.isHealthy ? "" : "⚠️ ") + L10n.tr("settings.diagnostics.export")) {
+                    DiagnosticLog.exportLog()
+                }
+                .pointerCursor()
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private func soundPicker(label: String, selection: Binding<String>) -> some View {
+        HStack {
+            Picker(label, selection: selection) {
+                Section(L10n.tr("settings.sound.section.custom")) {
+                    ForEach(SoundManager.CUSTOM_SOUNDS, id: \.storageKey) { source in
+                        Text(source.displayName).tag(source.storageKey)
+                    }
+                }
+                Section(L10n.tr("settings.sound.section.system")) {
+                    ForEach(SoundManager.SYSTEM_SOUNDS, id: \.storageKey) { source in
+                        Text(source.displayName).tag(source.storageKey)
+                    }
+                }
+            }
+            Button {
+                SoundManager.preview(.from(storageKey: selection.wrappedValue))
+            } label: {
+                Image(systemName: "play.circle")
+            }
+            .buttonStyle(.borderless)
+            .pointerCursor()
+        }
+        .onChange(of: selection.wrappedValue) {
+            SoundManager.preview(.from(storageKey: selection.wrappedValue))
+        }
+    }
+
+    private func showLanguageRestartAlert() {
+        let alert = NSAlert()
+        alert.messageText = L10n.tr("settings.language.restart_title")
+        alert.informativeText = L10n.tr("settings.language.restart_message")
+        alert.addButton(withTitle: L10n.tr("settings.language.restart_now"))
+        alert.addButton(withTitle: L10n.tr("settings.language.restart_later"))
+        if alert.runModal() == .alertFirstButtonReturn {
+            relaunchApp()
+        }
+    }
+
+    private func relaunchApp() {
+        let path = Bundle.main.bundleURL.path
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/sh")
+        task.arguments = ["-c", "sleep 1 && open \"\(path)\""]
+        task.launch()
+        AppDelegate.shouldReallyQuit = true
+        NSApp.terminate(nil)
+    }
+}
+
+// MARK: - Appearance Pane
+
+struct AppearancePane: View {
+    @AppStorage("appearanceMode") private var appearanceMode = "system"
+    @AppStorage("menuBarIconStyle") private var menuBarIconStyle = "outline"
+    @AppStorage(MenuBarLeftClickAction.storageKey) private var menuBarLeftClickActionRaw = MenuBarLeftClickAction.menu.rawValue
+
+    var body: some View {
+        Form {
             Section(L10n.tr("settings.appearance")) {
                 Picker(L10n.tr("settings.theme"), selection: $appearanceMode) {
                     Text(L10n.tr("settings.theme.system")).tag("system")
@@ -113,81 +295,15 @@ struct GeneralTab: View {
                     .tag("filled")
                 }
 
-                Picker(L10n.tr("settings.language"), selection: $languageManager.current) {
-                    ForEach(L10n.supportedLanguages, id: \.code) { lang in
-                        Text(lang.name).tag(lang.code)
+                Picker(L10n.tr("settings.menuBar.leftClickAction"), selection: $menuBarLeftClickActionRaw) {
+                    ForEach(MenuBarLeftClickAction.allCases, id: \.rawValue) { action in
+                        Text(L10n.tr(action.l10nKey)).tag(action.rawValue)
                     }
                 }
-                .onChange(of: languageManager.current) {
-                    guard languageManager.current != previousLanguage else { return }
-                    previousLanguage = languageManager.current
-                    showLanguageRestartAlert()
-                }
-
-            }
-
-            Section(L10n.tr("settings.sound")) {
-                Toggle(L10n.tr("settings.sound.enabled"), isOn: $soundEnabled)
-                if soundEnabled {
-                    soundPicker(
-                        label: L10n.tr("settings.sound.copy"),
-                        selection: $copySoundName
-                    )
-                    soundPicker(
-                        label: L10n.tr("settings.sound.paste"),
-                        selection: $pasteSoundName
-                    )
-                }
-            }
-
-            Section {
-                Button(L10n.tr("settings.showGuide")) {
-                    showOnboardingWindow()
-                }
-                .pointerCursor()
+                .help(L10n.tr("settings.menuBar.leftClickAction.help"))
             }
         }
         .formStyle(.grouped)
-    }
-
-
-    private func soundPicker(label: String, selection: Binding<String>) -> some View {
-        Picker(label, selection: selection) {
-            Section(L10n.tr("settings.sound.section.custom")) {
-                ForEach(SoundManager.CUSTOM_SOUNDS, id: \.storageKey) { source in
-                    Text(source.displayName).tag(source.storageKey)
-                }
-            }
-            Section(L10n.tr("settings.sound.section.system")) {
-                ForEach(SoundManager.SYSTEM_SOUNDS, id: \.storageKey) { source in
-                    Text(source.displayName).tag(source.storageKey)
-                }
-            }
-        }
-        .onChange(of: selection.wrappedValue) {
-            SoundManager.preview(.from(storageKey: selection.wrappedValue))
-        }
-    }
-
-    private func showLanguageRestartAlert() {
-        let alert = NSAlert()
-        alert.messageText = L10n.tr("settings.language.restart_title")
-        alert.informativeText = L10n.tr("settings.language.restart_message")
-        alert.addButton(withTitle: L10n.tr("settings.language.restart_now"))
-        alert.addButton(withTitle: L10n.tr("settings.language.restart_later"))
-        if alert.runModal() == .alertFirstButtonReturn {
-            relaunchApp()
-        }
-    }
-
-    private func relaunchApp() {
-        let path = Bundle.main.bundleURL.path
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/bin/sh")
-        task.arguments = ["-c", "sleep 1 && open \"\(path)\""]
-        try? task.launch()
-        AppDelegate.shouldReallyQuit = true
-        NSApp.terminate(nil)
     }
 }
 
@@ -196,6 +312,7 @@ struct GeneralTab: View {
 struct DataTab: View {
     var body: some View {
         Form {
+            HistorySettingsSection()
             BackupSettingsSection()
             DataPorterSection()
         }
@@ -203,26 +320,19 @@ struct DataTab: View {
     }
 }
 
-// MARK: - Preferences Tab
+// MARK: - Shortcuts Tab
 
-struct PreferencesTab: View {
+struct ShortcutsTab: View {
     @ObservedObject private var hotkeyManager = HotkeyManager.shared
     @AppStorage("hotkeyKeyCode") private var hotkeyKeyCode = 0x09
     @AppStorage("hotkeyModifiers") private var hotkeyModifiers = cmdKey | shiftKey
     @AppStorage("managerHotkeyKeyCode") private var managerKeyCode = -1
     @AppStorage("managerHotkeyModifiers") private var managerModifiers = -1
+    @AppStorage("managerHotkeyGlobalEnabled") private var managerHotkeyGlobalEnabled = true
+    @AppStorage("relayHotkeyKeyCode") private var relayKeyCode = -1
+    @AppStorage("relayHotkeyModifiers") private var relayModifiers = -1
     @AppStorage("doubleTapEnabled") private var doubleTapEnabled = false
     @AppStorage("doubleTapModifier") private var doubleTapModifier = 0
-    @AppStorage("retentionDays") private var retentionDays = 90
-    @AppStorage("addNewLineAfterPaste") private var addNewLineAfterPaste = false
-    @AppStorage("showLinkURL") private var showLinkURL = false
-    @AppStorage("webPreviewEnabled") private var webPreviewEnabled = true
-    @AppStorage(QuickPanelStyle.storageKey) private var quickPanelStyle = QuickPanelStyle.classic.rawValue
-    private let allRetentionOptions = [1, 3, 7, 14, 30, 60, 90, 180, 365]
-
-    private var availableOptions: [Int] { allRetentionOptions }
-
-    private var showForever: Bool { true }
 
     var body: some View {
         Form {
@@ -257,12 +367,51 @@ struct PreferencesTab: View {
                             .foregroundStyle(.tertiary)
                             .font(.callout)
                     }
+                    HStack(spacing: 6) {
+                        Text(L10n.tr("settings.managerShortcut.global"))
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                        Toggle("", isOn: $managerHotkeyGlobalEnabled)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                            .fixedSize()
+                            .onChange(of: managerHotkeyGlobalEnabled) {
+                                hotkeyManager.updateManagerHotkeyGlobalEnabled(managerHotkeyGlobalEnabled)
+                            }
+                    }
                     ShortcutRecorder(keyCode: $managerKeyCode, modifiers: $managerModifiers, onChanged: applyManagerShortcut)
                         .frame(width: 140, height: 24)
                     Button {
                         hotkeyManager.clearManagerShortcut()
                         managerKeyCode = -1
                         managerModifiers = -1
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .pointerCursor()
+                }
+
+                Text(L10n.tr("settings.managerShortcut.scopeHint"))
+                    .font(.callout)
+                    .foregroundStyle(.tertiary)
+
+                HStack {
+                    Text(L10n.tr("settings.relayShortcut"))
+                    Spacer()
+                    if hotkeyManager.isRelayCleared {
+                        Text(L10n.tr("settings.shortcut.none"))
+                            .foregroundStyle(.tertiary)
+                            .font(.callout)
+                    }
+                    ShortcutRecorder(keyCode: $relayKeyCode, modifiers: $relayModifiers, onChanged: applyRelayShortcut)
+                        .frame(width: 140, height: 24)
+                    Button {
+                        hotkeyManager.clearRelayShortcut()
+                        relayKeyCode = -1
+                        relayModifiers = -1
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(.secondary)
@@ -286,40 +435,6 @@ struct PreferencesTab: View {
                     }
                 }
             }
-
-            Section(L10n.tr("settings.behavior")) {
-                Toggle(L10n.tr("settings.addNewLine"), isOn: $addNewLineAfterPaste)
-                Toggle(L10n.tr("settings.showLinkURL"), isOn: $showLinkURL)
-                Toggle(L10n.tr("settings.webPreview"), isOn: $webPreviewEnabled)
-                Picker(L10n.tr("settings.quickPanelStyle"), selection: $quickPanelStyle) {
-                    Text(L10n.tr("settings.quickPanelStyle.classic")).tag(QuickPanelStyle.classic.rawValue)
-                    Text(L10n.tr("settings.quickPanelStyle.bottomFloating")).tag(QuickPanelStyle.bottomFloating.rawValue)
-                }
-                .onChange(of: quickPanelStyle) { _, newValue in
-                    let newStyle = QuickPanelStyle(rawValue: newValue) ?? .classic
-                    if newStyle == .bottomFloating {
-                        QuickPanelBottomDefaults.resetStoredSizing()
-                    } else if newStyle == .classic {
-                        QuickPanelBottomDefaults.resetClassicSizing()
-                    }
-                    QuickPanelWindowController.shared.handleStyleChange(to: newStyle)
-                }
-            }
-
-            OCRSettingsSection()
-            
-            AnimationSettingsSection()
-
-            Section(L10n.tr("settings.history")) {
-                Picker(L10n.tr("settings.retentionDays"), selection: $retentionDays) {
-                    if showForever {
-                        Text(L10n.tr("settings.retentionDays.forever")).tag(0)
-                    }
-                    ForEach(availableOptions, id: \.self) { days in
-                        Text(L10n.tr("settings.retentionDays.days", days)).tag(days)
-                    }
-                }
-            }
         }
         .formStyle(.grouped)
     }
@@ -331,25 +446,345 @@ struct PreferencesTab: View {
     private func applyManagerShortcut() {
         HotkeyManager.shared.updateManagerShortcut(keyCode: managerKeyCode, modifiers: managerModifiers)
     }
+
+    private func applyRelayShortcut() {
+        HotkeyManager.shared.updateRelayShortcut(keyCode: relayKeyCode, modifiers: relayModifiers)
+    }
+}
+
+// MARK: - Quick Panel Pane
+
+struct QuickPanelPane: View {
+    @AppStorage("quickPanelAutoPaste") private var quickPanelAutoPaste = true
+    @AppStorage("addNewLineAfterPaste") private var addNewLineAfterPaste = false
+    @AppStorage(QuickPanelSettings.launchAnimationEnabledKey) private var quickPanelLaunchAnimationEnabled = true
+    @AppStorage(QuickPanelSettings.secondaryRowKey) private var quickPanelSecondaryRow = QuickPanelSecondaryRow.types.rawValue
+    @AppStorage(QuickPanelSettings.rememberLastFilterKey) private var quickPanelRememberLastFilter = false
+    @AppStorage(QuickPanelSettings.imageLayoutKey) private var quickPanelImageLayout = QuickPanelImageLayout.list.rawValue
+    @AppStorage(QuickPanelSettings.imageGridDensityKey) private var quickPanelImageGridDensity = QuickPanelImageGridDensity.medium.rawValue
+    @AppStorage(QuickPanelPositionSettings.modeKey) private var quickPanelPositionMode = QuickPanelPositionMode.screenCenter.rawValue
+    @AppStorage(QuickPanelPositionSettings.screenTargetKey) private var quickPanelScreenTarget = QuickPanelScreenTarget.active.rawValue
+    @AppStorage(QuickPanelPositionSettings.specifiedScreenIDKey) private var quickPanelSpecifiedScreenID = ""
+
+    private var screenOptions: [ScreenOption] { ScreenLocator.options() }
+    private var currentPositionMode: QuickPanelPositionMode {
+        QuickPanelPositionMode(rawValue: quickPanelPositionMode) ?? .remembered
+    }
+    private var currentScreenTarget: QuickPanelScreenTarget {
+        QuickPanelScreenTarget(rawValue: quickPanelScreenTarget) ?? .active
+    }
+
+    var body: some View {
+        Form {
+            Section(L10n.tr("settings.display")) {
+                Picker(L10n.tr("settings.quickPanelSecondaryRow"), selection: $quickPanelSecondaryRow) {
+                    ForEach(QuickPanelSecondaryRow.allCases, id: \.rawValue) { option in
+                        Text(L10n.tr(option.titleKey)).tag(option.rawValue)
+                    }
+                }
+                Picker(L10n.tr("settings.imageLayout"), selection: $quickPanelImageLayout) {
+                    ForEach(QuickPanelImageLayout.allCases, id: \.rawValue) { option in
+                        Text(L10n.tr(option.titleKey)).tag(option.rawValue)
+                    }
+                }
+                if QuickPanelImageLayout(rawValue: quickPanelImageLayout) == .grid {
+                    Picker(L10n.tr("settings.imageGridDensity"), selection: $quickPanelImageGridDensity) {
+                        ForEach(QuickPanelImageGridDensity.allCases, id: \.rawValue) { option in
+                            Text(L10n.tr(option.titleKey)).tag(option.rawValue)
+                        }
+                    }
+                }
+                HStack {
+                    Text(L10n.tr("settings.quickPanelPosition"))
+                    Spacer()
+                    Menu {
+                        positionMenuItem(
+                            title: L10n.tr(QuickPanelPositionMode.cursor.titleKey),
+                            isSelected: currentPositionMode == .cursor
+                        ) {
+                            selectQuickPanelPosition(.cursor)
+                        }
+
+                        positionMenuItem(
+                            title: L10n.tr(QuickPanelPositionMode.menuBarIcon.titleKey),
+                            isSelected: currentPositionMode == .menuBarIcon
+                        ) {
+                            selectQuickPanelPosition(.menuBarIcon)
+                        }
+
+                        positionMenuItem(
+                            title: L10n.tr(QuickPanelPositionMode.windowCenter.titleKey),
+                            isSelected: currentPositionMode == .windowCenter
+                        ) {
+                            selectQuickPanelPosition(.windowCenter)
+                        }
+
+                        Menu(L10n.tr(QuickPanelPositionMode.screenCenter.titleKey)) {
+                            positionMenuItem(
+                                title: L10n.tr("settings.quickPanelTargetScreen.active"),
+                                isSelected: currentPositionMode == .screenCenter && currentScreenTarget == .active
+                            ) {
+                                selectQuickPanelPosition(.screenCenter, screenTarget: .active)
+                            }
+
+                            ForEach(screenOptions) { screen in
+                                positionMenuItem(
+                                    title: screen.name,
+                                    isSelected: currentPositionMode == .screenCenter
+                                        && currentScreenTarget == .specified
+                                        && quickPanelSpecifiedScreenID == screen.id
+                                ) {
+                                    selectQuickPanelPosition(.screenCenter, screenTarget: .specified, screenID: screen.id)
+                                }
+                            }
+                        }
+
+                        positionMenuItem(
+                            title: L10n.tr(QuickPanelPositionMode.remembered.titleKey),
+                            isSelected: currentPositionMode == .remembered
+                        ) {
+                            selectQuickPanelPosition(.remembered)
+                        }
+                    } label: {
+                        Text(currentPositionTitle)
+                            .foregroundStyle(.primary)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                }
+            }
+
+            Section(L10n.tr("settings.behavior")) {
+                Toggle(L10n.tr("settings.autoPaste"), isOn: $quickPanelAutoPaste)
+                Toggle(L10n.tr("settings.addNewLine"), isOn: $addNewLineAfterPaste)
+                Toggle(L10n.tr("settings.quickPanelLaunchAnimation"), isOn: $quickPanelLaunchAnimationEnabled)
+                Toggle(L10n.tr("settings.quickPanelRememberFilter"), isOn: $quickPanelRememberLastFilter)
+            }
+        }
+        .formStyle(.grouped)
+        .onAppear {
+            ensureSpecifiedScreenSelection()
+        }
+        .onChange(of: quickPanelPositionMode) {
+            ensureSpecifiedScreenSelection()
+        }
+        .onChange(of: quickPanelScreenTarget) {
+            ensureSpecifiedScreenSelection()
+        }
+    }
+
+    private func ensureSpecifiedScreenSelection() {
+        guard currentScreenTarget == .specified else { return }
+        guard ScreenLocator.screen(for: quickPanelSpecifiedScreenID) == nil else { return }
+        quickPanelSpecifiedScreenID = screenOptions.first?.id ?? ""
+    }
+
+    private var currentPositionTitle: String {
+        switch currentPositionMode {
+        case .remembered:
+            return L10n.tr(QuickPanelPositionMode.remembered.titleKey)
+        case .cursor:
+            return L10n.tr(QuickPanelPositionMode.cursor.titleKey)
+        case .menuBarIcon:
+            return L10n.tr(QuickPanelPositionMode.menuBarIcon.titleKey)
+        case .windowCenter:
+            return L10n.tr(QuickPanelPositionMode.windowCenter.titleKey)
+        case .screenCenter:
+            switch currentScreenTarget {
+            case .active:
+                return "\(L10n.tr(QuickPanelPositionMode.screenCenter.titleKey)) (\(L10n.tr("settings.quickPanelTargetScreen.active")))"
+            case .specified:
+                let screenName = screenOptions.first(where: { $0.id == quickPanelSpecifiedScreenID })?.name
+                    ?? L10n.tr("settings.quickPanelSpecifiedScreen")
+                return "\(L10n.tr(QuickPanelPositionMode.screenCenter.titleKey)) (\(screenName))"
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func positionMenuItem(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            if isSelected {
+                Label(title, systemImage: "checkmark")
+            } else {
+                Text(title)
+            }
+        }
+    }
+
+    private func selectQuickPanelPosition(
+        _ mode: QuickPanelPositionMode,
+        screenTarget: QuickPanelScreenTarget = .active,
+        screenID: String? = nil
+    ) {
+        quickPanelPositionMode = mode.rawValue
+
+        if mode == .screenCenter {
+            quickPanelScreenTarget = screenTarget.rawValue
+            if screenTarget == .specified {
+                quickPanelSpecifiedScreenID = screenID ?? screenOptions.first?.id ?? ""
+            }
+        }
+    }
+}
+
+// MARK: - Preview Pane
+
+struct PreviewPane: View {
+    @AppStorage("showLinkURL") private var showLinkURL = false
+    @AppStorage("webPreviewEnabled") private var webPreviewEnabled = true
+    @AppStorage("imageLinkPreviewEnabled") private var imageLinkPreviewEnabled = true
+    @AppStorage("previewExecutesJavaScript") private var previewExecutesJavaScript = true
+    @AppStorage("richTextPreviewEnabled") private var richTextPreviewEnabled = true
+    @AppStorage("offlineModeEnabled") private var offlineModeEnabled = false
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle(L10n.tr("settings.showLinkURL"), isOn: $showLinkURL)
+                Toggle(L10n.tr("settings.webPreview"), isOn: $webPreviewEnabled)
+                // 「预览时执行网页脚本」依赖「网页预览」开启,两者有联动,紧挨着放。
+                Toggle(L10n.tr("settings.previewExecutesJavaScript"), isOn: $previewExecutesJavaScript)
+                    .disabled(!webPreviewEnabled || offlineModeEnabled)
+                Toggle(L10n.tr("settings.imageLinkPreview"), isOn: $imageLinkPreviewEnabled)
+                Toggle(L10n.tr("settings.richTextPreview"), isOn: $richTextPreviewEnabled)
+            } header: {
+                Text(L10n.tr("settings.linkPreview"))
+            } footer: {
+                Text(L10n.tr(offlineModeEnabled ? "settings.linkPreview.footer.offline" : "settings.linkPreview.footer"))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            .disabled(offlineModeEnabled)
+
+            OCRSettingsSection()
+        }
+        .formStyle(.grouped)
+    }
+}
+
+struct HistorySettingsSection: View {
+    @Environment(\.modelContext) private var modelContext
+    @AppStorage("retentionDays") private var retentionDays = 90
+    @State private var pendingRetentionOldDays = 0
+    @State private var pendingExpiredCount = 0
+    @State private var showRetentionCleanConfirm = false
+
+    private let allRetentionOptions = [1, 3, 7, 14, 30, 60, 90, 180, 365]
+
+    var body: some View {
+        Section(L10n.tr("settings.history")) {
+            Picker(L10n.tr("settings.retentionDays"), selection: $retentionDays) {
+                Text(L10n.tr("settings.retentionDays.forever")).tag(0)
+                ForEach(allRetentionOptions, id: \.self) { days in
+                    Text(L10n.tr("settings.retentionDays.days", days)).tag(days)
+                }
+            }
+            .onChange(of: retentionDays) { oldValue, newValue in
+                prepareRetentionCleanup(oldDays: oldValue, newDays: newValue)
+            }
+        }
+        .alert(
+            L10n.tr("settings.retentionDays.cleanConfirm", pendingExpiredCount),
+            isPresented: $showRetentionCleanConfirm
+        ) {
+            Button(L10n.tr("action.delete"), role: .destructive) {
+                // Defer deletion to next run loop iteration — the alert sheet close
+                // animation triggers a layout pass that would access zombie SwiftData objects
+                DispatchQueue.main.async {
+                    executeRetentionCleanup()
+                }
+            }
+            Button(L10n.tr("action.cancel"), role: .cancel) {
+                retentionDays = pendingRetentionOldDays
+            }
+        } message: {
+            Text(L10n.tr("settings.retentionDays.cleanWarning"))
+        }
+    }
+
+    private func prepareRetentionCleanup(oldDays: Int, newDays: Int) {
+        guard newDays > 0, (oldDays == 0 || newDays < oldDays) else { return }
+
+        let cutoff = Calendar.current.date(byAdding: .day, value: -newDays, to: Date())!
+        let descriptor = FetchDescriptor<ClipItem>()
+        guard let allItems = try? modelContext.fetch(descriptor) else { return }
+        let preservedGroupNames = SmartGroupRetention.preservedGroupNames(in: modelContext)
+        let count = allItems.filter {
+            $0.createdAt < cutoff
+                && !$0.isPinned
+                && !SmartGroupRetention.shouldPreserve(item: $0, preservedGroupNames: preservedGroupNames)
+        }.count
+        guard count > 0 else { return }
+
+        pendingRetentionOldDays = oldDays
+        pendingExpiredCount = count
+        showRetentionCleanConfirm = true
+    }
+
+    private func executeRetentionCleanup() {
+        let cutoff = Calendar.current.date(byAdding: .day, value: -retentionDays, to: Date())!
+        let descriptor = FetchDescriptor<ClipItem>()
+        guard let allItems = try? modelContext.fetch(descriptor) else { return }
+        let preservedGroupNames = SmartGroupRetention.preservedGroupNames(in: modelContext)
+        let expiredItems = allItems.filter {
+            $0.createdAt < cutoff
+                && !$0.isPinned
+                && !SmartGroupRetention.shouldPreserve(item: $0, preservedGroupNames: preservedGroupNames)
+        }
+        guard !expiredItems.isEmpty else { return }
+
+        for item in expiredItems {
+            if let groupName = item.groupName, !groupName.isEmpty {
+                ClipboardManager.shared.decrementSmartGroup(name: groupName, context: modelContext)
+            }
+        }
+        ClipItemStore.deleteAndNotify(expiredItems, from: modelContext)
+    }
 }
 
 struct OCRSettingsSection: View {
-    @AppStorage(OCRTaskCoordinator.enableOCRKey) private var ocrEnabled = true
+    @AppStorage(OCRTaskCoordinator.enableOCRKey) private var ocrEnabled = false
     @AppStorage(OCRTaskCoordinator.autoOCRKey) private var autoProcess = true
+    @AppStorage(OCRTaskCoordinator.markdownKey) private var ocrMarkdown = true
     @ObservedObject private var coordinator = OCRTaskCoordinator.shared
 
     var body: some View {
         Section(L10n.tr("settings.ocr")) {
             Toggle(L10n.tr("settings.ocr.enable"), isOn: $ocrEnabled)
+
+            // Layout-aware Markdown OCR relies on RecognizeDocumentsRequest,
+            // which only exists on macOS 26+. Hide the control on older
+            // systems where it has no effect (the engine uses plain text).
+            // Kept outside `if ocrEnabled`: it also governs the on-demand
+            // "Paste OCR Text" path, which works with background OCR off.
+            if #available(macOS 26.0, *) {
+                Toggle(L10n.tr("settings.ocr.markdown"), isOn: $ocrMarkdown)
+                Text(L10n.tr("settings.ocr.markdown.hint"))
+                    .font(.callout)
+                    .foregroundStyle(.tertiary)
+            }
+
             if ocrEnabled {
+                // 启用后给一句内存提示：OCR 后台跑 Vision 会增加内存占用。
+                Text(L10n.tr("settings.ocr.memoryHint"))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
                 Toggle(L10n.tr("settings.ocr.auto"), isOn: $autoProcess)
 
                 if coordinator.isScanning {
                     VStack(alignment: .leading, spacing: 6) {
                         ProgressView(value: Double(coordinator.scanCompleted), total: Double(max(coordinator.scanTotal, 1)))
-                        Text("\(coordinator.scanCompleted) / \(coordinator.scanTotal)")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
+                        HStack {
+                            Text("\(coordinator.scanCompleted) / \(coordinator.scanTotal)")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button(L10n.tr("settings.ocr.stopScan")) {
+                                OCRTaskCoordinator.shared.cancelScan()
+                            }
+                            .pointerCursor()
+                        }
                     }
                 } else {
                     Button(L10n.tr("settings.ocr.scanExisting")) {
@@ -362,39 +797,6 @@ struct OCRSettingsSection: View {
                     .font(.callout)
                     .foregroundStyle(.tertiary)
             }
-        }
-    }
-}
-
-struct AnimationSettingsSection: View {
-    @ObservedObject var preferences = AnimationPreferences.shared
-    
-    var body: some View {
-        Section(L10n.tr("settings.animation")) {
-            Picker(L10n.tr("settings.animation.style"), selection: $preferences.style) {
-                ForEach(AnimationStyle.allCases, id: \.self) { style in
-                    Text(style.displayName).tag(style)
-                }
-            }
-            
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text(L10n.tr("settings.animation.speed"))
-                    Spacer()
-                    Text("\(Int(preferences.animationSpeed * 100))%")
-                        .foregroundStyle(.secondary)
-                        .font(.callout)
-                }
-                Slider(value: $preferences.animationSpeed, in: 0.5...2.0, step: 0.1)
-            }
-            
-            Toggle(L10n.tr("settings.animation.microInteractions"), isOn: $preferences.enableMicroInteractions)
-            
-            Toggle(L10n.tr("settings.animation.transitions"), isOn: $preferences.enableTransitions)
-            
-            Text(L10n.tr("settings.animation.hint"))
-                .font(.callout)
-                .foregroundStyle(.tertiary)
         }
     }
 }
@@ -461,9 +863,18 @@ struct RelayTab: View {
 
 struct PrivacyTab: View {
     @AppStorage("sensitiveDetectionEnabled") private var isSensitiveDetectionEnabled = true
+    @AppStorage(UsageTracker.ANALYTICS_ENABLED_KEY) private var analyticsEnabled = true
+    @AppStorage("offlineModeEnabled") private var offlineModeEnabled = false
 
     var body: some View {
         Form {
+            Section {
+                Toggle(L10n.tr("settings.privacy.offlineMode"), isOn: $offlineModeEnabled)
+                Text(L10n.tr("settings.privacy.offlineMode.hint"))
+                    .font(.callout)
+                    .foregroundStyle(.tertiary)
+            }
+
             Section(L10n.tr("settings.privacy.sensitive")) {
                 Toggle(L10n.tr("settings.privacy.sensitiveDetection"), isOn: $isSensitiveDetectionEnabled)
                 Text(L10n.tr("settings.privacy.sensitiveHint"))
@@ -472,9 +883,16 @@ struct PrivacyTab: View {
             }
 
             IgnoredAppsSection()
+
+            Section(L10n.tr("settings.privacy.analytics")) {
+                Toggle(L10n.tr("settings.privacy.analyticsToggle"), isOn: $analyticsEnabled)
+                    .disabled(offlineModeEnabled)
+                Text(L10n.tr("settings.privacy.analyticsHint"))
+                    .font(.callout)
+                    .foregroundStyle(.tertiary)
+            }
         }
         .formStyle(.grouped)
-        .scrollDisabled(true)
     }
 }
 

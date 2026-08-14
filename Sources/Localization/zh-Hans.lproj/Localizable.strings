@@ -16,7 +16,7 @@
 "empty.hint" = "使用 ⌘C 复制文本、图片或文件";
 "empty.quickHint" = "复制内容即可开始使用";
 "empty.noResults" = "没有找到匹配内容";
-"guide.shortcut" = "按下 %@ 随时打开快捷粘贴";
+"guide.shortcut" = "按下 %@ 随时打开快捷面板";
 "guide.doubleClick" = "双击粘贴，单击选中";
 "guide.pin" = "右键可置顶重要条目";
 
@@ -26,7 +26,8 @@
 "action.pin" = "置顶";
 "cmd.showInFinder" = "在 Finder 中显示";
 "cmd.copyAs" = "复制为 %@";
-"relay.reverse" = "颠倒顺序";
+"relay.reverse" = "反转顺序";
+"relay.clearAll" = "清空所有";
 "relay.editItem" = "编辑内容";
 "quickPanel.pin" = "固定窗口";
 "quickPanel.unpin" = "取消固定";
@@ -53,13 +54,22 @@
 "type.document" = "文档";
 "type.archive" = "压缩包";
 "type.application" = "应用";
+"type.mixed" = "混合";
+"mixed.section.image" = "图片";
+"mixed.section.text" = "文本";
+"mixed.section.files" = "文件 (%d)";
 "detail.openInFinder" = "在访达中显示";
+"preview.image.zoomFit" = "适应宽度";
+"preview.image.zoomActual" = "100%";
+"preview.image.openInPreview" = "在预览中打开";
+"preview.image.zoomHint" = "⌘+滚轮或双指捏合缩放";
 
 /* Filter */
 "filter.all" = "全部";
 "filter.special" = "特殊";
 "filter.favorites" = "收藏";
 "filter.pinned" = "置顶";
+"filter.aiAgent" = "AI Agent";
 
 /* Time */
 "time.now" = "刚刚";
@@ -91,6 +101,7 @@
 "settings.language.restart_now" = "立即重启";
 "settings.language.restart_later" = "稍后";
 "settings.launchAtLogin" = "开机启动";
+"settings.clipboardMonitoring" = "启用剪贴板监听";
 "settings.hideDockIcon" = "隐藏 Dock 图标";
 "settings.hideDockIcon.hint" = "开启后，只能通过状态栏图标访问应用。";
 "settings.hideDockIcon.confirm.title" = "隐藏 Dock 图标？";
@@ -99,42 +110,73 @@
 "settings.menuBarIconStyle" = "状态栏图标";
 "settings.menuBarIconStyle.outline" = "描边";
 "settings.menuBarIconStyle.filled" = "填充";
+"settings.menuBar.leftClickAction" = "状态栏图标左键动作";
+"settings.menuBar.leftClickAction.help" = "左键单击状态栏图标时执行的动作；右键始终弹菜单";
+"menuBar.leftClick.menu" = "弹出菜单";
+"menuBar.leftClick.openManager" = "打开管理器";
+"menuBar.leftClick.quickPanel" = "打开快捷面板";
+"menuBar.leftClick.toggleRelay" = "切换接力模式";
+"menuBar.leftClick.togglePause" = "暂停 / 继续剪贴板监听";
+"menuBar.leftClick.openSettings" = "打开设置";
 "settings.currentVersion" = "当前版本";
 "settings.features" = "功能";
 "settings.shortcuts" = "快捷键";
-"settings.quickPanelShortcut" = "打开快捷粘贴窗口";
-"settings.quickPanelStyle" = "快捷粘贴样式";
-"settings.quickPanelStyle.classic" = "经典面板";
-"settings.quickPanelStyle.bottomFloating" = "底部悬浮";
+"settings.quickPanelShortcut" = "打开快捷面板";
 "settings.managerShortcut" = "打开管理器";
+"settings.managerShortcut.global" = "全局";
+"settings.managerShortcut.scopeHint" = "关闭全局后，这个快捷键只在快捷面板已打开时可用。";
+"settings.relayShortcut" = "开启接力";
 "settings.shortcut.none" = "未设置";
 "settings.shortcut.clickToRecord" = "点击录入";
 "settings.shortcut.pressKey" = "请按快捷键…";
 "settings.doubleTap" = "双击按键唤起";
 "settings.doubleTap.modifier" = "双击修饰键";
 "settings.paste" = "粘贴";
+"settings.autoPaste" = "回车直接粘贴到应用";
 "settings.addNewLine" = "粘贴后自动换行";
+"settings.quickPanelLaunchAnimation" = "快捷面板启动动画";
+"settings.quickPanelRememberFilter" = "记住上次的分组/分类";
+"settings.quickPanelSecondaryRow" = "快捷面板搜索框下方显示";
+"settings.quickPanelSecondaryRow.types" = "类型";
+"settings.quickPanelSecondaryRow.groups" = "分组";
 "settings.history" = "历史记录";
 "settings.retentionDays" = "保留时长";
 "settings.retentionDays.forever" = "永久";
 "settings.retentionDays.days" = "%d 天";
+"settings.retentionDays.cleanConfirm" = "将删除 %d 条超出保留期的记录";
+"settings.retentionDays.cleanWarning" = "此操作不可恢复，确定要继续吗？";
 "settings.display" = "显示";
+"settings.quickPanelPosition" = "快捷面板位置";
+"settings.quickPanelPosition.remembered" = "记住上次位置";
+"settings.quickPanelPosition.cursor" = "光标";
+"settings.quickPanelPosition.menuBarIcon" = "菜单栏图标";
+"settings.quickPanelPosition.windowCenter" = "活动窗口中心";
+"settings.quickPanelPosition.screenCenter" = "屏幕中央";
+"settings.quickPanelTargetScreen" = "目标屏幕";
+"settings.quickPanelTargetScreen.active" = "活动屏幕";
+"settings.quickPanelTargetScreen.specified" = "指定屏幕";
+"settings.quickPanelSpecifiedScreen" = "指定显示器";
 "settings.behavior" = "行为";
 "settings.preferences" = "偏好";
+"settings.quickPanel" = "快捷面板";
+"settings.previewRecognition" = "预览与识别";
 "settings.showLinkURL" = "链接显示原始网址而非页面标题";
 "settings.webPreview" = "网页预览";
-"settings.ocr" = "图片 OCR";
+"settings.imageLinkPreview" = "图片链接预览";
+"settings.previewExecutesJavaScript" = "预览时执行网页脚本";
+"settings.linkPreview" = "链接与预览";
+"settings.linkPreview.footer" = "以上开关共同决定 PasteMemo 是否为复制的链接发起网络请求。全部关闭后，PasteMemo 仅在检查更新时联网。";
+"settings.linkPreview.footer.offline" = "已开启单机模式：以上开关被覆盖为关闭。前往「隐私」标签可关闭单机模式。";
+"settings.richTextPreview" = "富文本预览";
+"settings.ocr" = "OCR";
 "settings.ocr.enable" = "启用图片 OCR";
 "settings.ocr.auto" = "自动处理新图片";
+"settings.ocr.markdown" = "识别版面为 Markdown";
+"settings.ocr.markdown.hint" = "识别段落、列表和表格，并将文字保存为 Markdown。需要 macOS 26。";
+"settings.ocr.stopScan" = "停止扫描";
 "settings.ocr.scanExisting" = "扫描已有图片";
 "settings.ocr.scanStarted" = "已开始在后台扫描已有图片。";
 "settings.ocr.hint" = "OCR 在本机完成，并让图片中的文字可被搜索。";
-"settings.animation" = "动画效果";
-"settings.animation.style" = "动画风格";
-"settings.animation.speed" = "动画速度";
-"settings.animation.microInteractions" = "启用微交互动画";
-"settings.animation.transitions" = "启用过渡动画";
-"settings.animation.hint" = "微交互：悬停、点击等反馈效果；过渡：内容切换、面板展开等动画";
 
 /* Pro */
 "pro.title" = "升级到 PasteMemo Pro";
@@ -153,7 +195,7 @@
 "pro.feature.themes" = "自定义主题";
 "pro.feature.rules" = "剪贴板规则";
 "pro.feature.relay" = "接力模式";
-"pro.feature.customCategory" = "自定义收藏";
+"pro.feature.customCategory" = "自定义分组";
 "pro.feature.ignoreApps" = "忽略特定应用";
 "pro.feature.automation" = "剪贴板自动化";
 
@@ -166,8 +208,9 @@
 "detail.info" = "详细信息";
 "detail.type" = "类型";
 "detail.source" = "来源应用";
+"detail.aiAgent" = "AI Agent";
 "detail.created" = "创建时间";
-"detail.group" = "收藏";
+"detail.group" = "分组";
 "detail.lastUsed" = "最近使用";
 "detail.chars" = "字符数";
 "detail.lines" = "行数";
@@ -200,23 +243,35 @@
 /* Filter */
 "filter.types" = "按类型";
 "filter.apps" = "按应用";
-"filter.groups" = "收藏";
+"filter.groups" = "分组";
 "filter.other" = "其他";
 
 /* Actions */
 "action.paste" = "粘贴";
 "action.cancel" = "取消";
 "action.confirm" = "确定";
-"action.assignGroup" = "收藏";
-"action.newGroup" = "新建收藏…";
-"action.editGroup" = "编辑收藏…";
-"action.deleteGroup" = "删除收藏";
-"action.deleteGroupConfirm" = "确定要删除收藏「%@」吗？收藏内的条目不会被删除。";
-"action.removeFromGroup" = "移出收藏";
+"action.assignGroup" = "移入分组";
+"action.newGroup" = "新建分组…";
+"action.editGroup" = "编辑分组…";
+"action.deleteGroup" = "删除分组";
+"action.deleteGroupConfirm" = "确定要删除分组「%@」吗？分组内的条目不会被删除。";
+"action.removeFromGroup" = "移出分组";
+"group.preserveItems" = "永久保存此分组中的内容";
+"group.preserveItems.help" = "开启后，此分组中的内容不会被自动过期清理，也不会被“清理数据”删除。";
+"group.preserveItems.badge" = "永久保存";
 "action.changeIcon" = "修改图标…";
 "action.clearConfirm" = "将删除所有未置顶的条目。";
+"action.clearScope.type" = "清空此类型下的条目";
+"action.clearScope.group" = "清空此分组下的条目";
+"action.clearScope.group.disabledHelp" = "此分组已启用永久保存，不能清空其中条目。";
+"action.clearScope.app" = "清空此 App 下的条目";
+"action.clearScope.title" = "清空「%@」";
+"action.clearScope.confirm" = "将删除 %d 条未置顶的条目，永久保存分组中的条目不会被清除。";
+"action.clearScope.empty" = "当前筛选下没有可清空的条目（已忽略置顶和永久保存分组的条目）。";
 "action.copy" = "复制";
 "action.copied" = "已复制到剪贴板";
+"action.undo" = "撤销";
+"delete.undo.toast" = "已删除 %d 条";
 
 /* Stats */
 "stats.total" = "总记录数";
@@ -224,11 +279,12 @@
 
 /* Menu */
 "menu.openMain" = "打开主窗口";
-"menu.quickPanel" = "快捷粘贴";
-"menu.pause" = "暂停监听";
-"menu.resume" = "恢复监听";
+"menu.quickPanel" = "快捷面板";
+"menu.pause" = "暂停剪贴板监听";
+"menu.resume" = "恢复剪贴板监听";
 "menu.settings" = "设置";
 "menu.quit" = "退出 %@";
+"menu.accessibility.grant" = "⚠ 授权辅助功能权限";
 
 /* Quick Panel */
 "quick.search" = "搜索，输入 / 发现更多…";
@@ -236,6 +292,7 @@
 "quick.selectHint" = "选择一条记录预览";
 "quick.pasteTo" = "粘贴到 %@";
 "quick.pasteToApp" = "粘贴到 %@";
+"quick.copyToClipboard" = "复制到剪贴板";
 "quick.actions" = "操作";
 "quick.navigate" = "导航";
 "quick.ocrMatch" = "命中识别文本";
@@ -243,6 +300,7 @@
 "quick.close" = "关闭";
 "quick.pasteNewLine" = "粘贴+换行";
 "quick.pastePath" = "粘贴路径";
+"quick.copyPath" = "复制路径";
 "quick.pasteName" = "粘贴文件名";
 "quick.saveToFolder" = "粘贴文件";
 "quick.switchType" = "类型";
@@ -251,17 +309,15 @@
 "quick.preview" = "预览";
 "quick.commandPalette" = "快捷操作";
 "quick.pasteImage" = "粘贴图片";
-"quick.expandDetails" = "展开详情";
-"quick.collapseDetails" = "收起详情";
-"quick.compactMode" = "紧凑模式";
-"quick.expandHint" = "按 ⌘O 可展开详情";
-"quick.fileCount" = "%d 个文件";
 "settings.showGuide" = "显示新手引导";
 
 /* Onboarding */
 "accessibility.lost.title" = "需要辅助功能权限";
-"accessibility.lost.message" = "应用更新后，macOS 要求重新授权辅助功能。请前往系统设置，先将 PasteMemo 从辅助功能列表中删除（选中后点减号），再点加号重新添加即可。";
+"accessibility.lost.message" = "应用更新后，macOS 要求重新授权。点击「打开辅助设置」后，请先在列表里选中 PasteMemo 并点 − 删除，然后从悬浮面板拖入新版本。";
 "accessibility.lost.later" = "稍后";
+"reinstall.required.title" = "应用文件不完整";
+"reinstall.required.message" = "App 升级时有文件缺失，请重新下载 DMG 覆盖安装。你的数据和授权都会保留。";
+"reinstall.required.action" = "打开下载页";
 "onboarding.back" = "上一步";
 "onboarding.skip" = "跳过";
 "onboarding.next" = "下一步";
@@ -278,20 +334,26 @@
 "onboarding.relay.feature1" = "多选条目或连续复制，自动构建粘贴队列";
 "onboarding.relay.feature2" = "按分隔符拆分文本，快速创建队列";
 "onboarding.relay.feature3" = "按 Ctrl+V 逐条粘贴（可在设置中自定义）";
-"onboarding.shortcut.title" = "快捷粘贴";
-"onboarding.shortcut.desc" = "在任意应用中按下快捷键，打开快速粘贴面板。搜索剪贴板历史，一键粘贴。";
+"onboarding.aiAgent.title" = "AI Agent 集成";
+"onboarding.aiAgent.desc" = "把你的剪贴板暴露给 Claude Code、Cursor、Codex 等任何 MCP 兼容的 AI Agent。";
+"onboarding.aiAgent.feature1" = "5 个 MCP 工具——读取、搜索、写入剪贴板";
+"onboarding.aiAgent.feature2" = "设置 → AI Agents 一键安装";
+"onboarding.aiAgent.feature3" = "敏感项默认自动过滤";
+"onboarding.shortcut.title" = "快捷面板";
+"onboarding.shortcut.desc" = "在任意应用中按下快捷键，打开快捷面板。搜索剪贴板历史，一键粘贴。";
 "onboarding.shortcut.current" = "点击修改快捷键";
 
 /* About */
 /* Help */
-"menu.newGroup" = "新建收藏…";
+"menu.newGroup" = "新建分组…";
 "menu.newSmartGroup" = "新建智能分组…";
 "menu.help" = "PasteMemo 帮助";
+"menu.alwaysOnTop" = "始终保持在最前";
 "help.title" = "PasteMemo 帮助";
 "help.subtitle" = "快速了解剪贴板管理器的使用方法。";
 "help.close" = "知道了";
 "help.shortcuts" = "快捷键";
-"help.shortcut.quickPaste" = "打开快捷粘贴面板";
+"help.shortcut.quickPaste" = "打开快捷面板";
 "help.shortcut.paste" = "粘贴选中项";
 "help.shortcut.switchType" = "按内容类型筛选";
 "help.shortcut.navigate" = "上下浏览条目";
@@ -328,6 +390,8 @@
 
 /* Update */
 "update.available.title" = "新版本的 PasteMemo 已经发布";
+"update.available.beta.title" = "PasteMemo Beta 版本可用";
+"update.beta.warning" = "Beta 版本可能不稳定，安装前建议先备份重要数据。";
 "update.available.message" = "PasteMemo %@ 可供下载，您现在的版本是 %@。要现在下载吗？";
 "update.skip" = "跳过这个版本";
 "update.remind_later" = "稍后提醒我";
@@ -346,6 +410,7 @@
 "update.download_error" = "下载失败";
 "update.dmg_error" = "更新失败";
 "update.dmg_error.message" = "下载的磁盘映像已损坏，请重新下载更新。";
+"update.download_error.incomplete" = "下载不完整或已中断，请检查网络后重试。";
 
 /* Ignored Apps */
 "settings.ignoredApps" = "忽略的应用";
@@ -376,17 +441,12 @@
 "dataPorter.exportSuccess" = "导出成功";
 "dataPorter.importSuccess" = "导入成功";
 "dataPorter.wrongPassword" = "密码错误";
-
-/* Paste.app Migration */
-"dataPorter.pasteMigration" = "Paste.app 数据迁移";
-"dataPorter.pasteMigration.desc" = "从 Paste.app 导入剪贴板历史记录";
-"dataPorter.pasteMigration.button" = "开始迁移";
-"dataPorter.pasteMigration.notFound" = "未找到 Paste.app 数据库。请确保已安装并使用过 Paste.app。";
-"dataPorter.pasteMigration.empty" = "Paste.app 数据库中没有数据。";
-"dataPorter.pasteMigration.progress" = "正在从 Paste.app 迁移（%d 条记录）";
-"dataPorter.pasteMigration.success" = "迁移完成！已导入 %d 条，跳过 %d 条重复记录";
-"dataPorter.pasteMigration.errors" = "错误：%@";
-
+"dataPorter.decrypting" = "正在解密...";
+"dataPorter.refreshing" = "正在刷新主界面...";
+"dataPorter.summary.imported" = "已导入 %d 条";
+"dataPorter.summary.skipped" = "跳过 %d 条";
+"dataPorter.summary.newGroups" = "新增分组 %d 个";
+"dataPorter.summary.newRules" = "新增规则 %d 个";
 
 /* Dev Tools */
 "devTools.importFromRelease" = "从正式版导入数据";
@@ -401,31 +461,18 @@
 /* Text Editing */
 "action.edit" = "编辑";
 "action.save" = "保存";
-"action.preview" = "预览";
-
-/* Edit Format */
-"edit.format" = "格式化";
-"edit.uppercase" = "转为大写";
-"edit.lowercase" = "转为小写";
-"edit.capitalize" = "首字母大写";
-"edit.trimWhitespace" = "去除首尾空白";
-"edit.removeExtraSpaces" = "去除多余空格";
-"edit.removeLineBreaks" = "去除换行";
-"edit.sortLines" = "排序行";
-"edit.reverseLines" = "反转行";
-"edit.uniqueLines" = "去除重复行";
 
 /* Multi-select */
 "action.merge" = "合并";
 "action.mergeCopy" = "复制";
 "action.copyDebugInfo" = "复制调试信息";
-"action.copyAsFilePath" = "作为文本路径复制";
-"action.pasteAsFile" = "作为文件粘贴";
 "quick.multiSelected" = "已选中 %d 条";
 "quick.batchPaste" = "批量粘贴";
 
 /* Privacy */
 "settings.privacy" = "隐私";
+"settings.privacy.offlineMode" = "单机模式";
+"settings.privacy.offlineMode.hint" = "开启后，PasteMemo 除了检查更新外不发起任何网络请求。链接预览、图片加载和匿名统计将全部关闭。";
 "settings.privacy.sensitive" = "敏感内容";
 "settings.privacy.sensitiveDetection" = "自动检测敏感内容";
 "settings.privacy.sensitiveHint" = "自动遮罩复制到剪贴板的密码、API 密钥、Token 等敏感数据。";
@@ -447,12 +494,14 @@
 "automation.section.builtIn" = "内置规则";
 "automation.section.custom" = "我的规则";
 "automation.section.empty" = "（空）";
+"automation.section.disabled" = "未启用";
 "automation.editor.selectRule" = "选择一条规则进行编辑";
 "automation.rule.name" = "名称";
 "automation.rule.enabled" = "启用";
 "automation.rule.triggerMode" = "触发模式";
 "automation.rule.triggerMode.automatic" = "自动触发";
 "automation.rule.triggerMode.manual" = "仅手动触发";
+"automation.rule.triggerMode.shortcutManualOnly" = "「运行快捷指令」仅支持手动触发";
 "automation.rule.notifyBeforeApply" = "触发时弹窗确认";
 "automation.rule.newName" = "新规则";
 "cmd.transform" = "转换";
@@ -467,6 +516,7 @@
 "automation.condition.regexMatch" = "内容匹配正则";
 "automation.condition.containsText" = "内容包含";
 "automation.condition.sourceApp" = "来源应用是";
+"automation.condition.anyText" = "任意文本";
 "automation.action.title" = "执行以下动作（按顺序）";
 "automation.action.add" = "+ 添加动作";
 "automation.action.lowercased" = "转小写";
@@ -474,8 +524,8 @@
 "automation.action.trimWhitespace" = "去首尾空白";
 "automation.action.removeBlankLines" = "去除多余空行";
 "automation.action.stripRichText" = "转纯文本";
-"automation.action.assignGroup" = "收藏";
-"automation.action.assignGroup.placeholder" = "请输入收藏名";
+"automation.action.assignGroup" = "移入分组";
+"automation.action.assignGroup.placeholder" = "请输入分组名";
 "automation.action.urlEncode" = "URL 编码";
 "automation.action.urlDecode" = "URL 解码";
 "automation.action.removeQueryParams" = "删除 URL 参数";
@@ -485,6 +535,7 @@
 "automation.action.addSuffix" = "添加后缀";
 "automation.preview" = "测试规则";
 "automation.preview.input" = "粘贴或输入内容以测试规则...";
+"automation.preview.useClipboard" = "使用当前剪贴板";
 "automation.preview.output" = "结果预览";
 "automation.preview.notMatched" = "条件未匹配";
 "automation.action.delete" = "删除规则";
@@ -500,7 +551,17 @@
 "automation.action.markSensitive" = "标记为敏感";
 "automation.action.pin" = "置顶";
 "automation.action.skipCapture" = "不复制";
+"automation.action.section.external" = "外部";
+"automation.action.runShortcut" = "运行快捷指令";
+"automation.action.runShortcut.placeholder" = "快捷指令名称";
+"automation.action.runShortcut.empty" = "未选择快捷指令";
+"automation.action.runShortcut.pick" = "从列表选择";
+"automation.action.runShortcut.openInApp" = "在快捷指令中打开";
+"automation.action.runShortcut.failed" = "快捷指令执行失败";
+"automation.action.runShortcut.loading" = "加载中…";
 "automation.rule.notifyOnTrigger" = "触发时发送通知";
+"automation.rule.writeBackToPasteboard" = "处理后写回剪贴板";
+"automation.rule.writeBackToPasteboard.help" = "开启后，规则处理结果会写回系统剪贴板，复制后直接 ⌘V 粘贴即为处理后的内容（富文本会转为纯文本）。";
 "automation.notification.title" = "自动化";
 "automation.applied" = "自动化已执行";
 "automation.validation.incomplete" = "无法启用规则";
@@ -517,6 +578,9 @@
 "automation.condition.sourceApp.empty" = "暂无已选应用";
 "automation.editor.definition" = "规则定义";
 "automation.editor.settings" = "设置";
+"automation.editor.triggerAndNotification" = "触发与通知";
+"automation.rule.status.active" = "已启用";
+"automation.rule.status.inactive" = "未启用";
 "automation.editor.save" = "保存";
 "automation.editor.cancel" = "取消";
 "automation.editor.edit" = "编辑";
@@ -534,20 +598,13 @@
 "onboarding.privacy.title" = "隐私保护";
 "onboarding.privacy.desc" = "PasteMemo 检测到你的 Mac 上安装了以下密码管理器或安全应用，建议将它们加入忽略列表以保护你的敏感数据。";
 "onboarding.privacy.none" = "未检测到密码管理器或安全应用";
+"onboarding.privacy.hint" = "勾选 = 忽略——该应用的剪贴板内容不会被记录。点按一行可切换。";
+"onboarding.privacy.ignored" = "已忽略";
+"onboarding.privacy.notIgnored" = "未忽略";
 
 /* Onboarding - Preferences */
 "onboarding.preferences.title" = "偏好设置";
 "onboarding.preferences.desc" = "设置你偏好的行为方式，之后随时可以在设置中修改。";
-
-/* Onboarding - Migration */
-"onboarding.migration.title" = "数据迁移";
-"onboarding.migration.desc" = "检测到你安装了 Paste.app，可以将历史记录一键迁移到 PasteMemo。";
-"onboarding.migration.found" = "发现 %d 条历史记录";
-"onboarding.migration.import" = "开始迁移";
-"onboarding.migration.none" = "未检测到 Paste.app，无需迁移";
-"onboarding.migration.success" = "迁移完成！已导入 %d 条记录";
-"onboarding.migration.skipped" = "跳过 %d 条重复记录";
-
 
 "sensitive.optionHint" = "按住 ⌥ Option 快速查看";
 
@@ -574,6 +631,10 @@
 "accessibility.step2.pre" = "先将其";
 "accessibility.step2.separator" = "，";
 
+"accessibility.step3.dragFromPanel" = "从悬浮面板拖入 PasteMemo";
+"accessibility.panelHint" = "如已存在旧条目，请先点 − 删除再拖入";
+"accessibility.panelTitle" = "辅助功能权限";
+
 "filter.sensitive" = "敏感";
 
 "settings.clearData" = "清理数据";
@@ -597,6 +658,7 @@
 "backup.frequency" = "备份频率";
 "backup.maxSlots" = "备份数量";
 "backup.destination" = "备份方式";
+"backup.frequency.twoHours" = "每 2 小时";
 "backup.frequency.sixHours" = "每 6 小时";
 "backup.frequency.daily" = "每天";
 "backup.frequency.threeDays" = "每 3 天";
@@ -608,6 +670,7 @@
 "backup.backupNow" = "立即备份";
 "backup.restore" = "从备份恢复…";
 "backup.success" = "备份成功。";
+"backup.progress.finalizing" = "正在保存…";
 "backup.restore.title" = "从备份恢复";
 "backup.restore.empty" = "暂无可用备份。";
 "backup.restore.merge" = "合并（保留现有数据）";
@@ -629,7 +692,9 @@
 // 命令面板
 "cmd.title" = "快捷操作";
 "cmd.paste" = "粘贴";
+"cmd.pasteAndDestroy" = "粘贴并销毁";
 "cmd.pasteAsPlainText" = "纯文本粘贴";
+"cmd.copyAsPlainText" = "复制为纯文本";
 "cmd.copy" = "复制";
 "cmd.pin" = "置顶 / 取消置顶";
 "cmd.toggleSensitive" = "标记 / 取消敏感";
@@ -639,11 +704,13 @@
 "cmd.pastePath" = "粘贴路径";
 "cmd.openInPreview" = "用“预览”打开";
 "cmd.retryOCR" = "重新识别 OCR";
+"cmd.pasteOCR" = "粘贴 OCR 文字";
 "cmd.andNewLine" = "并换行";
 
 "relay.title" = "接力模式";
 "relay.tab" = "接力";
 "relay.exit" = "退出";
+"relay.clearAndExit" = "清空并退出";
 "relay.close" = "关闭";
 "relay.exitRelay" = "退出接力";
 "relay.startRelay" = "开启接力";
@@ -651,7 +718,14 @@
 "relay.resume" = "继续接力";
 "relay.paused" = "接力已暂停";
 "relay.emptyHint" = "复制内容自动加入队列";
+"relay.deleted.recirculated" = "已从接力删除，保留在剪贴板历史";
+"relay.deleted.undo" = "撤销";
+"relay.appendedToQueue" = "已追加到接力队列（%d/%d）";
+"relay.queue.heading" = "队列 %d";
 "relay.quickPastePaused" = "接力模式下快捷粘贴已暂停";
+"relay.expand" = "展开";
+"relay.collapse" = "收起";
+"relay.content.truncated" = "…（内容过大，已截断）";
 "relay.alert.title" = "接力模式已开启";
 "relay.alert.message" = "快捷粘贴已暂停，复制的内容将自动加入接力队列。\n\n使用 %@ 逐条粘贴队列内容。";
 "relay.alert.ok" = "知道了";
@@ -660,6 +734,31 @@
 "relay.settings.pasteKeyNote" = "部分应用（终端、Emacs）可能使用相同快捷键，如有冲突请自定义。";
 "relay.settings.pauseToChange" = "请先暂停或退出接力模式再修改快捷键。";
 "relay.settings.resetAlert" = "重新显示开启提示";
+"relay.settings.plainText" = "纯文本粘贴";
+"relay.settings.plainText.desc" = "去除富文本格式";
+"relay.settings.allowRepeatCopy" = "允许重复复制";
+"relay.settings.allowRepeatCopy.desc" = "连续相同内容也入队";
+"relay.settings.completeSound" = "完成提示音";
+"relay.settings.completeSound.desc" = "接力完成时播放";
+"relay.settings.completeSound.mute" = "静音";
+"relay.banner.clickToClear" = "单击切换规则 · 点 ✕ 关闭自动化";
+"relay.settings.automation" = "自动化";
+"relay.settings.automation.desc" = "粘贴时应用所选规则";
+"relay.settings.automation.none" = "无";
+"relay.settings.preview" = "启用预览";
+"relay.settings.preview.desc" = "列表显示处理后文本";
+"relay.settings.tooltip.default" = "设置";
+"relay.settings.tooltip.active" = "已启用";
+"relay.settings.postPasteKey" = "粘贴后按键";
+"relay.settings.postPasteKey.desc" = "连续录入使用";
+"relay.settings.postPasteKey.none" = "无";
+"relay.settings.postPasteKey.return" = "回车";
+"relay.settings.postPasteKey.tab" = "Tab";
+"relay.settings.postPasteKey.down" = "下";
+"relay.settings.postPasteKey.up" = "上";
+"relay.settings.postPasteKey.left" = "左";
+"relay.settings.postPasteKey.right" = "右";
+"relay.settings.postPasteKey.space" = "空格";
 "relay.settings.description" = "接力模式可以连续复制多条内容，然后按顺序逐条粘贴。适合从网页复制一批用户名，再切到 Excel 逐行粘贴的场景。";
 "relay.settings.shortcuts" = "快捷键";
 "relay.settings.operations" = "操作说明";
@@ -667,10 +766,18 @@
 "relay.settings.op.skip" = "跳过当前条";
 "relay.settings.op.previous" = "回退上一条";
 "relay.autoExit.short" = "结束后自动退出";
+"relay.loop" = "循环";
+"relay.loop.tooltip.on" = "循环接力：开（队列结束后自动从头开始）";
+"relay.loop.tooltip.off" = "循环接力：关";
+"relay.pasteAsText" = "粘贴为文本";
 "relay.autoExit" = "队列清空后自动退出";
 "relay.previous" = "上一条";
 "relay.skip" = "跳过";
+"relay.pasteAll" = "全部粘贴";
+"relay.pasteAll.stop" = "停止";
+"relay.pasteAll.help" = "按顺序逐条粘贴队列中所有剩余条目（⌥⌃V）";
 "relay.delete" = "删除";
+"relay.setCurrent" = "设为当前";
 "relay.split" = "拆分";
 "relay.addToQueue" = "加入接力队列";
 "relay.splitAndRelay" = "拆分并接力";
@@ -685,6 +792,14 @@
 "relay.delimiter.chineseComma" = "顿号 (\U3001)";
 "relay.delimiter.custom" = "自定义";
 
+/* Sponsor Tab */
+"settings.sponsor" = "支持";
+"sponsor.title" = "支持 PasteMemo";
+"sponsor.desc" = "PasteMemo 是免费开源的。如果对你有帮助，欢迎支持这个项目。";
+"sponsor.donate" = "请我喝杯咖啡";
+"sponsor.star" = "GitHub 点个 Star";
+"sponsor.feedback" = "提交反馈";
+
 /* About - Open Source */
 "about.license" = "开源协议";
 "about.sourceCode" = "源代码";
@@ -693,6 +808,14 @@
 "settings.privacy.analytics" = "使用统计";
 "settings.privacy.analyticsToggle" = "发送匿名使用统计";
 "settings.privacy.analyticsHint" = "帮助改进 PasteMemo，发送匿名使用数据（应用版本、系统语言、macOS 版本）。不采集任何个人信息。";
+"settings.autoCheckUpdates" = "自动检查更新";
+"settings.updateCheckInterval" = "检查频率";
+"settings.updateCheckInterval.6h" = "每 6 小时";
+"settings.updateCheckInterval.12h" = "每 12 小时";
+"settings.updateCheckInterval.24h" = "每 24 小时";
+"settings.updateCheckInterval.72h" = "每 3 天";
+"settings.includeBetaChannel" = "参与 Beta 测试";
+"settings.includeBetaChannel.hint" = "提前体验新功能，可能不稳定。Beta 版稳定后会自动升级到正式版。";
 "analytics.consent.title" = "使用统计";
 "analytics.consent.message" = "是否发送匿名使用统计以帮助改进 PasteMemo？包括应用版本、系统语言和 macOS 版本，不采集任何个人信息。你可以随时在 设置 → 隐私 中更改。";
 "analytics.consent.allow" = "允许";
@@ -702,3 +825,51 @@
 "onboarding.analytics.title" = "使用统计";
 "onboarding.analytics.desc" = "发送匿名使用数据（应用版本、系统语言、macOS 版本）帮助改进 PasteMemo。不采集任何个人信息。";
 "onboarding.analytics.hint" = "你可以随时在 设置 → 隐私 中更改。";
+
+/* Edit */
+"detail.richText.editWarning" = "编辑将移除富文本格式并转为纯文本。";
+
+/* AI Agents */
+"settings.tab.aiAgents" = "AI Agents";
+"settings.aiAgents.service" = "服务";
+"settings.aiAgents.serverRunning" = "MCP 服务器运行中";
+"settings.aiAgents.agents" = "Agent";
+"settings.aiAgents.detected" = "本机可用";
+"settings.aiAgents.notInstalled" = "本机未安装";
+"settings.aiAgents.installed.label" = "已安装";
+"settings.aiAgents.install" = "安装";
+"settings.aiAgents.uninstall" = "卸载";
+"settings.aiAgents.manualConfig" = "手动配置";
+"settings.aiAgents.installed" = "已安装到 %@，请重启 %@ 后生效。";
+"settings.aiAgents.uninstalled" = "已从 %@ 卸载。";
+"settings.aiAgents.installFailed" = "安装到 %@ 失败：%@";
+"settings.aiAgents.uninstallFailed" = "从 %@ 卸载失败：%@";
+"settings.aiAgents.privacy" = "隐私";
+"settings.aiAgents.allowSensitive" = "允许 Agent 读取标记为敏感的剪贴项";
+"settings.aiAgents.master.toggle" = "启用 AI Agent 集成";
+"settings.aiAgents.master.detail" = "允许 Claude、Codex 等 AI 工具通过 MCP 协议读取你的剪贴板历史";
+"settings.aiAgents.master.disabledHint" = "已关闭。开启后可让 AI Agent 通过 MCP 协议访问你的剪贴板历史。";
+"settings.aiAgents.sourceBlocklist" = "源 App 黑名单";
+"settings.aiAgents.binaryMissing" = "pastememo-mcp 二进制缺失";
+"settings.aiAgents.binaryMissingDetail" = "通常在从 MCP 之前的版本通过应用内更新后发生。请从 lifedever.com 重新下载 DMG 修复。";
+"settings.aiAgents.openDownload" = "打开下载页";
+"settings.aiAgents.blocklist.empty" = "无已屏蔽 App";
+"settings.aiAgents.blocklist.add" = "添加 App";
+"settings.aiAgents.manualConfig.title" = "%@ 的手动配置";
+"settings.aiAgents.manualConfig.subtitle" = "复制下面的片段，粘贴到对应配置文件中。";
+"settings.aiAgents.manualConfig.copy" = "复制到剪贴板";
+"settings.aiAgents.manualConfig.done" = "完成";
+
+"settings.diagnostics" = "诊断";
+"settings.diagnostics.export" = "导出诊断日志";
+
+/* Image grid (Quick Panel) */
+"settings.imageLayout" = "图片显示方式";
+"settings.imageLayout.list" = "列表";
+"settings.imageLayout.grid" = "瀑布流网格";
+"settings.imageGridDensity" = "网格密度";
+"settings.imageGridDensity.sparse" = "疏";
+"settings.imageGridDensity.medium" = "中";
+"settings.imageGridDensity.dense" = "密";
+
+"settings.ocr.memoryHint" = "开启后会在后台用 Vision 识别图片中的文字，可能增加内存占用。";

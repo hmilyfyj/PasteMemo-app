@@ -16,6 +16,11 @@ enum CodeDetector {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
 
+        // hljs.highlightAuto on JavaScriptCore blocks the main actor for seconds on
+        // >64KB input. Any realistic source file fits comfortably; log dumps and
+        // terminal buffers don't need syntax highlighting anyway.
+        guard trimmed.utf8.count <= 64 * 1024 else { return nil }
+
         // Phase 1: reject structured non-code formats
         if isLogOutput(trimmed) { return nil }
 

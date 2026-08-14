@@ -8,6 +8,9 @@ final class BackupScheduler {
     static let shared = BackupScheduler()
 
     var isBackingUp = false
+    var backupProgressCurrent: Int = 0
+    var backupProgressTotal: Int = 0
+    var backupIsFinalizing: Bool = false
     var lastBackupDate: Date? {
         UserDefaults.standard.object(forKey: "backupLastDate") as? Date
     }
@@ -34,11 +37,26 @@ final class BackupScheduler {
 
         isBackingUp = true
         lastBackupError = nil
-        defer { isBackingUp = false }
+        backupProgressCurrent = 0
+        backupProgressTotal = 0
+        backupIsFinalizing = false
+        defer {
+            isBackingUp = false
+            backupProgressCurrent = 0
+            backupProgressTotal = 0
+            backupIsFinalizing = false
+        }
 
         do {
             let destination = buildDestination()
-            try await BackupEngine.performBackup(container: container, destination: destination)
+            try await BackupEngine.performBackup(
+                container: container,
+                destination: destination
+            ) { [weak self] current, total, isFinalizing in
+                self?.backupProgressCurrent = current
+                self?.backupProgressTotal = total
+                self?.backupIsFinalizing = isFinalizing
+            }
             reschedule()
         } catch {
             lastBackupError = error.localizedDescription

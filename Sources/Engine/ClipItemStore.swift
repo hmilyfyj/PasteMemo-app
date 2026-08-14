@@ -9,6 +9,14 @@ extension Notification.Name {
 @MainActor
 @Observable
 final class ClipItemStore {
+    enum QueryValue<T> {
+        case unchanged
+        case set(T)
+    }
+
+    /// All active store instances — used by deleteAndNotify to synchronously remove items
+    private static var activeStores = NSHashTable<AnyObject>.weakObjects()
+
     private(set) var items: [ClipItem] = []
     private(set) var hasMore = true
     private(set) var totalCount = 0
@@ -16,45 +24,45 @@ final class ClipItemStore {
 
     var searchText: String = "" {
         didSet {
+            guard !isApplyingBatchQuery else { return }
             guard searchText != oldValue else { return }
-            searchDebounceTask?.cancel()
+            cancelPendingSearchDebounce()
+            let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                executeSearch()
+                return
+            }
             searchDebounceTask = Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .milliseconds(200))
+                try? await Task.sleep(for: .milliseconds(80))
                 guard !Task.isCancelled else { return }
                 self?.executeSearch()
+                self?.searchDebounceTask = nil
             }
         }
     }
 
     private var searchDebounceTask: Task<Void, Never>?
+    private var isApplyingBatchQuery = false
+
+    private func cancelPendingSearchDebounce() {
+        searchDebounceTask?.cancel()
+        searchDebounceTask = nil
+    }
 
     private func executeSearch() {
         currentOffset = 0
         hasMore = true
-        
-        // 对于正则和模糊搜索，需要获取更多数据
-        let needsAdvancedFilter = searchText.hasPrefix("regex:") || searchText.hasPrefix("fuzzy:")
-        let limit = needsAdvancedFilter ? 1000 : pageSize
-        
-        let ids = queryItemIDs(offset: 0, limit: limit)
-        var hydratedItems = hydrateItems(ids: ids)
-        
-        // 应用高级搜索过滤器
-        if needsAdvancedFilter {
-            hydratedItems = applyAdvancedSearchFilters(hydratedItems)
-            items = Array(hydratedItems.prefix(pageSize))
-            hasMore = hydratedItems.count > pageSize
-        } else {
-            items = hydratedItems
-            hasMore = ids.count >= pageSize
-        }
-        
-        currentOffset = min(items.count, pageSize)
+        let ids = queryItemIDs(offset: 0, limit: pageSize)
+        items = hydrateItems(ids: ids)
+        hasMore = ids.count >= pageSize
+        currentOffset = ids.count
+        totalCount = queryTotalCount()
     }
 
     var filterType: ClipContentType? = nil
     var pinnedOnly: Bool = false
     var sensitiveOnly: Bool = false
+    var aiAgentOnly: Bool = false
     var sourceApp: FilteredApp? = nil
     var groupName: String? = nil
 
@@ -62,6 +70,73 @@ final class ClipItemStore {
     func applyFilters() {
         currentOffset = 0
         reload()
+    }
+
+    func updateQuery(
+        searchText: QueryValue<String> = .unchanged,
+        filterType: QueryValue<ClipContentType?> = .unchanged,
+        pinnedOnly: Bool? = nil,
+        sensitiveOnly: Bool? = nil,
+        aiAgentOnly: Bool? = nil,
+        sourceApp: QueryValue<FilteredApp?> = .unchanged,
+        groupName: QueryValue<String?> = .unchanged
+    ) {
+        cancelPendingSearchDebounce()
+        isApplyingBatchQuery = true
+        defer { isApplyingBatchQuery = false }
+
+        let nextSearchText: String = switch searchText {
+        case .unchanged: self.searchText
+        case .set(let value): value
+        }
+        let nextFilterType: ClipContentType? = switch filterType {
+        case .unchanged: self.filterType
+        case .set(let value): value
+        }
+        let nextPinnedOnly = pinnedOnly ?? self.pinnedOnly
+        let nextSensitiveOnly = sensitiveOnly ?? self.sensitiveOnly
+        let nextAIAgentOnly = aiAgentOnly ?? self.aiAgentOnly
+        let nextSourceApp: FilteredApp? = switch sourceApp {
+        case .unchanged: self.sourceApp
+        case .set(let value): value
+        }
+        let nextGroupName: String? = switch groupName {
+        case .unchanged: self.groupName
+        case .set(let value): value
+        }
+
+        let changed =
+            nextSearchText != self.searchText ||
+            nextFilterType != self.filterType ||
+            nextPinnedOnly != self.pinnedOnly ||
+            nextSensitiveOnly != self.sensitiveOnly ||
+            nextAIAgentOnly != self.aiAgentOnly ||
+            nextSourceApp != self.sourceApp ||
+            nextGroupName != self.groupName
+
+        self.searchText = nextSearchText
+        self.filterType = nextFilterType
+        self.pinnedOnly = nextPinnedOnly
+        self.sensitiveOnly = nextSensitiveOnly
+        self.aiAgentOnly = nextAIAgentOnly
+        self.sourceApp = nextSourceApp
+        self.groupName = nextGroupName
+
+        guard changed else { return }
+        currentOffset = 0
+
+        let trimmed = nextSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            reload()
+            return
+        }
+
+        searchDebounceTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(200))
+            guard !Task.isCancelled else { return }
+            self?.executeSearch()
+            self?.searchDebounceTask = nil
+        }
     }
 
     var sortPinnedFirst = false
@@ -82,24 +157,38 @@ final class ClipItemStore {
         case unknown
     }
 
-    private var needsRefresh = true
+    private(set) var needsRefresh = true
 
-    func configure(modelContext: ModelContext) {
+    func configure(modelContext: ModelContext, reloadData: Bool = true) {
         let isFirstTime = self.modelContext == nil
         self.modelContext = modelContext
-        if isFirstTime { observeChanges() }
+        if isFirstTime {
+            Self.activeStores.add(self)
+            observeChanges()
+        }
+        invalidateDB()
         if needsRefresh {
             refreshAvailableTypes()
             refreshSidebarCounts()
             refreshSourceApps()
             needsRefresh = false
         }
-        reload()
+        if reloadData {
+            reload()
+        }
+    }
+
+    /// Consume the `needsRefresh` flag set by observers while the store was inactive.
+    /// No-op when clean — safe to call on every quick panel show.
+    func refreshIfNeeded() {
+        guard needsRefresh else { return }
+        performRefresh()
     }
 
     // MARK: - Public
 
     func reload() {
+        cancelPendingSearchDebounce()
         let loadCount = max(currentOffset, pageSize)
         currentOffset = 0
         hasMore = true
@@ -114,7 +203,8 @@ final class ClipItemStore {
         guard hasMore, !isLoadingMore else { return }
         isLoadingMore = true
         let ids = queryItemIDs(offset: currentOffset, limit: pageSize)
-        items.append(contentsOf: hydrateItems(ids: ids))
+        let hydrated = hydrateItems(ids: ids)
+        items.append(contentsOf: hydrated)
         hasMore = ids.count >= pageSize
         currentOffset += ids.count
         isLoadingMore = false
@@ -124,20 +214,11 @@ final class ClipItemStore {
         items.removeAll { ids.contains($0.persistentModelID) }
     }
 
-    /// 将指定的 items 移动到列表开头（用于复制后立即更新排序）
-    func moveItemsToFront(_ itemsToMove: [ClipItem]) {
-        let idsToMove = Set(itemsToMove.map(\.itemID))
-        var newItems = itemsToMove
-        for item in items where !idsToMove.contains(item.itemID) {
-            newItems.append(item)
-        }
-        items = newItems
-    }
-
     func resetFilters() {
         filterType = nil
         pinnedOnly = false
         sensitiveOnly = false
+        aiAgentOnly = false
         sourceApp = nil
         groupName = nil
         searchText = ""
@@ -150,38 +231,24 @@ final class ClipItemStore {
         guard let context = modelContext, !ids.isEmpty else { return [] }
         var seen = Set<String>()
         let uniqueIDs = ids.filter { seen.insert($0).inserted }
-        
-        var result: [ClipItem] = []
-        result.reserveCapacity(uniqueIDs.count)
-        
-        var uncachedIDs: [String] = []
-        for id in uniqueIDs {
-            if let cached = ClipItemCache.shared.get(itemID: id) {
-                result.append(cached)
-            } else {
-                uncachedIDs.append(id)
-            }
-        }
-        
-        guard !uncachedIDs.isEmpty else { return result }
-        
+        // Batch fetch in chunks to avoid N individual queries
+        var map: [String: ClipItem] = [:]
+        map.reserveCapacity(uniqueIDs.count)
         let chunkSize = 50
-        for start in stride(from: 0, to: uncachedIDs.count, by: chunkSize) {
-            let end = min(start + chunkSize, uncachedIDs.count)
-            let chunkIDs = Array(uncachedIDs[start..<end])
+        for start in stride(from: 0, to: uniqueIDs.count, by: chunkSize) {
+            let end = min(start + chunkSize, uniqueIDs.count)
+            let chunkIDs = Array(uniqueIDs[start..<end])
             let predicate = #Predicate<ClipItem> { item in
                 chunkIDs.contains(item.itemID)
             }
-            var desc = FetchDescriptor<ClipItem>(predicate: predicate)
+            let desc = FetchDescriptor<ClipItem>(predicate: predicate)
             if let fetched = try? context.fetch(desc) {
-                ClipItemCache.shared.cache(fetched)
-                result.append(contentsOf: fetched)
+                for item in fetched {
+                    map[item.itemID] = item
+                }
             }
         }
-        
-        return uniqueIDs.compactMap { id in
-            result.first { $0.itemID == id }
-        }
+        return uniqueIDs.compactMap { map[$0] }
     }
 
     /// Quick check: get the itemID of the latest item (no filters)
@@ -191,7 +258,7 @@ final class ClipItemStore {
         var params: [Any] = []
         addRetentionCondition(&conditions, &params)
         let whereClause = conditions.isEmpty ? "" : "WHERE " + conditions.joined(separator: " AND ")
-        return db.queryStrings("SELECT ZITEMID FROM ZCLIPITEM \(whereClause) ORDER BY ZLASTUSEDAT DESC LIMIT 1", params: params).first
+        return db.queryStrings("SELECT ZITEMID FROM ZCLIPITEM \(whereClause) \(orderByClause(pinnedFirst: false)) LIMIT 1", params: params).first
     }
 
     // MARK: - SQL Queries
@@ -208,9 +275,7 @@ final class ClipItemStore {
         addSearchCondition(&conditions, &params)
 
         let whereClause = conditions.isEmpty ? "" : "WHERE " + conditions.joined(separator: " AND ")
-        let orderBy = sortPinnedFirst
-            ? "ORDER BY ZISPINNED DESC, ZLASTUSEDAT DESC"
-            : "ORDER BY ZLASTUSEDAT DESC"
+        let orderBy = orderByClause(pinnedFirst: sortPinnedFirst)
 
         params.append(limit)
         params.append(offset)
@@ -235,22 +300,45 @@ final class ClipItemStore {
         return db.queryInt("SELECT COUNT(*) FROM ZCLIPITEM \(whereClause)", params: params)
     }
 
+    private func orderByClause(pinnedFirst: Bool) -> String {
+        pinnedFirst
+            ? "ORDER BY ZISPINNED DESC, ZLASTUSEDAT DESC"
+            : "ORDER BY ZLASTUSEDAT DESC"
+    }
+
     // MARK: - Condition Builders
 
     private func addRetentionCondition(_ conditions: inout [String], _ params: inout [Any]) {
         guard let cutoff = ProManager.shared.retentionCutoffDate else { return }
         let cutoffVal = cutoff.timeIntervalSince(Date(timeIntervalSinceReferenceDate: 0))
-        conditions.append("(ZISPINNED = 1 OR ZGROUPNAME IS NOT NULL OR ZCREATEDAT >= ?)")
+        // Must mirror ClipboardManager.cleanExpiredItems' preservation logic:
+        // items in `preservesItems = true` groups survive deletion, so they
+        // must also survive the query filter. Without this, those items become
+        // invisible "dark matter" — still matched by findExistingDuplicate
+        // (which doesn't apply retention), so a fresh copy of the same content
+        // gets merged into the hidden row and the user sees no UI feedback.
+        conditions.append("""
+            (ZISPINNED = 1
+             OR ZCREATEDAT >= ?
+             OR ZGROUPNAME IN (SELECT ZNAME FROM ZSMARTGROUP WHERE ZPRESERVESITEMS = 1))
+        """)
         params.append(cutoffVal)
     }
 
     private func addFilterConditions(_ conditions: inout [String], _ params: inout [Any]) {
         if let type = filterType {
-            conditions.append("ZCONTENTTYPE = ?")
+            // Mixed items carry multiple independent representations — they should appear
+            // under every category whose corresponding auxiliary field is populated.
+            if let mixedClause = Self.mixedCrossoverSQL(for: type) {
+                conditions.append("(ZCONTENTTYPERAW = ? OR \(mixedClause))")
+            } else {
+                conditions.append("ZCONTENTTYPERAW = ?")
+            }
             params.append(type.rawValue)
         }
         if pinnedOnly { conditions.append("ZISPINNED = 1") }
         if sensitiveOnly { conditions.append("ZISSENSITIVE = 1") }
+        if aiAgentOnly { conditions.append("ZAGENTSOURCE IS NOT NULL") }
         if let app = sourceApp {
             switch app {
             case .named(let name):
@@ -266,62 +354,46 @@ final class ClipItemStore {
         }
     }
 
-    private func addSearchCondition(_ conditions: inout [String], _ params: inout [Any]) {
-        guard !searchText.isEmpty else { return }
-        
-        // 支持正则搜索：regex:pattern
-        if searchText.hasPrefix("regex:") {
-            return
+    /// Extra SQL (parameter-less) that lets `.mixed` items surface under cross-category filters
+    /// based on which auxiliary representation they carry. Nil means strict match only.
+    static func mixedCrossoverSQL(for type: ClipContentType) -> String? {
+        switch type {
+        case .image:
+            return "(ZCONTENTTYPERAW = 'mixed' AND ZIMAGEDATA IS NOT NULL)"
+        case .file:
+            return "(ZCONTENTTYPERAW = 'mixed' AND ZFILEPATHS IS NOT NULL AND ZFILEPATHS != '')"
+        case .text:
+            return "(ZCONTENTTYPERAW = 'mixed' AND ZCONTENT IS NOT NULL AND ZCONTENT != '' AND ZCONTENT != '[Mixed]')"
+        default:
+            return nil
         }
-        
-        // 支持模糊搜索：fuzzy:query
-        if searchText.hasPrefix("fuzzy:") {
-            return
-        }
-        
-        let tokens = SearchMatcher.tokens(from: searchText)
-        guard !tokens.isEmpty else { return }
+    }
 
-        var tokenConditions: [String] = []
+    private func addSearchCondition(_ conditions: inout [String], _ params: inout [Any]) {
+        let tokens = Self.tokenizeSearchInput(searchText)
+        guard !tokens.isEmpty else { return }
         for token in tokens {
             let pattern = "%\(token)%"
-            tokenConditions.append("(ZCONTENT LIKE ? OR ZDISPLAYTITLE LIKE ? OR ZLINKTITLE LIKE ? OR ZOCRTEXT LIKE ?)")
+            conditions.append(
+                "ZITEMID IN (SELECT itemID FROM clip_fts WHERE content LIKE ? OR displayTitle LIKE ? OR linkTitle LIKE ? OR ocrText LIKE ?)"
+            )
             params.append(pattern)
             params.append(pattern)
             params.append(pattern)
             params.append(pattern)
         }
-        conditions.append("(" + tokenConditions.joined(separator: " AND ") + ")")
     }
-    
-    private func applyAdvancedSearchFilters(_ items: [ClipItem]) -> [ClipItem] {
-        guard !searchText.isEmpty else { return items }
-        
-        // 正则搜索
-        if searchText.hasPrefix("regex:") {
-            let pattern = String(searchText.dropFirst(6))
-            return items.filter { item in
-                let fields = [item.content, item.displayTitle, item.linkTitle, item.ocrText]
-                return fields.contains { field in
-                    guard let field, !field.isEmpty else { return false }
-                    return SearchMatcher.regexMatch(pattern: pattern, in: field)
-                }
-            }
-        }
-        
-        // 模糊搜索
-        if searchText.hasPrefix("fuzzy:") {
-            let query = String(searchText.dropFirst(6))
-            return items.filter { item in
-                let fields = [item.content, item.displayTitle, item.linkTitle, item.ocrText]
-                return fields.contains { field in
-                    guard let field, !field.isEmpty else { return false }
-                    return SearchMatcher.fuzzyMatch(query: query, in: field, threshold: 0.6)
-                }
-            }
-        }
-        
-        return items
+
+    /// Splits the search box input into AND-joined tokens.
+    /// Whitespace (spaces, tabs, full-width spaces, newlines) is the separator;
+    /// empty pieces from consecutive whitespace are dropped.
+    /// Extracted as `static` so the tokenization rule can be unit-tested without
+    /// the SQLite/FTS stack.
+    static func tokenizeSearchInput(_ raw: String) -> [String] {
+        raw
+            .split(whereSeparator: { $0.isWhitespace })
+            .map(String.init)
+            .filter { !$0.isEmpty }
     }
 
     // MARK: - Metadata Queries
@@ -329,8 +401,21 @@ final class ClipItemStore {
     func refreshAvailableTypes() {
         guard let db = openDB() else { return }
 
-        let rawTypes = db.queryStrings("SELECT DISTINCT ZCONTENTTYPE FROM ZCLIPITEM")
-        let existingTypes = Set(rawTypes.compactMap { ClipContentType(rawValue: $0) })
+        let rawTypes = db.queryStrings("SELECT DISTINCT ZCONTENTTYPERAW FROM ZCLIPITEM")
+        var existingTypes = Set(rawTypes.compactMap { ClipContentType(rawValue: $0) })
+        // A mixed item grants visibility to every crossover category its auxiliary fields populate,
+        // so the sidebar exposes an entry point even when no strict-typed item exists yet.
+        if existingTypes.contains(.mixed) {
+            for (type, clause) in [
+                (ClipContentType.image, "ZIMAGEDATA IS NOT NULL"),
+                (ClipContentType.file,  "ZFILEPATHS IS NOT NULL AND ZFILEPATHS != ''"),
+                (ClipContentType.text,  "ZCONTENT IS NOT NULL AND ZCONTENT != '' AND ZCONTENT != '[Mixed]'"),
+            ] {
+                if db.queryInt("SELECT COUNT(*) FROM ZCLIPITEM WHERE ZCONTENTTYPERAW = 'mixed' AND \(clause)") > 0 {
+                    existingTypes.insert(type)
+                }
+            }
+        }
         availableTypes = ClipContentType.visibleCases.filter { type in
             ProManager.shared.canUseContentType(type) && existingTypes.contains(type)
         }
@@ -344,45 +429,68 @@ final class ClipItemStore {
         var all = 0
         var pinned = 0
         var sensitive = 0
+        var aiAgent = 0
         var byType: [ClipContentType: Int] = [:]
         var byApp: [String?: Int] = [:]  // nil key = unknown app
-        var byGroup: [(name: String, icon: String, color: String?, count: Int)] = []
+        var byGroup: [(name: String, icon: String, count: Int, preservesItems: Bool)] = []
     }
 
     func refreshSidebarCounts() {
         guard let db = openDB() else { return }
         var counts = SidebarCounts()
-        counts.all = db.queryInt("SELECT COUNT(*) FROM ZCLIPITEM")
-        counts.pinned = db.queryInt("SELECT COUNT(*) FROM ZCLIPITEM WHERE ZISPINNED = 1")
-        counts.sensitive = db.queryInt("SELECT COUNT(*) FROM ZCLIPITEM WHERE ZISSENSITIVE = 1")
-        for type in ClipContentType.visibleCases {
-            let c = db.queryInt("SELECT COUNT(*) FROM ZCLIPITEM WHERE ZCONTENTTYPE = ?", params: [type.rawValue])
-            if c > 0 { counts.byType[type] = c }
+        let summary = db.queryIntRow(
+            """
+            SELECT COUNT(*),
+                   COALESCE(SUM(CASE WHEN ZISPINNED = 1 THEN 1 ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN ZISSENSITIVE = 1 THEN 1 ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN ZAGENTSOURCE IS NOT NULL THEN 1 ELSE 0 END), 0)
+            FROM ZCLIPITEM
+            """,
+            columnCount: 4
+        )
+        counts.all = summary[0]
+        counts.pinned = summary[1]
+        counts.sensitive = summary[2]
+        counts.aiAgent = summary[3]
+        let visibleTypes = Set(ClipContentType.visibleCases)
+        for (rawType, count) in db.queryStringIntPairs(
+            "SELECT ZCONTENTTYPERAW, COUNT(*) FROM ZCLIPITEM GROUP BY ZCONTENTTYPERAW"
+        ) {
+            guard count > 0,
+                  let type = ClipContentType(rawValue: rawType),
+                  visibleTypes.contains(type) else { continue }
+            counts.byType[type] = count
         }
-        let apps = db.queryStrings("SELECT DISTINCT ZSOURCEAPP FROM ZCLIPITEM WHERE ZSOURCEAPP IS NOT NULL ORDER BY ZSOURCEAPP")
-        for app in apps {
-            counts.byApp[app] = db.queryInt("SELECT COUNT(*) FROM ZCLIPITEM WHERE ZSOURCEAPP = ?", params: [app])
+        // Mixed items contribute to every category whose corresponding representation is present.
+        for (type, clause) in [
+            (ClipContentType.image, "ZIMAGEDATA IS NOT NULL"),
+            (ClipContentType.file,  "ZFILEPATHS IS NOT NULL AND ZFILEPATHS != ''"),
+            (ClipContentType.text,  "ZCONTENT IS NOT NULL AND ZCONTENT != '' AND ZCONTENT != '[Mixed]'"),
+        ] where visibleTypes.contains(type) {
+            let extra = db.queryInt("SELECT COUNT(*) FROM ZCLIPITEM WHERE ZCONTENTTYPERAW = 'mixed' AND \(clause)")
+            if extra > 0 {
+                counts.byType[type, default: 0] += extra
+            }
+        }
+        for (app, count) in db.queryStringIntPairs(
+            "SELECT ZSOURCEAPP, COUNT(*) FROM ZCLIPITEM WHERE ZSOURCEAPP IS NOT NULL GROUP BY ZSOURCEAPP ORDER BY ZSOURCEAPP"
+        ) {
+            counts.byApp[app] = count
         }
         let nullCount = db.queryInt("SELECT COUNT(*) FROM ZCLIPITEM WHERE ZSOURCEAPP IS NULL")
         if nullCount > 0 { counts.byApp[nil] = nullCount }
-        // Groups: read from SmartGroup table (count maintained by upsert/decrement)
-        if let context = modelContext {
-            let descriptor = FetchDescriptor<SmartGroup>(sortBy: [SortDescriptor(\.sortOrder)])
-            if let groups = try? context.fetch(descriptor) {
-                for group in groups {
-                    counts.byGroup.append((
-                        name: group.name,
-                        icon: group.icon,
-                        color: group.color,
-                        count: group.count
-                    ))
-                }
-            }
-        }
+        counts.byGroup = db.queryGroupRows(
+            "SELECT ZNAME, COALESCE(ZICON, 'folder'), ZCOUNT, COALESCE(ZPRESERVESITEMS, 0) FROM ZSMARTGROUP ORDER BY ZSORTORDER"
+        ).map { (name: $0.0, icon: $0.1, count: $0.2, preservesItems: $0.3) }
         sidebarCounts = counts
     }
 
     private(set) var sourceApps: [String] = []
+    /// Stable sourceApp → bundleID map across the entire DB. Sidebar icon resolution
+    /// reads from here instead of `items` (paginated) — otherwise apps whose records
+    /// fall outside the current page can't resolve their bundleID and hit the buggy
+    /// name-based fallback in FileIconHelper. See issue #52.
+    private(set) var sourceAppBundleIDs: [String: String] = [:]
 
     private func refreshSourceApps() {
         guard let db = openDB() else { return }
@@ -393,12 +501,34 @@ final class ClipItemStore {
             apps.append("")
         }
         sourceApps = apps
+
+        // Pick the most-recent non-empty bundleID per sourceApp. Bundle IDs are stable
+        // for a given app, so taking the latest is just a tiebreak when historical
+        // records mix valid IDs with empty ones.
+        let pairs = db.queryStringStringIntTuples(
+            """
+            SELECT ZSOURCEAPP, ZSOURCEAPPBUNDLEID, 0
+            FROM ZCLIPITEM
+            WHERE ZSOURCEAPP IS NOT NULL
+              AND ZSOURCEAPPBUNDLEID IS NOT NULL
+              AND ZSOURCEAPPBUNDLEID != ''
+            GROUP BY ZSOURCEAPP
+            HAVING MAX(ZCREATEDAT)
+            """
+        )
+        sourceAppBundleIDs = Dictionary(uniqueKeysWithValues: pairs.map { ($0.0, $0.1) })
     }
 
     // MARK: - Helpers
 
+    /// Always returns a fresh SQLite connection. Opening is cheap (~hundreds of µs
+    /// on local files) and eliminates an entire class of "cached connection doesn't
+    /// see the latest SwiftData write" bugs (e.g. new group not appearing, multi-file
+    /// paste not bumping to top, group reorder not reflected in quick panel).
+    /// Callers don't need to remember to invalidate — every query sees fresh data.
     private func openDB() -> SQLiteConnection? {
-        if let db = _db { return db }
+        _db?.close()
+        _db = nil
         guard let url = storeURL else { return nil }
         _db = SQLiteConnection(path: url.path)
         return _db
@@ -416,6 +546,92 @@ final class ClipItemStore {
 
     /// Post this notification after pin/sensitive/delete to trigger immediate reload
     static let itemDidUpdateNotification = Notification.Name("ClipItemStoreItemDidUpdate")
+    /// Post this notification after content/title/OCR updates that do not affect sidebar counts
+    static let itemContentDidUpdateNotification = Notification.Name("ClipItemStoreItemContentDidUpdate")
+    /// Post this notification after `lastUsedAt` updates to trigger a lightweight reorder refresh
+    static let itemLastUsedDidUpdateNotification = Notification.Name("ClipItemStoreItemLastUsedDidUpdate")
+
+    /// Remove items from store, delete from context, rebuild group counts,
+    /// save, and notify. This is the ONLY safe way to delete ClipItems —
+    /// ensures store.items is updated before context.save() triggers SwiftUI
+    /// re-render, and that SmartGroup.count badges stay accurate without each
+    /// caller having to remember to recalculate.
+    static func deleteAndNotify(_ itemsToDelete: [ClipItem], from context: ModelContext) {
+        guard !itemsToDelete.isEmpty else { return }
+
+        // Pause clipboard monitoring to prevent cleanExpiredItems from firing
+        // during deletion (nested RunLoops can trigger the timer's Task)
+        let wasPaused = ClipboardManager.shared.isPaused
+        if !wasPaused { ClipboardManager.shared.pauseMonitoring() }
+
+        // Remove only the deleted items from stores (avoids full-list flash).
+        let idsToDelete = Set(itemsToDelete.map(\.persistentModelID))
+        for case let store as ClipItemStore in activeStores.allObjects {
+            store.items.removeAll { idsToDelete.contains($0.persistentModelID) }
+        }
+        let touchesGroups = itemsToDelete.contains { ($0.groupName ?? "").isEmpty == false }
+
+        // Preserve any caller-set bulk-operation flag (e.g. settings clear data)
+        // so we don't toggle it off while a larger transaction is still running.
+        let wasBulk = isBulkOperation
+        isBulkOperation = true
+        for item in itemsToDelete {
+            context.delete(item)
+        }
+        if touchesGroups {
+            ClipboardManager.shared.recalculateAllGroupCounts(context: context)
+        }
+        isBulkOperation = wasBulk
+        saveAndNotify(context)
+
+        if !wasPaused { ClipboardManager.shared.resumeMonitoring() }
+    }
+
+    /// Async batched variant of `deleteAndNotify` for large deletions. Yields
+    /// between batches so the UI stays responsive; callers typically show a
+    /// progress sheet and forward the `(done, total)` callback to it.
+    @MainActor
+    static func deleteAndNotifyBatched(
+        _ itemsToDelete: [ClipItem],
+        from context: ModelContext,
+        batchSize: Int = 200,
+        progress: ((Int, Int) -> Void)? = nil
+    ) async {
+        guard !itemsToDelete.isEmpty else { return }
+
+        let wasPaused = ClipboardManager.shared.isPaused
+        if !wasPaused { ClipboardManager.shared.pauseMonitoring() }
+
+        let idsToDelete = Set(itemsToDelete.map(\.persistentModelID))
+        for case let store as ClipItemStore in activeStores.allObjects {
+            store.items.removeAll { idsToDelete.contains($0.persistentModelID) }
+        }
+        let touchesGroups = itemsToDelete.contains { ($0.groupName ?? "").isEmpty == false }
+
+        let wasBulk = isBulkOperation
+        isBulkOperation = true
+
+        let total = itemsToDelete.count
+        var done = 0
+        progress?(0, total)
+        for batchStart in stride(from: 0, to: total, by: batchSize) {
+            let batchEnd = min(batchStart + batchSize, total)
+            for idx in batchStart..<batchEnd {
+                context.delete(itemsToDelete[idx])
+            }
+            try? context.save()
+            done = batchEnd
+            progress?(done, total)
+            await Task.yield()
+        }
+        if touchesGroups {
+            ClipboardManager.shared.recalculateAllGroupCounts(context: context)
+        }
+        isBulkOperation = wasBulk
+        saveAndNotify(context)
+
+        if !wasPaused { ClipboardManager.shared.resumeMonitoring() }
+    }
 
     /// Save context then trigger immediate UI refresh across all store instances
     static func saveAndNotify(_ context: ModelContext) {
@@ -423,7 +639,34 @@ final class ClipItemStore {
         NotificationCenter.default.post(name: itemDidUpdateNotification, object: nil)
     }
 
+    /// Synchronously refresh every live store. Use after bulk writes (import,
+    /// restore) where the caller needs the UI to reflect the new state *before*
+    /// dismissing a progress sheet or showing a success alert — the regular
+    /// `saveAndNotify` path dispatches the observer on `.receive(on: RunLoop.main)`
+    /// which lands asynchronously and leaves a visible empty-state flash.
+    static func refreshAllStoresNow() {
+        for case let store as ClipItemStore in activeStores.allObjects {
+            if store.isActive {
+                store.performRefresh()
+            } else {
+                store.needsRefresh = true
+            }
+        }
+    }
+
+    static func saveAndNotifyContent(_ context: ModelContext) {
+        try? context.save()
+        NotificationCenter.default.post(name: itemContentDidUpdateNotification, object: nil)
+    }
+
+    static func saveAndNotifyLastUsed(_ context: ModelContext) {
+        try? context.save()
+        NotificationCenter.default.post(name: itemLastUsedDidUpdateNotification, object: nil)
+    }
+
     private var immediateObserver: AnyCancellable?
+    private var lightweightObserver: AnyCancellable?
+    private var contentObserver: AnyCancellable?
 
     private func observeChanges() {
         observer = NotificationCenter.default
@@ -446,9 +689,39 @@ final class ClipItemStore {
             .publisher(for: Self.itemDidUpdateNotification)
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
-                guard let self, self.isActive, !self.isRefreshing else { return }
+                guard let self, !self.isRefreshing else { return }
+                guard self.isActive else {
+                    self.needsRefresh = true
+                    return
+                }
                 self.skipNextThrottledRefresh = true
                 self.performRefresh()
+            }
+
+        lightweightObserver = NotificationCenter.default
+            .publisher(for: Self.itemLastUsedDidUpdateNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self, !self.isRefreshing else { return }
+                guard self.isActive else {
+                    self.needsRefresh = true
+                    return
+                }
+                self.skipNextThrottledRefresh = true
+                self.performLightweightRefresh()
+            }
+
+        contentObserver = NotificationCenter.default
+            .publisher(for: Self.itemContentDidUpdateNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self, !self.isRefreshing else { return }
+                guard self.isActive else {
+                    self.needsRefresh = true
+                    return
+                }
+                self.skipNextThrottledRefresh = true
+                self.performLightweightRefresh()
             }
 
         typeOrderObserver = NotificationCenter.default
@@ -459,14 +732,30 @@ final class ClipItemStore {
             }
     }
 
-    private func performRefresh() {
+    func performRefresh() {
         isRefreshing = true
+        invalidateDB()
         refreshAvailableTypes()
         refreshSidebarCounts()
         refreshSourceApps()
         needsRefresh = false
         reload()
         isRefreshing = false
+    }
+
+    private func performLightweightRefresh() {
+        isRefreshing = true
+        invalidateDB()
+        needsRefresh = false
+        reload()
+        isRefreshing = false
+    }
+
+    /// Close the cached raw SQLite connection so the next query opens a fresh one
+    /// that sees the latest SwiftData/CoreData WAL writes.
+    private func invalidateDB() {
+        _db?.close()
+        _db = nil
     }
 
 }

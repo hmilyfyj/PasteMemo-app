@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import Testing
+import AppKit
 @testable import PasteMemo
 
 @Suite("PasteMemo Tests")
@@ -9,6 +10,51 @@ struct PasteMemoTests {
     @MainActor func detectText() {
         let result = ClipboardManager.shared.detectContentType("Hello world")
         #expect(result.type == .text)
+    }
+
+    @Test("Third-party pasteboard UTI triggers snapshot capture (issue #29 — Telegram custom emoji)")
+    @MainActor func thirdPartyTypesDetected() {
+        let pb = NSPasteboard(name: NSPasteboard.Name("pastememo-test-thirdparty-\(UUID().uuidString)"))
+        pb.clearContents()
+        pb.setString("🧡", forType: .string)
+        pb.setData(Data([0x01, 0x02, 0x03]), forType: NSPasteboard.PasteboardType("com.trolltech.anymime.application--x-td-field-tags"))
+        #expect(ClipboardManager.shared.pasteboardHasThirdPartyTypes(pb) == true)
+    }
+
+    @Test("Apple-standard UTIs only do not trigger snapshot")
+    @MainActor func standardTypesOnlyDoNotTriggerSnapshot() {
+        let pb = NSPasteboard(name: NSPasteboard.Name("pastememo-test-standard-\(UUID().uuidString)"))
+        pb.clearContents()
+        pb.setString("hello", forType: .string)
+        pb.setData(Data([0x68, 0x69]), forType: NSPasteboard.PasteboardType("public.utf16-plain-text"))
+        pb.setData(Data([0x01]), forType: NSPasteboard.PasteboardType("com.apple.traditional-mac-plain-text"))
+        pb.setData(Data([0x01]), forType: NSPasteboard.PasteboardType("CorePasteboardFlavorType 0x54455854"))
+        #expect(ClipboardManager.shared.pasteboardHasThirdPartyTypes(pb) == false)
+    }
+
+    @Test("restorePasteboardSnapshot strips Office-private UTIs (issue #28 — Word private clipboard hijack)")
+    @MainActor func restoreStripsOfficePrivateTypes() throws {
+        let pb = NSPasteboard(name: NSPasteboard.Name("pastememo-test-strip-\(UUID().uuidString)"))
+        // Old-format snapshot (pre-capture-filter era) still contains Microsoft-private
+        // types; restore must drop them so Word paste falls back to public.rtf and
+        // doesn't hijack into its internal clipboard cache.
+        let snapshotDict: [String: Data] = [
+            "public.rtf": Data("rtf-bytes".utf8),
+            "public.utf8-plain-text": Data("plain".utf8),
+            "com.microsoft.Object-Descriptor": Data([0x01, 0x02]),
+            "com.microsoft.DataObject": Data([0x03, 0x04]),
+            "com.microsoft.ole.source.68787.0x1047f01d8": Data([0x05]),
+        ]
+        let blob = try PropertyListSerialization.data(fromPropertyList: snapshotDict, format: .binary, options: 0)
+        pb.clearContents()
+        let ok = ClipboardManager.shared.restorePasteboardSnapshot(blob, to: pb)
+        #expect(ok)
+        let restoredTypes = Set((pb.types ?? []).map(\.rawValue))
+        #expect(restoredTypes.contains("public.rtf"))
+        #expect(restoredTypes.contains("public.utf8-plain-text"))
+        #expect(restoredTypes.contains("com.microsoft.Object-Descriptor") == false)
+        #expect(restoredTypes.contains("com.microsoft.DataObject") == false)
+        #expect(restoredTypes.contains("com.microsoft.ole.source.68787.0x1047f01d8") == false)
     }
 
     @Test("Detect link content type")
@@ -76,8 +122,116 @@ struct PasteMemoTests {
         #expect(items[0].createdAt == originalDate)
     }
 
-    @Test("Retry OCR respects global OCR setting")
-    @MainActor func retryOCRRespectsGlobalSetting() {
+    @Test("Plain text matches adjacent rich text duplicate and upgrades existing item")
+    @MainActor func richTextDuplicateUpgradesExistingPlainItem() throws {
+        let container = try ModelContainer(
+            for: ClipItem.self, SmartGroup.self, AutomationRule.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let context = container.mainContext
+
+        let existing = ClipItem(
+            content: "hello",
+            contentType: .text,
+            sourceApp: "Old App",
+            createdAt: Date(timeIntervalSince1970: 100),
+            lastUsedAt: Date(timeIntervalSince1970: 100)
+        )
+        context.insert(existing)
+        try context.save()
+
+        let richData = Data("{\\rtf1 rich}".utf8)
+        let incoming = ClipItem(
+            content: "hello",
+            contentType: .text,
+            sourceApp: "New App",
+            createdAt: Date(timeIntervalSince1970: 200),
+            lastUsedAt: Date(timeIntervalSince1970: 200),
+            richTextData: richData,
+            richTextType: "rtf"
+        )
+
+        let matched = ClipboardManager.shared.findExistingDuplicate(for: incoming, in: context)
+        #expect(matched?.persistentModelID == existing.persistentModelID)
+
+        ClipboardManager.shared.reuseExistingDuplicate(existing, with: incoming, in: context)
+        try context.save()
+
+        #expect(existing.richTextData == richData)
+        #expect(existing.richTextType == "rtf")
+        #expect(existing.sourceApp == "New App")
+    }
+
+    @Test("Rich text matches adjacent plain text duplicate without losing formatting")
+    @MainActor func plainTextDuplicateKeepsExistingRichItem() throws {
+        let container = try ModelContainer(
+            for: ClipItem.self, SmartGroup.self, AutomationRule.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let context = container.mainContext
+
+        let richData = Data("<b>hello</b>".utf8)
+        let existing = ClipItem(
+            content: "hello",
+            contentType: .text,
+            sourceApp: "Old App",
+            createdAt: Date(timeIntervalSince1970: 100),
+            lastUsedAt: Date(timeIntervalSince1970: 100),
+            richTextData: richData,
+            richTextType: "html"
+        )
+        context.insert(existing)
+        try context.save()
+
+        let incoming = ClipItem(
+            content: "hello",
+            contentType: .text,
+            sourceApp: "New App",
+            createdAt: Date(timeIntervalSince1970: 200),
+            lastUsedAt: Date(timeIntervalSince1970: 200)
+        )
+
+        let matched = ClipboardManager.shared.findExistingDuplicate(for: incoming, in: context)
+        #expect(matched?.persistentModelID == existing.persistentModelID)
+
+        ClipboardManager.shared.reuseExistingDuplicate(existing, with: incoming, in: context)
+        try context.save()
+
+        #expect(existing.richTextData == richData)
+        #expect(existing.richTextType == "html")
+        #expect(existing.sourceApp == "New App")
+    }
+
+    @Test("Different rich text payloads are not treated as duplicates")
+    @MainActor func differentRichTextPayloadsRemainDistinct() throws {
+        let container = try ModelContainer(
+            for: ClipItem.self, SmartGroup.self, AutomationRule.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let context = container.mainContext
+
+        let existing = ClipItem(
+            content: "hello",
+            contentType: .text,
+            richTextData: Data("<b>hello</b>".utf8),
+            richTextType: "html"
+        )
+        context.insert(existing)
+        try context.save()
+
+        let incoming = ClipItem(
+            content: "hello",
+            contentType: .text,
+            richTextData: Data("<i>hello</i>".utf8),
+            richTextType: "html"
+        )
+
+        let matched = ClipboardManager.shared.findExistingDuplicate(for: incoming, in: context)
+        #expect(matched == nil)
+    }
+
+    @Test("Retry OCR stays available with the global OCR toggle off")
+    @MainActor func retryOCRIgnoresGlobalSetting() {
         let defaults = UserDefaults.standard
         let key = OCRTaskCoordinator.enableOCRKey
         let original = defaults.object(forKey: key)
@@ -90,8 +244,11 @@ struct PasteMemoTests {
             }
         }
 
+        // Manual retry is user-initiated (like "Paste OCR Text") and must work
+        // with background OCR off — it is the only way to refresh a stale
+        // cached OCR result in that configuration.
         let item = ClipItem(content: "[Image]", contentType: .image, imageData: Data([1]))
-        #expect(!OCRTaskCoordinator.shared.canRetry(item: item))
+        #expect(OCRTaskCoordinator.shared.canRetry(item: item))
     }
 
     @Test("Image clip defaults to pending OCR status")
@@ -116,7 +273,211 @@ struct PasteMemoTests {
         #expect(exported.ocrVersion == 2)
     }
 
-    @Test("OCR-assisted match only appears when OCR is required")
+    @Test("DataPorter v2 round-trips groups and user rules, skipping built-in rules")
+    @MainActor func dataPorterRoundTripsGroupsAndRules() throws {
+        let sourceContainer = try ModelContainer(
+            for: ClipItem.self, SmartGroup.self, AutomationRule.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let sourceContext = sourceContainer.mainContext
+
+        let clip = ClipItem(content: "hello", contentType: .text)
+        clip.groupName = "Work"
+        sourceContext.insert(clip)
+
+        let group = SmartGroup(name: "Work", icon: "briefcase", sortOrder: 7, color: "#FF0000", preservesItems: true)
+        sourceContext.insert(group)
+
+        let userRule = AutomationRule(
+            name: "Lowercase links",
+            enabled: true,
+            isBuiltIn: false,
+            triggerMode: .manual,
+            conditions: [.contentType(.link)],
+            actions: [.lowercased]
+        )
+        sourceContext.insert(userRule)
+
+        let builtInRule = AutomationRule(
+            name: "Clean tracking",
+            enabled: true,
+            isBuiltIn: true,
+            conditions: [.contentType(.link)],
+            actions: [.removeQueryParams(patterns: ["utm_source"])]
+        )
+        sourceContext.insert(builtInRule)
+        try sourceContext.save()
+
+        let items = try sourceContext.fetch(FetchDescriptor<ClipItem>())
+        let groups = try sourceContext.fetch(FetchDescriptor<SmartGroup>())
+        let rules = try sourceContext.fetch(FetchDescriptor<AutomationRule>())
+        let payload = DataPorter.buildExportPayload(items, groups: groups, rules: rules)
+
+        #expect(payload.version == 2)
+        #expect(payload.groups?.count == 1)
+        #expect(payload.rules?.count == 2)
+
+        let data = try DataPorter.encodeAndCompress(payload)
+
+        // Fresh container to import into
+        let destContainer = try ModelContainer(
+            for: ClipItem.self, SmartGroup.self, AutomationRule.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let destContext = destContainer.mainContext
+        let result = try DataPorter.importItems(from: data, into: destContext)
+
+        #expect(result.imported == 1)
+        #expect(result.importedGroups == 1)
+        #expect(result.importedRules == 1) // built-in skipped
+
+        let importedGroups = try destContext.fetch(FetchDescriptor<SmartGroup>())
+        #expect(importedGroups.count == 1)
+        #expect(importedGroups.first?.name == "Work")
+        #expect(importedGroups.first?.icon == "briefcase")
+        #expect(importedGroups.first?.sortOrder == 7)
+        #expect(importedGroups.first?.color == "#FF0000")
+        #expect(importedGroups.first?.preservesItems == true)
+
+        let importedRules = try destContext.fetch(FetchDescriptor<AutomationRule>())
+        #expect(importedRules.count == 1)
+        let rule = try #require(importedRules.first)
+        #expect(rule.name == "Lowercase links")
+        #expect(rule.isBuiltIn == false)
+        #expect(rule.triggerMode == .manual)
+        #expect(rule.conditions == [.contentType(.link)])
+        #expect(rule.actions == [.lowercased])
+    }
+
+    @Test("DataPorter v1 payload imports without groups or rules and raises no error")
+    @MainActor func dataPorterV1BackwardCompatible() throws {
+        let sourceContainer = try ModelContainer(
+            for: ClipItem.self, SmartGroup.self, AutomationRule.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let sourceContext = sourceContainer.mainContext
+        sourceContext.insert(ClipItem(content: "legacy", contentType: .text))
+        try sourceContext.save()
+
+        // Simulate a v1 file: items only, no groups/rules fields.
+        let items = try sourceContext.fetch(FetchDescriptor<ClipItem>())
+        let v1Payload = ExportPayload(
+            version: 1,
+            exportDate: Date(),
+            items: items.map(DataPorter.buildSingleExportItem),
+            groups: nil,
+            rules: nil
+        )
+        let data = try DataPorter.encodeAndCompress(v1Payload)
+
+        let destContainer = try ModelContainer(
+            for: ClipItem.self, SmartGroup.self, AutomationRule.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let result = try DataPorter.importItems(from: data, into: destContainer.mainContext)
+
+        #expect(result.imported == 1)
+        #expect(result.importedGroups == 0)
+        #expect(result.importedRules == 0)
+    }
+
+    @Test("DataPorter v2 merge deduplicates groups by name and rules by ruleID")
+    @MainActor func dataPorterMergeDeduplicates() throws {
+        let container = try ModelContainer(
+            for: ClipItem.self, SmartGroup.self, AutomationRule.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let context = container.mainContext
+
+        // Pre-existing group and rule in destination
+        context.insert(SmartGroup(name: "Work", icon: "folder", sortOrder: 0))
+        let existingRule = AutomationRule(name: "Existing", isBuiltIn: false)
+        context.insert(existingRule)
+        try context.save()
+        let existingRuleID = existingRule.ruleID
+
+        // Backup payload contains a group with the same name (should be skipped)
+        // and a rule with the same ruleID (should be skipped),
+        // plus a new group and new rule.
+        let incomingGroup1 = ExportGroup(name: "Work", icon: "briefcase", sortOrder: 9, color: nil, preservesItems: true)
+        let incomingGroup2 = ExportGroup(name: "Personal", icon: "house", sortOrder: 1, color: nil, preservesItems: true)
+        let incomingRule1 = DataPorter.buildSingleExportRule(existingRule) // same ruleID
+        let newRule = AutomationRule(name: "Brand new", isBuiltIn: false)
+        let incomingRule2 = DataPorter.buildSingleExportRule(newRule)
+
+        let payload = ExportPayload(
+            version: 2,
+            exportDate: Date(),
+            items: [],
+            groups: [incomingGroup1, incomingGroup2],
+            rules: [incomingRule1, incomingRule2]
+        )
+        let data = try DataPorter.encodeAndCompress(payload)
+
+        let result = try DataPorter.importItems(from: data, into: context)
+        #expect(result.importedGroups == 1) // only Personal added
+        #expect(result.importedRules == 1)  // only new rule added
+
+        let allGroups = try context.fetch(FetchDescriptor<SmartGroup>())
+        #expect(Set(allGroups.map(\.name)) == ["Work", "Personal"])
+        let workGroup = try #require(allGroups.first { $0.name == "Work" })
+        #expect(workGroup.icon == "folder") // existing not overwritten
+        #expect(workGroup.sortOrder == 0)
+        #expect(workGroup.preservesItems == false)
+        let personalGroup = try #require(allGroups.first { $0.name == "Personal" })
+        #expect(personalGroup.preservesItems == true)
+
+        let allRules = try context.fetch(FetchDescriptor<AutomationRule>())
+        #expect(allRules.count == 2)
+        #expect(allRules.contains { $0.ruleID == existingRuleID })
+        #expect(allRules.contains { $0.name == "Brand new" })
+    }
+
+    @Test("DataPorter import rebuilds SmartGroup counts from items (regression for issue #31)")
+    @MainActor func dataPorterImportRebuildsGroupCounts() throws {
+        // Source: two groups with items, SmartGroup.count deliberately desynced from reality
+        let sourceContainer = try ModelContainer(
+            for: ClipItem.self, SmartGroup.self, AutomationRule.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let sourceContext = sourceContainer.mainContext
+        let work = SmartGroup(name: "Work", icon: "briefcase", sortOrder: 0)
+        work.count = 999 // stale value; import must ignore and recompute
+        sourceContext.insert(work)
+        sourceContext.insert(SmartGroup(name: "Personal", icon: "house", sortOrder: 1))
+        for i in 0..<3 {
+            let clip = ClipItem(content: "w\(i)", contentType: .text)
+            clip.groupName = "Work"
+            sourceContext.insert(clip)
+        }
+        for i in 0..<2 {
+            let clip = ClipItem(content: "p\(i)", contentType: .text)
+            clip.groupName = "Personal"
+            sourceContext.insert(clip)
+        }
+        sourceContext.insert(ClipItem(content: "ungrouped", contentType: .text))
+        try sourceContext.save()
+
+        let items = try sourceContext.fetch(FetchDescriptor<ClipItem>())
+        let groups = try sourceContext.fetch(FetchDescriptor<SmartGroup>())
+        let payload = DataPorter.buildExportPayload(items, groups: groups, rules: [])
+        let data = try DataPorter.encodeAndCompress(payload)
+
+        let destContainer = try ModelContainer(
+            for: ClipItem.self, SmartGroup.self, AutomationRule.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let destContext = destContainer.mainContext
+        _ = try DataPorter.importItems(from: data, into: destContext)
+
+        let importedGroups = try destContext.fetch(FetchDescriptor<SmartGroup>())
+        let workGroup = try #require(importedGroups.first { $0.name == "Work" })
+        let personalGroup = try #require(importedGroups.first { $0.name == "Personal" })
+        #expect(workGroup.count == 3)
+        #expect(personalGroup.count == 2)
+    }
+
+    @Test("OCR-only match ignores title/content hits")
     @MainActor func ocrOnlyMatchDetection() {
         let item = ClipItem(content: "[Image]", contentType: .image, imageData: Data([1]))
         item.displayTitle = "Image (100x100)"
@@ -124,42 +485,112 @@ struct PasteMemoTests {
 
         #expect(item.matchesOCROnly(searchText: "line 42"))
         #expect(!item.matchesOCROnly(searchText: "Image"))
-        #expect(item.matchesOCROnly(searchText: "build 42"))
-        #expect(item.matchesOCROnly(searchText: "Image 42"))
         #expect(!item.matchesOCROnly(searchText: ""))
     }
 
-    @Test("Quick preview OCR snippet includes match context")
-    @MainActor func quickPreviewOCRSnippet() {
-        let attributed = QuickPreviewPane.buildOCRSnippet(
-            text: "first line of text\nerror happened on line 42 near the prompt\nlast line",
-            query: "line 42"
-        )
-        let snippet = String(attributed.characters)
-        #expect(snippet.contains("line 42"))
-        #expect(snippet.contains("error happened"))
+    @Test("Quick preview code summary captures language, counts and truncation")
+    @MainActor func quickPreviewCodeSummary() {
+        let code = """
+        import Foundation
+        struct Demo {
+            func run() {
+                print("hello")
+            }
+        }
+        """
+
+        let summary = QuickPreviewPane.buildCodeSummary(text: code, language: .swift, previewLineLimit: 3, previewCharacterLimit: 80)
+
+        #expect(summary.language == .swift)
+        #expect(summary.lineCount == 6)
+        #expect(summary.characterCount == code.count)
+        #expect(summary.isTruncated)
+        #expect(summary.snippet.contains("import Foundation"))
+        #expect(summary.snippet.hasSuffix("…"))
     }
 
-    @Test("Search matcher supports fuzzy token search")
-    func fuzzyTokenSearch() {
-        let fields = ["abc def"]
+    @Test("Quick preview code summary disables expanded preview for very large code")
+    @MainActor func quickPreviewCodeSummaryDisablesExpandedPreview() {
+        let code = Array(repeating: "let value = 1", count: 4000).joined(separator: "\n")
 
-        #expect(SearchMatcher.matches(query: "abc def", in: fields))
-        #expect(SearchMatcher.matches(query: "bc de", in: fields))
-        #expect(SearchMatcher.matches(query: "a d", in: fields))
-        #expect(SearchMatcher.matches(query: "bc f", in: fields))
-        #expect(!SearchMatcher.matches(query: "ac df", in: fields))
+        let summary = QuickPreviewPane.buildCodeSummary(text: code, language: .swift, expandedPreviewCharacterLimit: 5000)
+
+        #expect(!summary.supportsExpandedPreview)
     }
 
-    @Test("Quick preview OCR snippet supports tokenized query")
-    @MainActor func quickPreviewOCRSnippetForFuzzyQuery() {
-        let attributed = QuickPreviewPane.buildOCRSnippet(
-            text: "first line of text\nerror happened on line 42 near the prompt\nlast line",
-            query: "line prompt"
-        )
-        let snippet = String(attributed.characters)
-        #expect(snippet.contains("line"))
-        #expect(snippet.contains("prompt"))
+    @Test("Quick preview link summary strips www and preserves path/query")
+    @MainActor func quickPreviewLinkSummaryHelpers() {
+        let url = URL(string: "https://www.example.com/docs/page?ref=abc&lang=en")!
+
+        #expect(QuickPreviewPane.displayHost(for: url) == "example.com")
+        #expect(QuickPreviewPane.displayPath(for: url) == "/docs/page?ref=abc&lang=en")
+    }
+
+    @Test("Data image URI helper detects and decodes base64 image payloads")
+    func dataImageURIHelperDecodesPayload() throws {
+        let png1x1 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lQn4NwAAAABJRU5ErkJggg=="
+        let uri = "  data:image/png;base64,\(png1x1)"
+
+        #expect(DataImageURI.isDataImageURI(uri))
+        #expect(DataImageURI.isBase64DataImageURI(uri))
+        let data = try #require(DataImageURI.decodedImageData(from: uri))
+        #expect(data.starts(with: [0x89, 0x50, 0x4E, 0x47]))
+    }
+
+    @Test("Data image URI helper keeps non-base64 image payloads out of decode path")
+    func dataImageURIHelperDistinguishesNonBase64Payloads() {
+        let uri = "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%3E%3C/svg%3E"
+
+        #expect(DataImageURI.isDataImageURI(uri))
+        #expect(!DataImageURI.isBase64DataImageURI(uri))
+        #expect(DataImageURI.decodedImageData(from: uri) == nil)
+    }
+
+    @Test("Data image URI helper refuses payloads above decoded byte cap")
+    func dataImageURIHelperHonorsDecodedByteCap() {
+        let uri = "data:image/png;base64,QUJDRA=="
+
+        #expect(DataImageURI.decodedImageData(from: uri, maxDecodedBytes: 2) == nil)
+    }
+
+    @Test("Data image URI helper extracts MIME subtype and format label without decoding")
+    func dataImageURIHelperExtractsFormatLabel() {
+        #expect(DataImageURI.mimeSubtype(in: "data:image/png;base64,AAAA") == "png")
+        #expect(DataImageURI.formatLabel(in: "data:image/png;base64,AAAA") == "PNG")
+        #expect(DataImageURI.formatLabel(in: "data:image/jpeg;base64,AAAA") == "JPG")
+        #expect(DataImageURI.formatLabel(in: "data:image/svg+xml,%3Csvg%3E%3C/svg%3E") == "SVG")
+        #expect(DataImageURI.formatLabel(in: "data:image/heic;base64,AAAA") == "HEIC")
+        #expect(DataImageURI.formatLabel(in: "https://example.com/foo.png") == nil)
+    }
+
+    @Test("Data image URI helper estimates decoded size without performing the decode")
+    func dataImageURIHelperEstimatesDecodedSize() {
+        // 8 base64 chars → 6 decoded bytes (8 * 3 / 4)
+        #expect(DataImageURI.estimatedDecodedSize(in: "data:image/png;base64,QUJDREVGRw==") == 9)
+        // Non-base64 data URI returns nil so callers don't conflate with raw bytes.
+        #expect(DataImageURI.estimatedDecodedSize(in: "data:image/svg+xml,%3Csvg/%3E") == nil)
+    }
+
+    @Test("Data image URI helper reads pixel dimensions via CGImageSource")
+    func dataImageURIHelperReadsDimensions() throws {
+        let png1x1 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lQn4NwAAAABJRU5ErkJggg=="
+        let data = try #require(DataImageURI.decodedImageData(from: "data:image/png;base64,\(png1x1)"))
+        let dims = try #require(DataImageURI.dimensions(of: data))
+        #expect(dims.width == 1)
+        #expect(dims.height == 1)
+    }
+
+    @Test("ClipItem.buildTitle collapses base64 data URI links into a short marker")
+    @MainActor
+    func clipItemBuildTitleCollapsesDataURI() {
+        let png1x1 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lQn4NwAAAABJRU5ErkJggg=="
+        let uri = "data:image/png;base64,\(png1x1)"
+        // The title is what SwiftUI / SwiftData materialize on every list row,
+        // so it must NOT carry the megabyte-scale URI string itself.
+        #expect(ClipItem.buildTitle(content: uri, contentType: .link) == "[Data Image: PNG]")
+        #expect(ClipItem.buildTitle(content: "data:image/svg+xml,%3Csvg/%3E", contentType: .link) == "[Data Image: SVG]")
+        // Non data URI links keep their content as-is for the regular shortcut UX.
+        #expect(ClipItem.buildTitle(content: "https://example.com/x", contentType: .link) == "https://example.com/x")
     }
 
     @Test("OCR language list prioritizes Chinese when app language is Chinese")
@@ -174,8 +605,23 @@ struct PasteMemoTests {
     @MainActor func openInPreviewSupportedTypes() {
         let archive = ClipItem(content: "/tmp/test.zip", contentType: .archive)
         let application = ClipItem(content: "/Applications/Test.app", contentType: .application)
-        let document = ClipItem(content: "/tmp/test.pdf", contentType: .document)
-        let image = ClipItem(content: "[Image]", contentType: .image, imageData: Data([1]))
+        // Path must exist — `canOpenInPreview` checks `prepareURL`, not type alone.
+        let documentURL = FileManager.default.temporaryDirectory.appendingPathComponent("pastememo-preview-test.pdf")
+        try? Data().write(to: documentURL)
+        let document = ClipItem(content: documentURL.path, contentType: .document)
+        // Minimal valid 1×1 PNG — invalid bytes used to fail silently in Preview.app.
+        let pngHeader: [UInt8] = [
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+            0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+            0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+            0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
+            0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41,
+            0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
+            0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00,
+            0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,
+            0x42, 0x60, 0x82
+        ]
+        let image = ClipItem(content: "[Image]", contentType: .image, imageData: Data(pngHeader))
 
         #expect(!QuickLookHelper.shared.canOpenInPreview(item: archive))
         #expect(!QuickLookHelper.shared.canOpenInPreview(item: application))
@@ -183,16 +629,32 @@ struct PasteMemoTests {
         #expect(QuickLookHelper.shared.canOpenInPreview(item: image))
     }
 
-}
+    /// Regression: when the store is inactive (panel/window hidden), observers used to silently drop
+    /// save notifications, leaving `needsRefresh` false. The next activation would then skip the
+    /// refresh and display stale sort order (e.g. a multi-file paste not bumping to top).
+    /// All four observers (throttled + 3 direct) must mark `needsRefresh = true` when inactive.
+    @Test("Observers mark needsRefresh when store is inactive", .serialized, arguments: [
+        "ClipItemStoreItemDidUpdate",
+        "ClipItemStoreItemLastUsedDidUpdate",
+        "ClipItemStoreItemContentDidUpdate",
+    ])
+    @MainActor func inactiveObserversMarkDirty(notificationName: String) async throws {
+        let container = try ModelContainer(
+            for: ClipItem.self, SmartGroup.self, AutomationRule.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let store = ClipItemStore()
+        store.configure(modelContext: container.mainContext)
+        // configure() consumes the initial dirty flag
+        #expect(store.needsRefresh == false)
+        // Simulate the panel/window being hidden
+        store.isActive = false
 
-@Suite("RelayItem Tests")
-struct RelayItemTests {
-    @Test("Init sets pending state")
-    func initState() {
-        let item = RelayItem(content: "test")
-        #expect(item.state == .pending)
-        #expect(item.content == "test")
-        #expect(!item.id.uuidString.isEmpty)
+        NotificationCenter.default.post(name: Notification.Name(notificationName), object: nil)
+        // Combine's .receive(on: RunLoop.main) delivers on the next runloop tick
+        try await Task.sleep(for: .milliseconds(50))
+
+        #expect(store.needsRefresh == true, "\(notificationName) should mark dirty when inactive")
     }
 }
 

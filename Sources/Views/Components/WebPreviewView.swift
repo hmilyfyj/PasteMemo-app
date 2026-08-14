@@ -1,13 +1,24 @@
 import SwiftUI
 import WebKit
 
-struct WebPreviewView: NSViewRepresentable {
-    let url: URL
+@MainActor
+final class WebPreviewPool {
+    static let shared = WebPreviewPool()
 
-    func makeNSView(context: Context) -> WKWebView {
+    private let webView: WKWebView
+    private let coordinator = Coordinator()
+    private weak var activeContainer: NSView?
+    var readinessHandler: ((Bool) -> Void)?
+    private var readyToken = 0
+
+    private init() {
         let config = WKWebViewConfiguration()
         config.mediaTypesRequiringUserActionForPlayback = .all
         let prefs = WKWebpagePreferences()
+        // The per-navigation `decidePolicyFor:preferences:` callback overrides
+        // this on every load by reading the current `previewExecutesJavaScript`
+        // setting, so toggling the user preference takes effect immediately
+        // without rebuilding the shared web view.
         prefs.allowsContentJavaScript = true
         config.defaultWebpagePreferences = prefs
 
@@ -32,7 +43,7 @@ struct WebPreviewView: NSViewRepresentable {
                 el.autoplay = false;
                 el.removeAttribute('autoplay');
             });
-            var obs = new MutationObserver(function(mutations) {
+            var obs = new MutationObserver(function() {
                 document.querySelectorAll('video, audio').forEach(function(el) {
                     el.pause();
                     el.muted = true;
@@ -48,93 +59,187 @@ struct WebPreviewView: NSViewRepresentable {
         config.userContentController.addUserScript(viewportScript)
         config.userContentController.addUserScript(muteScript)
 
-        let webView = WKWebView(frame: .zero, configuration: config)
-        webView.navigationDelegate = context.coordinator
+        webView = WKWebView(frame: .zero, configuration: config)
+        // Anti-bot guards on sites like baidu.com serve a blank body to the
+        // default WKWebView UA (it contains AppleWebKit without Version/…,
+        // matching no real Safari release). Pretend to be a stock macOS
+        // Safari so we receive the real page markup.
+        webView.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
         webView.allowsMagnification = true
         webView.allowsBackForwardNavigationGestures = false
         webView.setValue(false, forKey: "drawsBackground")
-        webView.load(URLRequest(url: url, timeoutInterval: 15))
-        return webView
+        webView.navigationDelegate = coordinator
+        coordinator.pool = self
     }
 
-    func updateNSView(_ webView: WKWebView, context: Context) {
-        let currentURL = context.coordinator.loadedURL
-        guard currentURL != url else { return }
-        webView.stopLoading()
-        context.coordinator.loadedURL = url
-        context.coordinator.removeErrorOverlay(from: webView)
-        webView.load(URLRequest(url: url, timeoutInterval: 15))
-    }
+    func attach(to container: NSView) {
+        if webView.superview !== container {
+            webView.stopLoading()
+            webView.loadHTMLString("", baseURL: nil)
+            coordinator.loadedURL = nil
 
-    static func dismantleNSView(_ webView: WKWebView, coordinator: Coordinator) {
-        webView.stopLoading()
-        webView.loadHTMLString("", baseURL: nil)
-    }
-
-    func makeCoordinator() -> Coordinator { Coordinator(url: url) }
-
-    class Coordinator: NSObject, WKNavigationDelegate {
-        var loadedURL: URL
-        private weak var errorOverlay: NSView?
-
-        init(url: URL) {
-            self.loadedURL = url
+            webView.removeFromSuperview()
+            webView.frame = container.bounds
+            webView.autoresizingMask = [.width, .height]
+            container.addSubview(webView)
+            activeContainer = container
         }
+    }
+
+    func load(_ url: URL) {
+        // Offline mode is a hard cut — we never reach the network for previews
+        // when the user has flipped the master switch in Privacy.
+        if UserDefaults.standard.bool(forKey: "offlineModeEnabled") {
+            webView.stopLoading()
+            coordinator.loadedURL = nil
+            notifyReady(false)
+            return
+        }
+        if coordinator.loadedURL == url { return }
+        webView.stopLoading()
+        coordinator.loadedURL = url
+        notifyReady(false)
+        webView.load(URLRequest(url: url, timeoutInterval: 15))
+    }
+
+    func detach(from container: NSView? = nil) {
+        if let container, activeContainer !== container {
+            return
+        }
+        coordinator.loadedURL = nil
+        webView.stopLoading()
+        webView.removeFromSuperview()
+        activeContainer = nil
+    }
+
+    fileprivate func markReadyAfterFirstPaint() {
+        readyToken &+= 1
+        let token = readyToken
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(120)) { [weak self] in
+            guard let self, self.readyToken == token else { return }
+            self.notifyReady(true)
+        }
+    }
+
+    fileprivate func markReadyImmediately() {
+        readyToken &+= 1
+        notifyReady(true)
+    }
+
+    private func notifyReady(_ ready: Bool) {
+        readinessHandler?(ready)
+    }
+
+    final class Coordinator: NSObject, WKNavigationDelegate {
+        var loadedURL: URL?
+        weak var pool: WebPreviewPool?
+
+        // Reject responses that would trigger silent full-file downloads when a
+        // user merely browses clipboard history — copying a dmg/zip/PDF direct
+        // link must never balloon into actually transferring the file. See
+        // issue #46. Caps deliberately leave headroom for fat marketing pages
+        // and reasonable image previews while still capping the worst case.
+        static let htmlResponseCap: Int64 = 5_000_000
+        static let imageResponseCap: Int64 = 10_000_000
 
         func webView(
             _ webView: WKWebView,
             decidePolicyFor action: WKNavigationAction,
-            decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void
+            preferences: WKWebpagePreferences,
+            decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy, WKWebpagePreferences) -> Void
         ) {
+            // Each navigation honours the current user setting; defaults to ON
+            // to preserve preview fidelity for legacy users.
+            let allowJS = (UserDefaults.standard.object(forKey: "previewExecutesJavaScript") as? Bool) ?? true
+            preferences.allowsContentJavaScript = allowJS
+
             if action.navigationType == .linkActivated {
                 if let url = action.request.url {
                     NSWorkspace.shared.open(url)
                 }
-                decisionHandler(.cancel)
+                decisionHandler(.cancel, preferences)
             } else {
-                decisionHandler(.allow)
+                decisionHandler(.allow, preferences)
             }
         }
 
+        func webView(
+            _ webView: WKWebView,
+            decidePolicyFor navigationResponse: WKNavigationResponse,
+            decisionHandler: @escaping @MainActor @Sendable (WKNavigationResponsePolicy) -> Void
+        ) {
+            let mimeType = (navigationResponse.response.mimeType ?? "").lowercased()
+            let isHTML = mimeType.contains("html") || mimeType.contains("xml")
+            let isImage = mimeType.hasPrefix("image/")
+
+            guard isHTML || isImage else {
+                // Anything else (application/pdf, octet-stream, video, audio,
+                // …) would have WebKit start downloading the body. Refuse so
+                // the static fallback card stays visible.
+                decisionHandler(.cancel)
+                return
+            }
+
+            let expected = navigationResponse.response.expectedContentLength
+            let cap = isImage ? Coordinator.imageResponseCap : Coordinator.htmlResponseCap
+            if expected > 0 && expected > cap {
+                decisionHandler(.cancel)
+                return
+            }
+
+            decisionHandler(.allow)
+        }
+
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: any Error) {
-            showErrorOverlay(on: webView, message: error.localizedDescription)
+            // Ready stays false; caller keeps the static fallback visible.
         }
 
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: any Error) {
-            showErrorOverlay(on: webView, message: error.localizedDescription)
+            // Ready stays false; caller keeps the static fallback visible.
+        }
+
+        func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+            // Do not flip the ready state on commit — some sites (e.g.
+            // baidu.com) commit a navigation but then render blank or stall,
+            // leaving the viewer staring at an empty webview. Wait for
+            // didFinish which only fires after the document is fully loaded.
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            removeErrorOverlay(from: webView)
+            pool?.markReadyImmediately()
         }
+    }
+}
 
-        func removeErrorOverlay(from webView: WKWebView) {
-            errorOverlay?.removeFromSuperview()
-            errorOverlay = nil
-        }
+private final class WebPreviewContainerView: NSView {
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+    }
 
-        private func showErrorOverlay(on webView: WKWebView, message: String) {
-            removeErrorOverlay(from: webView)
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
+}
 
-            let overlay = NSView(frame: webView.bounds)
-            overlay.autoresizingMask = [.width, .height]
-            overlay.wantsLayer = true
+struct WebPreviewView: NSViewRepresentable {
+    let url: URL
+    var onReadyStateChange: ((Bool) -> Void)? = nil
 
-            let label = NSTextField(wrappingLabelWithString: L10n.tr("detail.preview_failed"))
-            label.font = .systemFont(ofSize: 13)
-            label.textColor = .tertiaryLabelColor
-            label.alignment = .center
-            label.translatesAutoresizingMaskIntoConstraints = false
+    func makeNSView(context: Context) -> NSView {
+        let view = WebPreviewContainerView(frame: .zero)
+        WebPreviewPool.shared.readinessHandler = onReadyStateChange
+        WebPreviewPool.shared.attach(to: view)
+        WebPreviewPool.shared.load(url)
+        return view
+    }
 
-            overlay.addSubview(label)
-            NSLayoutConstraint.activate([
-                label.centerXAnchor.constraint(equalTo: overlay.centerXAnchor),
-                label.centerYAnchor.constraint(equalTo: overlay.centerYAnchor),
-                label.widthAnchor.constraint(lessThanOrEqualTo: overlay.widthAnchor, constant: -32),
-            ])
+    func updateNSView(_ nsView: NSView, context: Context) {
+        WebPreviewPool.shared.readinessHandler = onReadyStateChange
+        WebPreviewPool.shared.attach(to: nsView)
+        WebPreviewPool.shared.load(url)
+    }
 
-            webView.addSubview(overlay)
-            errorOverlay = overlay
-        }
+    static func dismantleNSView(_ nsView: NSView, coordinator: ()) {
+        WebPreviewPool.shared.detach(from: nsView)
     }
 }

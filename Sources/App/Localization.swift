@@ -18,12 +18,12 @@ enum L10n {
 
     static func tr(_ key: String) -> String {
         let lang = LanguageManager.shared.current
-        guard let path = Bundle.module.path(forResource: lang, ofType: "lproj")
-                ?? Bundle.module.paths(forResourcesOfType: "lproj", inDirectory: nil)
+        guard let path = Bundle.pasteMemoResources.path(forResource: lang, ofType: "lproj")
+                ?? Bundle.pasteMemoResources.paths(forResourcesOfType: "lproj", inDirectory: nil)
                     .first(where: { $0.lowercased().contains(lang.lowercased()) }),
               let bundle = Bundle(path: path)
         else {
-            return NSLocalizedString(key, bundle: .module, comment: "")
+            return NSLocalizedString(key, bundle: .pasteMemoResources, comment: "")
         }
         return NSLocalizedString(key, bundle: bundle, comment: "")
     }
@@ -31,6 +31,11 @@ enum L10n {
     static func tr(_ key: String, _ args: CVarArg...) -> String {
         String(format: tr(key), arguments: args)
     }
+
+    /// The resource bundle that holds our `.lproj` directories.
+    /// Exposed for tests; production code resolves via `Bundle.pasteMemoResources`
+    /// (the generated `Bundle.module` can't find the bundle in signed builds).
+    static var resourceBundle: Bundle { .pasteMemoResources }
 }
 
 @MainActor

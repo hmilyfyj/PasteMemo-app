@@ -35,6 +35,7 @@
 "filter.special" = "Especial";
 "filter.favorites" = "Favoritos";
 "filter.pinned" = "Fijados";
+"filter.aiAgent" = "AI Agent";
 
 /* Time */
 "time.now" = "ahora";
@@ -57,6 +58,7 @@
 "settings.language.restart_now" = "Reiniciar ahora";
 "settings.language.restart_later" = "Más tarde";
 "settings.launchAtLogin" = "Iniciar al arrancar";
+"settings.clipboardMonitoring" = "Activar monitoreo del portapapeles";
 "settings.hideDockIcon" = "Ocultar icono del Dock";
 "settings.hideDockIcon.hint" = "Cuando está activado, solo se puede acceder a la app desde el icono de la barra de menús.";
 "settings.hideDockIcon.confirm.title" = "¿Ocultar icono del Dock?";
@@ -65,6 +67,14 @@
 "settings.menuBarIconStyle" = "Icono de la barra de menús";
 "settings.menuBarIconStyle.outline" = "Contorno";
 "settings.menuBarIconStyle.filled" = "Relleno";
+"settings.menuBar.leftClickAction" = "Acción del clic izquierdo en la barra de menús";
+"settings.menuBar.leftClickAction.help" = "Acción al hacer clic izquierdo en el icono de la barra de menús; el clic derecho siempre muestra el menú";
+"menuBar.leftClick.menu" = "Mostrar menú";
+"menuBar.leftClick.openManager" = "Abrir gestor";
+"menuBar.leftClick.quickPanel" = "Abrir pegado rápido";
+"menuBar.leftClick.toggleRelay" = "Alternar modo relevo";
+"menuBar.leftClick.togglePause" = "Pausar / Reanudar monitoreo del portapapeles";
+"menuBar.leftClick.openSettings" = "Abrir ajustes";
 "settings.currentVersion" = "Versión actual";
 
 /* Pro */
@@ -91,8 +101,9 @@
 "detail.info" = "Información";
 "detail.type" = "Tipo";
 "detail.source" = "App de origen";
+"detail.aiAgent" = "AI Agent";
 "detail.created" = "Creado";
-"detail.group" = "Colección";
+"detail.group" = "Grupo";
 "detail.lastUsed" = "Último uso";
 "detail.chars" = "Caracteres";
 "detail.lines" = "Líneas";
@@ -107,14 +118,24 @@
 "action.paste" = "Pegar";
 "action.cancel" = "Cancelar";
 "action.confirm" = "Aceptar";
-"action.assignGroup" = "Añadir a colección";
-"action.newGroup" = "Nueva colección…";
-"action.editGroup" = "Editar colección…";
-"action.deleteGroup" = "Eliminar colección";
-"action.deleteGroupConfirm" = "¿Seguro que deseas eliminar la colección \"%@\"? Los elementos de la colección no se eliminarán.";
-"action.removeFromGroup" = "Quitar de la colección";
+"action.assignGroup" = "Asignar a grupo";
+"action.newGroup" = "Nuevo grupo…";
+"action.editGroup" = "Editar grupo…";
+"action.deleteGroup" = "Eliminar grupo";
+"action.deleteGroupConfirm" = "¿Seguro que deseas eliminar el grupo \"%@\"? Los elementos del grupo no se eliminarán.";
+"action.removeFromGroup" = "Quitar del grupo";
+"group.preserveItems" = "Conservar permanentemente los elementos de este grupo";
+"group.preserveItems.help" = "Al activarlo, los elementos de este grupo quedan excluidos de la limpieza automática por retención y de Borrar datos.";
+"group.preserveItems.badge" = "Permanente";
 "action.changeIcon" = "Cambiar icono…";
 "action.clearConfirm" = "Se eliminarán todos los elementos excepto los favoritos y los fijados.";
+"action.clearScope.type" = "Vaciar los elementos de este tipo";
+"action.clearScope.group" = "Vaciar los elementos de este grupo";
+"action.clearScope.group.disabledHelp" = "Este grupo está marcado como permanente, por lo que no se pueden vaciar sus elementos.";
+"action.clearScope.app" = "Vaciar los elementos de esta app";
+"action.clearScope.title" = "Vaciar «%@»";
+"action.clearScope.confirm" = "Se eliminarán %d elementos no fijados. Los elementos de grupos permanentes no se eliminarán.";
+"action.clearScope.empty" = "No hay elementos que vaciar en este filtro (se omiten los fijados y los de grupos permanentes).";
 
 /* Stats */
 "stats.total" = "Total de clips";
@@ -123,26 +144,55 @@
 "settings.features" = "Funciones";
 "settings.shortcuts" = "Atajos";
 "settings.quickPanelShortcut" = "Pegado rápido";
-"settings.managerShortcut" = "Open Manager";
+"settings.managerShortcut" = "Abrir gestor";
+"settings.managerShortcut.global" = "Global";
+"settings.managerShortcut.scopeHint" = "Cuando Global está desactivado, este atajo solo funciona mientras el panel rápido ya está abierto.";
+"settings.relayShortcut" = "Iniciar relevo";
 "settings.shortcut.none" = "No configurado";
 "settings.paste" = "Pegar";
+"settings.autoPaste" = "Pegar en la app con Enter";
 "settings.addNewLine" = "Agregar nueva línea después de pegar";
+"settings.quickPanelLaunchAnimation" = "Animación de apertura del panel rápido";
+"settings.quickPanelRememberFilter" = "Recordar el último filtro";
+"settings.quickPanelSecondaryRow" = "Mostrar debajo de la búsqueda del panel rápido";
+"settings.quickPanelSecondaryRow.types" = "Tipos";
+"settings.quickPanelSecondaryRow.groups" = "Grupos";
 "settings.history" = "Historial";
 "settings.retentionDays" = "Conservar historial";
 "settings.retentionDays.forever" = "Para siempre";
 "settings.retentionDays.days" = "%d días";
+"settings.retentionDays.cleanConfirm" = "Se eliminarán %d elementos que superan el período de retención";
+"settings.retentionDays.cleanWarning" = "Esta acción no se puede deshacer. ¿Continuar?";
 "settings.display" = "Visualización";
+"settings.quickPanelPosition" = "Posición del panel rápido";
+"settings.quickPanelPosition.remembered" = "Recordar la última posición";
+"settings.quickPanelPosition.cursor" = "Cursor";
+"settings.quickPanelPosition.menuBarIcon" = "Icono de la barra de menús";
+"settings.quickPanelPosition.windowCenter" = "Centro de la ventana activa";
+"settings.quickPanelPosition.screenCenter" = "Centro de la pantalla";
+"settings.quickPanelTargetScreen" = "Pantalla de destino";
+"settings.quickPanelTargetScreen.active" = "Pantalla activa";
+"settings.quickPanelTargetScreen.specified" = "Pantalla específica";
+"settings.quickPanelSpecifiedScreen" = "Monitor específico";
 "settings.behavior" = "Comportamiento";
 "settings.preferences" = "Preferencias";
+"settings.quickPanel" = "Pegado rápido";
+"settings.previewRecognition" = "Vista previa y reconocimiento";
 "settings.showLinkURL" = "Mostrar URL en lugar del título para enlaces";
 "settings.webPreview" = "Vista previa web";
+"settings.imageLinkPreview" = "Vista previa de enlace de imagen";
+"settings.previewExecutesJavaScript" = "Ejecutar JavaScript en vistas previas";
+"settings.linkPreview" = "Enlaces y vistas previas";
+"settings.linkPreview.footer" = "Estos interruptores controlan si PasteMemo realiza solicitudes de red para enlaces copiados. Desactívalos todos y PasteMemo solo se conectará para comprobar actualizaciones.";
+"settings.linkPreview.footer.offline" = "El modo sin conexión está activo: los interruptores anteriores están deshabilitados. Desactívalo en la pestaña «Privacidad».";
+"settings.richTextPreview" = "Vista previa de texto enriquecido";
 "settings.showGuide" = "Mostrar guía de bienvenida";
 
 /* Pro */
 "pro.beta.desc" = "PasteMemo está actualmente en fase beta. Las funciones Pro se lanzarán en futuras versiones.";
 "pro.feature.rules" = "Reglas del portapapeles";
 "pro.feature.relay" = "Modo relevo";
-"pro.feature.customCategory" = "Colecciones personalizadas";
+"pro.feature.customCategory" = "Categorías personalizadas";
 "pro.feature.ignoreApps" = "Ignorar apps específicas";
 "pro.feature.automation" = "Automatización del portapapeles";
 
@@ -166,6 +216,7 @@
 "menu.newGroup" = "Nuevo grupo…";
 "menu.newSmartGroup" = "Nuevo grupo inteligente…";
 "menu.help" = "Ayuda de PasteMemo";
+"menu.alwaysOnTop" = "Siempre visible";
 "help.title" = "Ayuda de PasteMemo";
 "help.subtitle" = "Guía rápida para tu gestor de portapapeles.";
 "help.close" = "Entendido";
@@ -193,6 +244,8 @@
 
 /* Update */
 "update.available.title" = "¡Nueva versión de PasteMemo disponible!";
+"update.available.beta.title" = "Nueva beta de PasteMemo disponible";
+"update.beta.warning" = "Las versiones beta pueden ser inestables. Haz una copia de seguridad antes de instalar.";
 "update.available.message" = "PasteMemo %@ está disponible — tienes %@. ¿Descargar ahora?";
 "update.skip" = "Omitir esta versión";
 "update.remind_later" = "Recordar más tarde";
@@ -211,6 +264,7 @@
 "update.download_error" = "Error de descarga";
 "update.dmg_error" = "Error de actualización";
 "update.dmg_error.message" = "La imagen de disco descargada está dañada. Intenta descargarla de nuevo.";
+"update.download_error.incomplete" = "La descarga fue incompleta o se interrumpió. Comprueba tu conexión de red e inténtalo de nuevo.";
 
 /* About */
 "about.description" = "Gestor de portapapeles inteligente para macOS";
@@ -235,6 +289,7 @@
 /* Data Import/Export */
 "dataPorter.section" = "Datos";
 "dataPorter.export" = "Exportar datos";
+"dataPorter.compressing" = "Comprimiendo...";
 "dataPorter.import" = "Importar datos";
 "dataPorter.encrypt" = "Cifrar exportación";
 "dataPorter.password" = "Contraseña";
@@ -244,17 +299,12 @@
 "dataPorter.exportSuccess" = "Exportación exitosa";
 "dataPorter.importSuccess" = "Importación exitosa";
 "dataPorter.wrongPassword" = "Contraseña incorrecta";
-
-/* Paste.app Migration */
-"dataPorter.pasteMigration" = "Migración de Paste.app";
-"dataPorter.pasteMigration.desc" = "Importar historial del portapapeles desde Paste.app";
-"dataPorter.pasteMigration.button" = "Iniciar migración";
-"dataPorter.pasteMigration.notFound" = "Base de datos de Paste.app no encontrada. Asegúrate de que Paste.app esté instalado y haya sido utilizado.";
-"dataPorter.pasteMigration.empty" = "No se encontraron elementos en la base de datos de Paste.app.";
-"dataPorter.pasteMigration.progress" = "Migrando desde Paste.app (%d elementos)";
-"dataPorter.pasteMigration.success" = "Migración completada: %d elementos importados, %d omitidos";
-"dataPorter.pasteMigration.errors" = "Errores: %@";
-
+"dataPorter.decrypting" = "Descifrando...";
+"dataPorter.refreshing" = "Actualizando la ventana principal...";
+"dataPorter.summary.imported" = "%d elementos importados";
+"dataPorter.summary.skipped" = "%d elementos omitidos";
+"dataPorter.summary.newGroups" = "%d grupos nuevos";
+"dataPorter.summary.newRules" = "%d reglas nuevas";
 
 /* Dev Tools */
 "devTools.importFromRelease" = "Import Data from Release";
@@ -273,11 +323,14 @@
 /* Multi-select */
 "action.merge" = "Combinar";
 "action.mergeCopy" = "Copiar";
+"action.copyDebugInfo" = "Copiar información de depuración";
 "quick.multiSelected" = "%d elementos seleccionados";
 "quick.batchPaste" = "Pegar en lote";
 
 /* Privacy */
 "settings.privacy" = "Privacidad";
+"settings.privacy.offlineMode" = "Modo sin conexión";
+"settings.privacy.offlineMode.hint" = "Cuando está activado, PasteMemo no realiza ninguna solicitud de red salvo las comprobaciones de actualizaciones. Las vistas previas de enlaces, la carga de imágenes y las estadísticas anónimas se desactivan.";
 "settings.privacy.sensitive" = "Contenido sensible";
 "settings.privacy.sensitiveDetection" = "Detectar automáticamente contenido sensible";
 "settings.privacy.sensitiveHint" = "Enmascara automáticamente contraseñas, claves API, tokens y otros datos sensibles copiados al portapapeles.";
@@ -299,20 +352,13 @@
 "onboarding.privacy.title" = "Protección de privacidad";
 "onboarding.privacy.desc" = "PasteMemo detectó los siguientes gestores de contraseñas y aplicaciones de seguridad en tu Mac. Recomendamos ignorar su actividad del portapapeles para proteger tus datos sensibles.";
 "onboarding.privacy.none" = "No se detectaron gestores de contraseñas ni aplicaciones de seguridad";
+"onboarding.privacy.hint" = "Marcada = ignorada: el portapapeles de esta app no se guarda. Haz clic en una fila para cambiar.";
+"onboarding.privacy.ignored" = "Ignorada";
+"onboarding.privacy.notIgnored" = "No ignorada";
 
 /* Onboarding - Preferences */
 "onboarding.preferences.title" = "Preferencias";
 "onboarding.preferences.desc" = "Configura tu comportamiento preferido. Puedes cambiarlo en cualquier momento en Ajustes.";
-
-/* Onboarding - Migration */
-"onboarding.migration.title" = "Migración de datos";
-"onboarding.migration.desc" = "Paste.app detectado. Puedes migrar tu historial del portapapeles a PasteMemo con un clic.";
-"onboarding.migration.found" = "%d elementos encontrados";
-"onboarding.migration.import" = "Iniciar migración";
-"onboarding.migration.none" = "Paste.app no detectado, no se necesita migración";
-"onboarding.migration.success" = "¡Migración completada! %d elementos importados";
-"onboarding.migration.skipped" = "%d elementos duplicados omitidos";
-
 
 "sensitive.optionHint" = "Mantén ⌥ Option para ver";
 
@@ -339,6 +385,10 @@
 "accessibility.step2.pre" = "primero";
 "accessibility.step2.separator" = ", ";
 
+"accessibility.step3.dragFromPanel" = "Arrastra PasteMemo desde el panel flotante";
+"accessibility.panelHint" = "Si existe una entrada antigua, haz clic en − para eliminarla antes de arrastrar.";
+"accessibility.panelTitle" = "Permiso de Accesibilidad";
+
 "filter.sensitive" = "Sensible";
 
 "settings.clearData" = "Borrar datos";
@@ -356,6 +406,7 @@
 "backup.frequency" = "Frecuencia de copia";
 "backup.maxSlots" = "Número de copias";
 "backup.destination" = "Método de copia";
+"backup.frequency.twoHours" = "Cada 2 horas";
 "backup.frequency.sixHours" = "Cada 6 horas";
 "backup.frequency.daily" = "Diaria";
 "backup.frequency.threeDays" = "Cada 3 días";
@@ -366,6 +417,7 @@
 "backup.backupNow" = "Copiar ahora";
 "backup.restore" = "Restaurar…";
 "backup.success" = "Copia de seguridad completada.";
+"backup.progress.finalizing" = "Guardando…";
 "backup.restore.title" = "Restaurar desde copia";
 "backup.restore.empty" = "No hay copias disponibles.";
 "backup.restore.merge" = "Fusionar (mantener datos existentes)";
@@ -387,7 +439,9 @@
 // Paleta de comandos
 "cmd.title" = "Acciones rápidas";
 "cmd.paste" = "Pegar";
+"cmd.pasteAndDestroy" = "Pegar y destruir";
 "cmd.pasteAsPlainText" = "Pegar como texto";
+"cmd.copyAsPlainText" = "Copiar como texto";
 "cmd.copy" = "Copiar";
 "cmd.pin" = "Fijar / Desfijar";
 "cmd.toggleSensitive" = "Alternar sensible";
@@ -397,10 +451,12 @@
 "cmd.pastePath" = "Pegar ruta";
 "cmd.andNewLine" = " + nueva línea";
 "cmd.transform" = "Transformar";
+"cmd.automation" = "Automatización";
 
 "relay.title" = "Modo Relevo";
 "relay.tab" = "Relevo";
 "relay.exit" = "Salir";
+"relay.clearAndExit" = "Vaciar y salir";
 "relay.close" = "Cerrar";
 "relay.exitRelay" = "Salir del relevo";
 "relay.startRelay" = "Iniciar relevo";
@@ -408,7 +464,14 @@
 "relay.resume" = "Reanudar";
 "relay.paused" = "En pausa";
 "relay.emptyHint" = "Copia contenido para añadirlo a la cola";
+"relay.deleted.recirculated" = "Eliminado de relay, guardado en historial del portapapeles";
+"relay.deleted.undo" = "Deshacer";
+"relay.appendedToQueue" = "Añadido a la cola de relevo (%d/%d)";
+"relay.queue.heading" = "Cola %d";
 "relay.quickPastePaused" = "Pegado rápido pausado durante el modo relevo";
+"relay.expand" = "Expandir";
+"relay.collapse" = "Contraer";
+"relay.content.truncated" = "…(contenido demasiado grande, truncado)";
 "relay.alert.title" = "Modo Relevo activado";
 "relay.alert.message" = "El pegado rápido está en pausa. El contenido copiado se añadirá a la cola.
 
@@ -419,6 +482,31 @@ Usa %@ para pegar uno por uno.";
 "relay.settings.pasteKeyNote" = "Algunas apps (Terminal, Emacs) pueden usar el mismo atajo.";
 "relay.settings.pauseToChange" = "Pausa o sal del modo relevo para cambiar el atajo.";
 "relay.settings.resetAlert" = "Mostrar consejo de activación de nuevo";
+"relay.settings.plainText" = "Pegar como texto sin formato";
+"relay.settings.plainText.desc" = "Eliminar formato enriquecido";
+"relay.settings.allowRepeatCopy" = "Permitir duplicados";
+"relay.settings.allowRepeatCopy.desc" = "Poner en cola elementos duplicados consecutivos";
+"relay.settings.completeSound" = "Sonido de finalización";
+"relay.settings.completeSound.desc" = "Reproducir al finalizar el relevo";
+"relay.settings.completeSound.mute" = "Silencio";
+"relay.banner.clickToClear" = "Clic para cambiar · ✕ para borrar";
+"relay.settings.automation" = "Automatización";
+"relay.settings.automation.desc" = "Aplicar regla al pegar";
+"relay.settings.automation.none" = "Ninguna";
+"relay.settings.preview" = "Vista previa";
+"relay.settings.preview.desc" = "La lista muestra texto procesado";
+"relay.settings.tooltip.default" = "Configuración";
+"relay.settings.tooltip.active" = "Activo";
+"relay.settings.postPasteKey" = "Tecla tras pegar";
+"relay.settings.postPasteKey.desc" = "Útil para entrada rápida";
+"relay.settings.postPasteKey.none" = "Ninguna";
+"relay.settings.postPasteKey.return" = "Return";
+"relay.settings.postPasteKey.tab" = "Tab";
+"relay.settings.postPasteKey.down" = "Abajo";
+"relay.settings.postPasteKey.up" = "Arriba";
+"relay.settings.postPasteKey.left" = "Izquierda";
+"relay.settings.postPasteKey.right" = "Derecha";
+"relay.settings.postPasteKey.space" = "Space";
 "relay.settings.description" = "El modo relevo permite copiar varios elementos y pegarlos uno por uno. Ideal para copiar una lista de nombres y pegarlos fila por fila en Excel.";
 "relay.settings.shortcuts" = "Atajos";
 "relay.settings.operations" = "Operaciones";
@@ -426,10 +514,18 @@ Usa %@ para pegar uno por uno.";
 "relay.settings.op.skip" = "Omitir actual";
 "relay.settings.op.previous" = "Volver al anterior";
 "relay.autoExit.short" = "Salir auto al terminar";
+"relay.loop" = "Bucle";
+"relay.loop.tooltip.on" = "Bucle: Activado (Reiniciar desde el principio al terminar la cola)";
+"relay.loop.tooltip.off" = "Bucle: Desactivado";
+"relay.pasteAsText" = "Pegar como texto";
 "relay.autoExit" = "Salir auto cuando la cola esté vacía";
 "relay.previous" = "Anterior";
 "relay.skip" = "Omitir";
+"relay.pasteAll" = "Pegar todo";
+"relay.pasteAll.stop" = "Detener";
+"relay.pasteAll.help" = "Pegar todos los elementos restantes de la cola (⌥⌃V)";
 "relay.delete" = "Eliminar";
+"relay.setCurrent" = "Establecer como actual";
 "relay.split" = "Dividir";
 "relay.addToQueue" = "Añadir a cola relevo";
 "relay.splitAndRelay" = "Dividir y relevo";
@@ -449,6 +545,11 @@ Usa %@ para pegar uno por uno.";
 "onboarding.relay.feature1" = "Selecciona varios elementos o copia continuamente para crear una cola";
 "onboarding.relay.feature2" = "Divide texto por separador para crear una cola rápidamente";
 "onboarding.relay.feature3" = "Pulsa Ctrl+V para pegar uno por uno (personalizable)";
+"onboarding.aiAgent.title" = "Puente para agentes IA";
+"onboarding.aiAgent.desc" = "Pon tu portapapeles a disposición de Claude Code, Cursor, Codex y cualquier agente IA compatible con MCP.";
+"onboarding.aiAgent.feature1" = "5 herramientas MCP — leer, buscar, escribir el portapapeles";
+"onboarding.aiAgent.feature2" = "Instalación en un clic en Ajustes → AI Agents";
+"onboarding.aiAgent.feature3" = "Elementos sensibles filtrados por defecto";
 "help.relay" = "Modo relevo";
 "help.relay.open" = "Abrir desde el botón de la barra de herramientas o la barra de menús";
 "help.relay.paste" = "Ctrl+V para pegar el siguiente elemento (personalizable en Ajustes)";
@@ -462,6 +563,8 @@ Usa %@ para pegar uno por uno.";
 /* Actions - Additional */
 "action.copy" = "Copiar";
 "action.copied" = "Copiado al portapapeles";
+"action.undo" = "Deshacer";
+"delete.undo.toast" = "%d elemento(s) eliminado(s)";
 "action.deleteSelected" = "Eliminar %d elementos";
 "action.deleteSelected.confirm" = "Delete %d items?";
 
@@ -478,6 +581,10 @@ Usa %@ para pegar uno por uno.";
 "type.document" = "Documento";
 "type.archive" = "Archivo comprimido";
 "type.application" = "App";
+"type.mixed" = "Mixto";
+"mixed.section.image" = "Imagen";
+"mixed.section.text" = "Texto";
+"mixed.section.files" = "Archivos (%d)";
 
 /* Phone Actions */
 "phone.call" = "Llamar";
@@ -502,7 +609,7 @@ Usa %@ para pegar uno por uno.";
 
 /* Filter - Additional */
 "filter.apps" = "Por app";
-"filter.groups" = "Colecciones";
+"filter.groups" = "Grupos";
 "filter.other" = "Otros";
 
 /* Empty State - Additional */
@@ -517,10 +624,11 @@ Usa %@ para pegar uno por uno.";
 
 /* Menu - Additional */
 "menu.openMain" = "Abrir ventana principal";
-"menu.pause" = "Pausar monitoreo";
+"menu.pause" = "Pausar monitoreo del portapapeles";
 "menu.quickPanel" = "Pegado rápido";
 "menu.quit" = "Salir de %@";
-"menu.resume" = "Reanudar monitoreo";
+"menu.accessibility.grant" = "⚠ Conceder permiso de accesibilidad";
+"menu.resume" = "Reanudar monitoreo del portapapeles";
 "menu.settings" = "Ajustes";
 
 /* Quick Panel */
@@ -535,7 +643,9 @@ Usa %@ para pegar uno por uno.";
 "quick.pasteName" = "Pegar nombre";
 "quick.pasteNewLine" = "Pegar + Intro";
 "quick.pastePath" = "Pegar ruta";
+"quick.copyPath" = "Copiar ruta";
 "quick.pasteTo" = "Pegar en %@";
+"quick.copyToClipboard" = "Copiar al portapapeles";
 "quick.pasteToApp" = "Pegar en %@";
 "quick.preview" = "Vista previa";
 "quick.recent" = "Recientes";
@@ -579,6 +689,7 @@ Usa %@ para pegar uno por uno.";
 /* Relay - Additional */
 "relay.editItem" = "Editar contenido";
 "relay.reverse" = "Invertir orden";
+"relay.clearAll" = "Borrar todo";
 
 /* Commands - Additional */
 "cmd.copyAs" = "Copiar como %@";
@@ -586,7 +697,10 @@ Usa %@ para pegar uno por uno.";
 
 /* Accessibility - Permission Lost */
 "accessibility.lost.later" = "Más tarde";
-"accessibility.lost.message" = "Tras una actualización de la app, macOS requiere una nueva autorización. Abre Ajustes del Sistema, elimina PasteMemo de la lista de Accesibilidad primero (selecciona y haz clic en menos), luego haz clic en más para volver a agregarlo.";
+"reinstall.required.title" = "Archivos de la app incompletos";
+"reinstall.required.message" = "Faltan algunos archivos tras la actualización. Vuelve a descargar el DMG y reinstálalo. Tus datos y permisos se conservarán.";
+"reinstall.required.action" = "Abrir página de descarga";
+"accessibility.lost.message" = "Tras una actualización de la app, macOS requiere reautorización. Después de hacer clic en «Abrir Accesibilidad», selecciona la entrada existente de PasteMemo y haz clic en − para eliminarla; luego arrastra la nueva versión desde el panel flotante.";
 "accessibility.lost.title" = "Se requiere permiso de accesibilidad";
 
 /* Automation - Window & Sections */
@@ -594,11 +708,15 @@ Usa %@ para pegar uno por uno.";
 "automation.section.builtIn" = "Reglas integradas";
 "automation.section.custom" = "Mis reglas";
 "automation.section.empty" = "(vacío)";
+"automation.section.disabled" = "Desactivado";
 
 /* Automation - Editor */
 "automation.editor.selectRule" = "Selecciona una regla para editar";
 "automation.editor.definition" = "Definición de regla";
 "automation.editor.settings" = "Configuración";
+"automation.editor.triggerAndNotification" = "Trigger & Notification";
+"automation.rule.status.active" = "Active";
+"automation.rule.status.inactive" = "Inactive";
 "automation.editor.save" = "Guardar";
 "automation.editor.cancel" = "Cancelar";
 "automation.editor.edit" = "Editar";
@@ -609,6 +727,7 @@ Usa %@ para pegar uno por uno.";
 "automation.rule.triggerMode" = "Activador";
 "automation.rule.triggerMode.automatic" = "Automático";
 "automation.rule.triggerMode.manual" = "Solo manual";
+"automation.rule.triggerMode.shortcutManualOnly" = "Las acciones «Ejecutar atajo» solo se pueden activar manualmente";
 "automation.rule.notifyBeforeApply" = "Confirmar antes de aplicar";
 "automation.rule.newName" = "Nueva regla";
 
@@ -619,6 +738,7 @@ Usa %@ para pegar uno por uno.";
 "automation.condition.regexMatch" = "El contenido coincide con regex";
 "automation.condition.containsText" = "El contenido contiene";
 "automation.condition.sourceApp" = "La app de origen es";
+"automation.condition.anyText" = "Cualquier texto";
 "automation.condition.sourceApp.select" = "Seleccionar app";
 "automation.condition.sourceApp.add" = "Agregar app";
 "automation.condition.sourceApp.empty" = "Sin apps seleccionadas";
@@ -659,7 +779,17 @@ Usa %@ para pegar uno por uno.";
 "automation.action.markSensitive" = "Mark as Sensitive";
 "automation.action.pin" = "Pin";
 "automation.action.skipCapture" = "Skip Capture";
+"automation.action.section.external" = "External";
+"automation.action.runShortcut" = "Run Shortcut";
+"automation.action.runShortcut.placeholder" = "Shortcut name";
+"automation.action.runShortcut.empty" = "No shortcut selected";
+"automation.action.runShortcut.pick" = "Pick from list";
+"automation.action.runShortcut.openInApp" = "Open in Shortcuts";
+"automation.action.runShortcut.failed" = "Shortcut failed";
+"automation.action.runShortcut.loading" = "Loading…";
 "automation.rule.notifyOnTrigger" = "Send notification on trigger";
+"automation.rule.writeBackToPasteboard" = "Volver a escribir el resultado en el portapapeles";
+"automation.rule.writeBackToPasteboard.help" = "Cuando está activado, el resultado de la regla se vuelve a escribir en el portapapeles del sistema, de modo que ⌘V justo después de copiar pega el texto transformado (el texto enriquecido se convierte en texto sin formato).";
 "automation.notification.title" = "Automation";
 "automation.applied" = "Automation applied";
 "automation.validation.incomplete" = "Cannot enable rule";
@@ -675,6 +805,7 @@ Usa %@ para pegar uno por uno.";
 /* Automation - Preview */
 "automation.preview" = "Probar regla";
 "automation.preview.input" = "Pega o escribe contenido para probar la regla…";
+"automation.preview.useClipboard" = "Usar portapapeles actual";
 "automation.preview.output" = "Vista previa del resultado";
 "automation.preview.notMatched" = "Condiciones no cumplidas";
 
@@ -689,6 +820,18 @@ Usa %@ para pegar uno por uno.";
 /* Backup - Additional */
 "backup.nextBackup" = "Próxima copia";
 "detail.openInFinder" = "Mostrar en Finder";
+"preview.image.zoomFit" = "Ajustar ancho";
+"preview.image.zoomActual" = "100%";
+"preview.image.openInPreview" = "Abrir en Vista Previa";
+"preview.image.zoomHint" = "⌘+desplazar o pellizcar para zoom";
+
+/* Sponsor Tab */
+"settings.sponsor" = "Apoyar";
+"sponsor.title" = "Apoya PasteMemo";
+"sponsor.desc" = "PasteMemo es gratuito y de código abierto. Si te resulta útil, considera apoyar el proyecto.";
+"sponsor.donate" = "Invítame un café";
+"sponsor.star" = "Star en GitHub";
+"sponsor.feedback" = "Enviar comentarios";
 
 /* About - Open Source */
 "about.license" = "Licencia";
@@ -709,12 +852,23 @@ Usa %@ para pegar uno por uno.";
 "onboarding.analytics.hint" = "Puedes cambiar esto en Ajustes → Privacidad.";
 
 /* OCR */
-"settings.ocr" = "OCR de imágenes";
+"settings.ocr" = "OCR";
 "settings.ocr.enable" = "Activar OCR de imágenes";
 "settings.ocr.auto" = "Procesar nuevas imágenes automáticamente";
+"settings.ocr.markdown" = "Reconocer el diseño como Markdown";
+"settings.ocr.markdown.hint" = "Detecta párrafos, listas y tablas y guarda el texto como Markdown. Requiere macOS 26.";
+"settings.ocr.stopScan" = "Detener el escaneo";
 "settings.ocr.scanExisting" = "Escanear imágenes existentes";
 "settings.ocr.scanStarted" = "El OCR en segundo plano para las imágenes existentes ha comenzado.";
 "settings.ocr.hint" = "El OCR se ejecuta en el dispositivo y hace que el texto dentro de las imágenes sea buscable.";
+"settings.autoCheckUpdates" = "Buscar actualizaciones automáticamente";
+"settings.updateCheckInterval" = "Intervalo de verificación";
+"settings.updateCheckInterval.6h" = "Cada 6 horas";
+"settings.updateCheckInterval.12h" = "Cada 12 horas";
+"settings.updateCheckInterval.24h" = "Cada 24 horas";
+"settings.updateCheckInterval.72h" = "Cada 3 días";
+"settings.includeBetaChannel" = "Unirse al canal Beta";
+"settings.includeBetaChannel.hint" = "Prueba nuevas funciones antes. Puede ser inestable. Se actualiza a la versión estable automáticamente.";
 "detail.ocr" = "Texto reconocido";
 "detail.ocr.copy" = "Copiar texto";
 "detail.ocr.retry" = "Reintentar OCR";
@@ -726,3 +880,52 @@ Usa %@ para pegar uno por uno.";
 "quick.ocrMatch" = "Coincidencia en el texto reconocido";
 "cmd.openInPreview" = "Abrir en Vista Previa";
 "cmd.retryOCR" = "Reintentar OCR";
+"cmd.pasteOCR" = "Pegar texto OCR";
+
+/* Edit */
+"detail.richText.editWarning" = "Al editar, el texto enriquecido se convertirá en texto sin formato.";
+
+/* AI Agents */
+"settings.tab.aiAgents" = "Agentes de IA";
+"settings.aiAgents.service" = "Servicio";
+"settings.aiAgents.serverRunning" = "Servidor MCP en ejecución";
+"settings.aiAgents.agents" = "Agentes";
+"settings.aiAgents.detected" = "Disponible";
+"settings.aiAgents.notInstalled" = "No instalado en este Mac";
+"settings.aiAgents.installed.label" = "Instalado";
+"settings.aiAgents.install" = "Instalar";
+"settings.aiAgents.uninstall" = "Desinstalar";
+"settings.aiAgents.manualConfig" = "Configuración manual";
+"settings.aiAgents.installed" = "Instalado en %@. Reinicia %@ para que los cambios surtan efecto.";
+"settings.aiAgents.uninstalled" = "Desinstalado de %@.";
+"settings.aiAgents.installFailed" = "Error al instalar en %@: %@";
+"settings.aiAgents.uninstallFailed" = "Error al desinstalar de %@: %@";
+"settings.aiAgents.privacy" = "Privacidad";
+"settings.aiAgents.allowSensitive" = "Permitir que el agente lea elementos sensibles";
+"settings.aiAgents.master.toggle" = "Activar integración con agentes de IA";
+"settings.aiAgents.master.detail" = "Permite que herramientas de IA como Claude y Codex lean tu historial del portapapeles vía MCP";
+"settings.aiAgents.master.disabledHint" = "Desactivado. Activa esta opción para que los agentes de IA accedan al portapapeles vía MCP.";
+"settings.aiAgents.sourceBlocklist" = "Lista de bloqueo de apps de origen";
+"settings.aiAgents.binaryMissing" = "Falta el binario pastememo-mcp";
+"settings.aiAgents.binaryMissingDetail" = "Esto suele ocurrir tras una actualización dentro de la app desde una versión anterior al soporte MCP. Vuelve a descargar el DMG desde lifedever.com para solucionarlo.";
+"settings.aiAgents.openDownload" = "Abrir página de descarga";
+"settings.aiAgents.blocklist.empty" = "No hay apps bloqueadas";
+"settings.aiAgents.blocklist.add" = "Añadir app";
+"settings.aiAgents.manualConfig.title" = "Configuración manual para %@";
+"settings.aiAgents.manualConfig.subtitle" = "Copia el fragmento de abajo y combínalo con el archivo de configuración correspondiente.";
+"settings.aiAgents.manualConfig.copy" = "Copiar al portapapeles";
+"settings.aiAgents.manualConfig.done" = "Hecho";
+
+"settings.diagnostics" = "Diagnóstico";
+"settings.diagnostics.export" = "Exportar registro de diagnóstico";
+
+/* Image grid (Quick Panel) */
+"settings.imageLayout" = "Visualización de imágenes";
+"settings.imageLayout.list" = "Lista";
+"settings.imageLayout.grid" = "Cuadrícula en cascada";
+"settings.imageGridDensity" = "Densidad de cuadrícula";
+"settings.imageGridDensity.sparse" = "Dispersa";
+"settings.imageGridDensity.medium" = "Media";
+"settings.imageGridDensity.dense" = "Densa";
+
+"settings.ocr.memoryHint" = "Cuando está activado, PasteMemo reconoce el texto de las imágenes en segundo plano con Vision, lo que puede aumentar el uso de memoria.";
