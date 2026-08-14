@@ -212,10 +212,18 @@ final class UpdateChecker: ObservableObject {
         # Replace contents only, preserve app bundle identity for accessibility permissions
         rm -rf "\(destApp)/Contents/MacOS"
         rm -rf "\(destApp)/Contents/Resources"
+        rm -rf "\(destApp)/Contents/_CodeSignature"
         rm -rf "\(destApp)"/*.bundle
         cp -R "\(sourceApp)/Contents/MacOS" "\(destApp)/Contents/MacOS"
         cp -R "\(sourceApp)/Contents/Resources" "\(destApp)/Contents/Resources"
         cp "\(sourceApp)/Contents/Info.plist" "\(destApp)/Contents/Info.plist"
+        # Signed (Developer ID) builds seal the bundle via Contents/_CodeSignature;
+        # leaving the old one behind after swapping MacOS/Resources produces an
+        # app whose signature no longer verifies (broken seal → Gatekeeper/TCC
+        # trouble). Copy it together with the content it seals.
+        if [ -d "\(sourceApp)/Contents/_CodeSignature" ]; then
+            cp -R "\(sourceApp)/Contents/_CodeSignature" "\(destApp)/Contents/_CodeSignature"
+        fi
         for b in "\(sourceApp)"/*.bundle; do
             [ -d "$b" ] && cp -R "$b" "\(destApp)/"
         done
