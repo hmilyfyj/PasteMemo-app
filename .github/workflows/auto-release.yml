@@ -43,3 +43,29 @@ jobs:
               ./.github/scripts/publish-release.sh "$tag"
               echo "::endgroup::"
           done
+
+      - name: Sync main to the published release
+        if: steps.drafts.outputs.tags != '[]'
+        run: |
+          # main mirrors "what users are running": fast-forward it to the tag
+          # we just published, and only then. develop pushes no longer touch
+          # main (the old sync-main.yml mirror is gone). Betas never reach
+          # this workflow, so they never move main.
+          git config user.name "lifedever-bot"
+          git config user.email "bot@lifedever.com"
+          git fetch origin main
+          # Loop order above publishes drafts.json front-to-back, so the last
+          # entry is the last tag published — that's where main should point.
+          LAST_TAG=$(jq -r '.[-1]' drafts.json)
+          git fetch origin "refs/tags/$LAST_TAG:refs/tags/$LAST_TAG"
+          TARGET=$(git rev-parse "$LAST_TAG^{commit}")
+          if ! git merge-base --is-ancestor origin/main "$TARGET"; then
+            echo "::error::main has commits not reachable from $LAST_TAG — resolve manually (git log origin/main..$LAST_TAG)."
+            exit 1
+          fi
+          if [ "$(git rev-parse origin/main)" = "$TARGET" ]; then
+            echo "main already at $LAST_TAG ($TARGET)"
+          else
+            git push origin "$TARGET:refs/heads/main"
+            echo "main fast-forwarded to $LAST_TAG ($TARGET)"
+          fi
