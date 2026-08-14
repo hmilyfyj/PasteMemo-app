@@ -81,6 +81,9 @@ jobs:
           name: PasteMemo-${{ inputs.version }}-dmgs
           path: .release/*.dmg
           if-no-files-found: error
+          # .release/ is a dot-directory; upload-artifact v4.4+ silently
+          # excludes hidden paths unless this is set.
+          include-hidden-files: true
 
       - name: Clean up keychain and API key
         if: always()
