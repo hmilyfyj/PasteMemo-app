@@ -105,6 +105,8 @@ struct QuickPanelView: View {
     @State private var cachedItemMap: [PersistentIdentifier: ClipItem] = [:]
     @State private var cachedIDSet: Set<PersistentIdentifier> = []
     @AppStorage("quickPanelAutoPaste") private var quickPanelAutoPaste = true
+    @AppStorage(QuickPanelStyle.storageKey) var quickPanelStyleRaw = QuickPanelStyle.classic.rawValue
+    @AppStorage(QuickPanelBottomDefaults.modeStorageKey) var quickPanelBottomModeRaw = QuickPanelBottomMode.compact.rawValue
     @AppStorage(QuickPanelSettings.secondaryRowKey) private var quickPanelSecondaryRowRaw = QuickPanelSecondaryRow.types.rawValue
     @AppStorage(QuickPanelSettings.rememberLastFilterKey) private var rememberLastFilter = false
     @AppStorage(QuickPanelSettings.lastFilterKey) private var lastFilterStorage = "all"
@@ -123,6 +125,14 @@ struct QuickPanelView: View {
 
     /// 仅当：用户开了「瀑布流网格」+ 当前主筛选是「图片」类型 + 有内容时，才用网格替代列表。
     /// 其它任何筛选（全部 / 文本 / 链接 / 分组 …）一律保持原有列表。
+    private var isBottomFloating: Bool {
+        QuickPanelStyle(rawValue: quickPanelStyleRaw) == .bottomFloating
+    }
+
+    private var isBottomExpanded: Bool {
+        QuickPanelBottomMode(rawValue: quickPanelBottomModeRaw) == .expanded
+    }
+
     private var isImageGridActive: Bool {
         QuickPanelImageLayout(rawValue: imageLayoutRaw) == .grid
             && selectedFilter == .type(.image)
@@ -276,8 +286,7 @@ struct QuickPanelView: View {
         lastNavigatedID = id
     }
 
-    var body: some View {
-        ZStack(alignment: .top) {
+    private var classicLayout: some View {
         VStack(spacing: 0) {
             searchBar
             // 标签条排除背景拖拽：否则点分类标签时窗口跟着微拖「晃动」
@@ -305,6 +314,17 @@ struct QuickPanelView: View {
             footerBar
         }
         .frame(minWidth: 360, minHeight: 420)
+    }
+
+    var body: some View {
+        ZStack(alignment: .top) {
+        Group {
+            if isBottomFloating {
+                bottomFloatingLayout
+            } else {
+                classicLayout
+            }
+        }
         // Floating group suggestions overlay
         if isShowingSuggestions {
             VStack(spacing: 0) {
@@ -1509,6 +1529,12 @@ struct QuickPanelView: View {
                 return nil
             }
 
+            // Bottom floating: ⌘O toggles compact / expanded preview.
+            if isBottomFloating, hasCmd, Int(event.keyCode) == 31 {
+                toggleBottomMode()
+                return nil
+            }
+
             // 图片瀑布流模式的两级焦点：
             // 标签级（默认）——←→ 继续切分类、↓ 进入网格；
             // 图片级——←→↑↓ 四向移动、space 切多选、顶行 ↑ 退回标签级。
@@ -1540,10 +1566,18 @@ struct QuickPanelView: View {
             }
 
             switch Int(event.keyCode) {
-            case 126: moveSelection(-1, extendSelection: hasShift); return nil
-            case 125: moveSelection(1, extendSelection: hasShift); return nil
-            case 123: switchType(-1); return nil
-            case 124: switchType(1); return nil
+            case 126: // Up
+                if isBottomFloating { switchType(-1) } else { moveSelection(-1, extendSelection: hasShift) }
+                return nil
+            case 125: // Down
+                if isBottomFloating { switchType(1) } else { moveSelection(1, extendSelection: hasShift) }
+                return nil
+            case 123: // Left
+                if isBottomFloating { moveSelection(-1, extendSelection: hasShift) } else { switchType(-1) }
+                return nil
+            case 124: // Right
+                if isBottomFloating { moveSelection(1, extendSelection: hasShift) } else { switchType(1) }
+                return nil
             case 45:
                 if hasControl {
                     moveSelection(1, extendSelection: hasShift)
@@ -2717,6 +2751,114 @@ struct QuickPanelView: View {
         }
     }
 
+}
+
+extension QuickPanelView {
+    var bottomFloatingLayout: some View {
+        GeometryReader { proxy in
+            let metrics = bottomCardMetrics(for: proxy.size)
+            VStack(spacing: 8) {
+                searchBar
+                NonDraggableArea { tabBar }
+                if filteredItems.isEmpty {
+                    emptyStateView
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .quickPanelBottomSection()
+                } else {
+                    bottomClipRail(metrics: metrics)
+                        .frame(height: metrics.railHeight)
+                    if isBottomExpanded {
+                        previewPane
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .quickPanelBottomSection()
+                    }
+                }
+                footerBar
+            }
+            .padding(QuickPanelBottomTheme.contentInset)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .quickPanelBottomShell()
+        }
+        .frame(
+            minWidth: QuickPanelBottomGeometry.minimumWidth,
+            maxWidth: .infinity,
+            minHeight: isBottomExpanded
+                ? QuickPanelBottomGeometry.minimumExpandedHeight
+                : QuickPanelBottomGeometry.minimumCompactHeight,
+            maxHeight: .infinity
+        )
+    }
+
+    func bottomCardMetrics(for size: CGSize) -> (railHeight: CGFloat, cardWidth: CGFloat, cardHeight: CGFloat, spacing: CGFloat) {
+        let spacing: CGFloat = 10
+        let railHeight = min(max(size.height * 0.58, 168), 240)
+        let cardHeight = max(railHeight - 8, 150)
+        let cardWidth = min(max(cardHeight * 0.86, 168), 220)
+        return (railHeight, cardWidth, cardHeight, spacing)
+    }
+
+    func bottomClipRail(metrics: (railHeight: CGFloat, cardWidth: CGFloat, cardHeight: CGFloat, spacing: CGFloat)) -> some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(alignment: .top, spacing: metrics.spacing) {
+                    ForEach(displayOrderItems) { item in
+                        let itemID = item.persistentModelID
+                        QuickClipCard(
+                            item: item,
+                            isSelected: selectedItemIDs.contains(itemID),
+                            shortcutIndex: shortcutIndex(for: item),
+                            cardWidth: metrics.cardWidth,
+                            cardHeight: metrics.cardHeight,
+                            searchText: searchText
+                        )
+                        .id(itemID)
+                        .popover(
+                            isPresented: Binding(
+                                get: {
+                                    showCommandPalette
+                                        && selectedItemIDs.contains(itemID)
+                                        && (lastNavigatedID ?? selectedItemIDs.first) == itemID
+                                },
+                                set: { if !$0 { showCommandPalette = false } }
+                            ),
+                            attachmentAnchor: .point(.top),
+                            arrowEdge: .top
+                        ) {
+                            CommandPaletteContent(
+                                item: item,
+                                isMultiSelected: isMultiSelected,
+                                onAction: { handleCommandAction($0) },
+                                onDismiss: { showCommandPalette = false }
+                            )
+                        }
+                        .onTapGesture { handleItemClick(itemID) }
+                        .onAppear {
+                            if item.id == displayOrderItems.last?.id { store.loadMore() }
+                        }
+                        .contextMenu {
+                            historyItemContextMenu(item: item)
+                        }
+                    }
+                }
+                .padding(.horizontal, 4)
+                .padding(.vertical, 4)
+            }
+            .onChange(of: lastNavigatedID) {
+                guard let id = lastNavigatedID else { return }
+                withAnimation(.easeOut(duration: 0.16)) {
+                    proxy.scrollTo(id)
+                }
+            }
+            .id(scrollResetToken)
+        }
+        .quickPanelBottomSection()
+    }
+
+    func toggleBottomMode() {
+        let next: QuickPanelBottomMode = isBottomExpanded ? .compact : .expanded
+        quickPanelBottomModeRaw = next.rawValue
+        QuickPanelWindowController.shared.applyBottomMode(next)
+    }
 }
 
 struct KeyCap: View {

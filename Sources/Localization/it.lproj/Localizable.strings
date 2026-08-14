@@ -136,6 +136,9 @@
 "settings.retentionDays.cleanConfirm" = "%d elementi oltre il periodo di conservazione verranno eliminati";
 "settings.retentionDays.cleanWarning" = "Questa azione non può essere annullata. Continuare?";
 "settings.display" = "Visualizzazione";
+"settings.quickPanelStyle" = "Stile incolla rapido";
+"settings.quickPanelStyle.classic" = "Pannello classico";
+"settings.quickPanelStyle.bottomFloating" = "Flottante in basso";
 "settings.quickPanelPosition" = "Posizione del pannello rapido";
 "settings.quickPanelPosition.remembered" = "Ricorda l'ultima posizione";
 "settings.quickPanelPosition.cursor" = "Cursore";

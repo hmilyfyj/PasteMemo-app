@@ -136,6 +136,9 @@
 "settings.retentionDays.cleanConfirm" = "Будет удалено %d записей за пределами срока хранения";
 "settings.retentionDays.cleanWarning" = "Это действие нельзя отменить. Продолжить?";
 "settings.display" = "Отображение";
+"settings.quickPanelStyle" = "Стиль быстрой вставки";
+"settings.quickPanelStyle.classic" = "Классическая панель";
+"settings.quickPanelStyle.bottomFloating" = "Нижняя панель";
 "settings.quickPanelPosition" = "Положение быстрой панели";
 "settings.quickPanelPosition.remembered" = "Запоминать прошлую позицию";
 "settings.quickPanelPosition.cursor" = "Курсор";

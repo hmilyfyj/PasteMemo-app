@@ -164,6 +164,9 @@
 "settings.retentionDays.cleanConfirm" = "%d éléments au-delà de la période de rétention seront supprimés";
 "settings.retentionDays.cleanWarning" = "Cette action est irréversible. Continuer ?";
 "settings.display" = "Affichage";
+"settings.quickPanelStyle" = "Style de collage rapide";
+"settings.quickPanelStyle.classic" = "Panneau classique";
+"settings.quickPanelStyle.bottomFloating" = "Flottant en bas";
 "settings.quickPanelPosition" = "Position du panneau rapide";
 "settings.quickPanelPosition.remembered" = "Mémoriser la dernière position";
 "settings.quickPanelPosition.cursor" = "Curseur";
