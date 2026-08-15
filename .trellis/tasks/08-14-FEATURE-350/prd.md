@@ -31,11 +31,11 @@
 
 ## 验收标准
 
-- [ ] worktree 根目录存在 `.trellis/`，版本文件为 `0.6.14`
-- [ ] `trellis platforms --json` 含 `claude-code`、`codex`、`pi`、`trae`
-- [ ] 存在 `.claude/`、`.codex/`、`.pi/`、`.trae/`、`.agents/skills/`
-- [ ] `AGENTS.md` 同时有 `PROJECT` 块和 `TRELLIS` 块
-- [ ] `.gitignore` 含 `.claude/settings.local.json`
-- [ ] `.trellis/spec/app/index.md` 存在，且能指出 `Sources/`、`Tests/`、`make test`、`make check`
-- [ ] `git diff --check` 通过
-- [ ] 已向 `hmilyfyj/PasteMemo-app` 的 `main` 开 PR
+- [x] worktree 根目录存在 `.trellis/`，版本文件为 `0.6.14`
+- [x] `trellis platforms --json` 含 `claude-code`、`codex`、`pi`、`trae`
+- [x] 存在 `.claude/`、`.codex/`、`.pi/`、`.trae/`、`.agents/skills/`
+- [x] `AGENTS.md` 同时有 `PROJECT` 块和 `TRELLIS` 块
+- [x] `.gitignore` 含 `.claude/settings.local.json`
+- [x] `.trellis/spec/app/index.md` 存在，且能指出 `Sources/`、`Tests/`、`make test`、`make check`
+- [x] `git diff --check` 通过
+- [x] 已向 `hmilyfyj/PasteMemo-app` 的 `main` 开 PR
