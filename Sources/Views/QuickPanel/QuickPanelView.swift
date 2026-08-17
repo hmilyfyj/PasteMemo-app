@@ -864,7 +864,7 @@ struct QuickPanelView: View {
         // 搜索图标、下方 tabBar 都不会上下跳动
         .frame(height: isBottomFloating ? 22 : 28)
         .padding(.horizontal, isBottomFloating ? 10 : 20)
-        .padding(.top, isBottomFloating ? 2 : 22)
+        .padding(.top, isBottomFloating ? 0 : 22)
         .padding(.bottom, isBottomFloating ? 0 : 14)
         // 避免 pill 出现/消失时输入框位置被 SwiftUI 默认动画插值造成的"抖动"
         .animation(nil, value: selectedFilter)
@@ -2793,9 +2793,7 @@ extension QuickPanelView {
             footerBar
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal, 8)
-        .padding(.top, 2)
-        .padding(.bottom, 8)
+        .padding(8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .quickPanelBottomShell()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
