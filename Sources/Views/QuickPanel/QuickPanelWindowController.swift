@@ -159,8 +159,12 @@ final class QuickPanelWindowController {
         let panel = buildPanel(clipboardManager: clipboardManager, modelContainer: modelContainer)
         panel.setFrameOrigin(NSPoint(x: -10000, y: -10000))
         panel.alphaValue = 0
-        panel.orderFrontRegardless()
-        panel.displayIfNeeded()
+        // Bottom floating hosts tens of thousands of clips. Forcing a display
+        // pass here layouts the SwiftUI tree off-screen and SIGSEGVs on macOS 26.
+        if panelStyle != .bottomFloating {
+            panel.orderFrontRegardless()
+            panel.displayIfNeeded()
+        }
 
         // 把缩放动画的 anchor point 提前设好，show 时就不会再跳
         if let contentView = panel.contentView {
