@@ -32,6 +32,20 @@ enum QuickPanelBottomTheme {
         )
     }
 
+    static var previewBackground: LinearGradient {
+        LinearGradient(
+            colors: [
+                Color.white.opacity(0.045),
+                Color.black.opacity(0.18),
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    static var secondaryText: Color { Color.white.opacity(0.72) }
+    static var tertiaryText: Color { Color.white.opacity(0.5) }
+
     static var sectionBackground: LinearGradient {
         LinearGradient(
             colors: [
