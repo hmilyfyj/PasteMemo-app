@@ -93,7 +93,7 @@ enum QuickPanelBottomDefaults {
     static let sizeStorageKey = "quickPanelBottomSize"
     static let widthIsCustomKey = "quickPanelBottomWidthIsCustom"
     static let modeStorageKey = "quickPanelBottomMode"
-    static let fullBleedMigrationKey = "quickPanelBottomFullBleedWidth.v1"
+    static let fullBleedMigrationKey = "quickPanelBottomFullBleedWidth.v2"
 
     static func resetStoredSizing(defaults: UserDefaults = .standard) {
         defaults.removeObject(forKey: "\(sizeStorageKey).width")

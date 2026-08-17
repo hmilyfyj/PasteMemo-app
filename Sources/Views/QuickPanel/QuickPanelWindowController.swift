@@ -73,6 +73,7 @@ final class QuickPanelWindowController {
     /// 置顶期间跟踪前台 App 切换，让粘贴目标跟随当前 App
     private var pinnedActivationObserver: Any?
     private var resizeObserver: Any?
+    private var liveResizeObserver: Any?
     private(set) var previousApp: NSRunningApplication?
     private var isWarmedUp = false
     var isPinned = false {
@@ -419,9 +420,12 @@ final class QuickPanelWindowController {
             panel.minSize = NSSize(width: MIN_WIDTH, height: MIN_HEIGHT)
         }
 
-        // Save size when resized. warmUp runs once so registering here is safe;
-        // we still track the token so a future rebuild path wouldn't duplicate writes.
+        // Live layout follows every resize. Persist only after the user finishes
+        // a drag, otherwise the first programmatic setFrame gets saved as custom.
         if let previous = resizeObserver {
+            NotificationCenter.default.removeObserver(previous)
+        }
+        if let previous = liveResizeObserver {
             NotificationCenter.default.removeObserver(previous)
         }
         resizeObserver = NotificationCenter.default.addObserver(
@@ -429,6 +433,16 @@ final class QuickPanelWindowController {
             object: panel,
             queue: .main
         ) { [weak panel, weak state] _ in
+            Task { @MainActor in
+                guard let size = panel?.frame.size else { return }
+                state?.width = size.width
+            }
+        }
+        liveResizeObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didEndLiveResizeNotification,
+            object: panel,
+            queue: .main
+        ) { [weak panel] _ in
             Task { @MainActor in
                 guard let size = panel?.frame.size else { return }
                 if QuickPanelStyle.stored == .bottomFloating {
@@ -443,7 +457,6 @@ final class QuickPanelWindowController {
                     UserDefaults.standard.set(Double(size.width), forKey: "\(SIZE_KEY).width")
                     UserDefaults.standard.set(Double(size.height), forKey: "\(SIZE_KEY).height")
                 }
-                state?.width = size.width
             }
         }
 
