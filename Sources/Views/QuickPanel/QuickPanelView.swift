@@ -1580,6 +1580,7 @@ struct QuickPanelView: View {
                     if searchText.isEmpty {
                         if let item = currentItem {
                             QuickLookHelper.shared.toggle(item: item)
+                            isSearchFocused = false
                         }
                         return nil
                     }
@@ -1592,10 +1593,20 @@ struct QuickPanelView: View {
                 if isBottomFloating { switchType(1) } else { moveSelection(1, extendSelection: hasShift) }
                 return nil
             case 123: // Left
-                if isBottomFloating { moveSelection(-1, extendSelection: hasShift) } else { switchType(-1) }
+                if isBottomFloating {
+                    moveSelection(-1, extendSelection: hasShift)
+                    refreshQuickLookIfVisible()
+                } else {
+                    switchType(-1)
+                }
                 return nil
             case 124: // Right
-                if isBottomFloating { moveSelection(1, extendSelection: hasShift) } else { switchType(1) }
+                if isBottomFloating {
+                    moveSelection(1, extendSelection: hasShift)
+                    refreshQuickLookIfVisible()
+                } else {
+                    switchType(1)
+                }
                 return nil
             case 45:
                 if hasControl {
@@ -2860,6 +2871,11 @@ extension QuickPanelView {
             .id(scrollResetToken)
         }
         .quickPanelBottomSection()
+    }
+
+    func refreshQuickLookIfVisible() {
+        guard QuickLookHelper.shared.isPreviewVisible, let item = currentItem else { return }
+        QuickLookHelper.shared.preview(item: item)
     }
 
     func toggleBottomMode() {

@@ -10,6 +10,10 @@ final class QuickLookHelper: NSObject, QLPreviewPanelDataSource, QLPreviewPanelD
 
     private override init() { super.init() }
 
+    var isPreviewVisible: Bool {
+        QLPreviewPanel.shared()?.isVisible == true
+    }
+
     func preview(item: ClipItem) {
         let url = prepareURL(for: item)
         guard let url else { return }
@@ -20,21 +24,28 @@ final class QuickLookHelper: NSObject, QLPreviewPanelDataSource, QLPreviewPanelD
         panel.dataSource = self
         panel.delegate = self
 
+        // Keep the floating panel key so left/right still switch cards.
+        QuickPanelWindowController.shared.suppressDismiss = true
         if panel.isVisible {
             panel.reloadData()
         } else {
-            panel.makeKeyAndOrderFront(nil)
+            panel.orderFront(nil)
         }
+        QuickPanelWindowController.shared.restoreKey()
     }
 
     func toggle(item: ClipItem) {
-        guard let panel = QLPreviewPanel.shared() else { return }
-        if panel.isVisible {
-            panel.orderOut(nil)
-            cleanupTempFiles()
+        if isPreviewVisible {
+            closePreview()
         } else {
             preview(item: item)
         }
+    }
+
+    func closePreview() {
+        QLPreviewPanel.shared()?.orderOut(nil)
+        cleanupTempFiles()
+        QuickPanelWindowController.shared.suppressDismiss = false
     }
 
     func canOpenInPreview(item: ClipItem) -> Bool {
@@ -131,6 +142,15 @@ final class QuickLookHelper: NSObject, QLPreviewPanelDataSource, QLPreviewPanelD
     nonisolated func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> (any QLPreviewItem)! {
         MainActor.assumeIsolated {
             previewURL as? NSURL
+        }
+    }
+
+    // MARK: - QLPreviewPanelDelegate
+
+    nonisolated func previewPanelWillClose(_ panel: QLPreviewPanel!) {
+        MainActor.assumeIsolated {
+            cleanupTempFiles()
+            QuickPanelWindowController.shared.suppressDismiss = false
         }
     }
 }
