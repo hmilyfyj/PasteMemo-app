@@ -7,35 +7,38 @@ final class QuickLookHelper: NSObject, QLPreviewPanelDataSource, QLPreviewPanelD
 
     private var previewURL: URL?
     private var tempFiles: [URL] = []
+    private var isShowing = false
+    private var localKeyMonitor: Any?
+    private var globalKeyMonitor: Any?
+    var onNavigateCards: ((Int) -> Void)?
 
     private override init() { super.init() }
 
-    var isPreviewVisible: Bool {
-        QLPreviewPanel.shared()?.isVisible == true
-    }
+    var isPreviewVisible: Bool { isShowing }
 
     func preview(item: ClipItem) {
         let url = prepareURL(for: item)
         guard let url else { return }
 
         previewURL = url
+        isShowing = true
 
         guard let panel = QLPreviewPanel.shared() else { return }
         panel.dataSource = self
         panel.delegate = self
 
-        // Keep the floating panel key so left/right still switch cards.
-        QuickPanelWindowController.shared.suppressDismiss = true
+        QuickPanelWindowController.shared.setQuickLookPreviewVisible(true)
         if panel.isVisible {
             panel.reloadData()
         } else {
-            panel.orderFront(nil)
+            panel.makeKeyAndOrderFront(nil)
         }
-        QuickPanelWindowController.shared.restoreKey()
+        QuickPanelWindowController.shared.keepPanelInteractiveDuringQuickLook()
+        installKeyMonitorsIfNeeded()
     }
 
     func toggle(item: ClipItem) {
-        if isPreviewVisible {
+        if isShowing {
             closePreview()
         } else {
             preview(item: item)
@@ -43,9 +46,12 @@ final class QuickLookHelper: NSObject, QLPreviewPanelDataSource, QLPreviewPanelD
     }
 
     func closePreview() {
+        isShowing = false
         QLPreviewPanel.shared()?.orderOut(nil)
+        removeKeyMonitors()
         cleanupTempFiles()
-        QuickPanelWindowController.shared.suppressDismiss = false
+        QuickPanelWindowController.shared.setQuickLookPreviewVisible(false)
+        QuickPanelWindowController.shared.restorePanelInteractionAfterQuickLookClose()
     }
 
     func canOpenInPreview(item: ClipItem) -> Bool {
@@ -149,8 +155,72 @@ final class QuickLookHelper: NSObject, QLPreviewPanelDataSource, QLPreviewPanelD
 
     nonisolated func previewPanelWillClose(_ panel: QLPreviewPanel!) {
         MainActor.assumeIsolated {
+            isShowing = false
+            removeKeyMonitors()
             cleanupTempFiles()
-            QuickPanelWindowController.shared.suppressDismiss = false
+            QuickPanelWindowController.shared.setQuickLookPreviewVisible(false)
+            QuickPanelWindowController.shared.restorePanelInteractionAfterQuickLookClose()
+        }
+    }
+
+    nonisolated func previewPanel(_ panel: QLPreviewPanel!, handle event: NSEvent!) -> Bool {
+        guard event.type == .keyDown else { return false }
+        let keyCode = Int(event.keyCode)
+        return MainActor.assumeIsolated {
+            handlePreviewKeyCode(keyCode)
+        }
+    }
+
+    @discardableResult
+    private func handlePreviewKeyCode(_ keyCode: Int) -> Bool {
+        guard isShowing else { return false }
+        switch keyCode {
+        case 49, 53:
+            closePreview()
+            return true
+        case 123:
+            onNavigateCards?(-1)
+            return true
+        case 124:
+            onNavigateCards?(1)
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func installKeyMonitorsIfNeeded() {
+        if localKeyMonitor == nil {
+            localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                guard let self else { return event }
+                return self.handlePreviewKeyCode(Int(event.keyCode)) ? nil : event
+            }
+        }
+        if globalKeyMonitor == nil {
+            globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                guard let self, self.isShowing else { return }
+                switch Int(event.keyCode) {
+                case 49, 53:
+                    Task { @MainActor [weak self] in self?.closePreview() }
+                case 123:
+                    Task { @MainActor [weak self] in self?.onNavigateCards?(-1) }
+                case 124:
+                    Task { @MainActor [weak self] in self?.onNavigateCards?(1) }
+                default:
+                    break
+                }
+            }
+        }
+    }
+
+    private func removeKeyMonitors() {
+        if let localKeyMonitor {
+            NSEvent.removeMonitor(localKeyMonitor)
+            self.localKeyMonitor = nil
+        }
+        if let globalKeyMonitor {
+            NSEvent.removeMonitor(globalKeyMonitor)
+            self.globalKeyMonitor = nil
         }
     }
 }

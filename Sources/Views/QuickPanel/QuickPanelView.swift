@@ -1453,6 +1453,10 @@ struct QuickPanelView: View {
             OptionKeyMonitor.shared.isOptionPressed = event.modifierFlags.contains(.option)
             return event
         }
+        QuickLookHelper.shared.onNavigateCards = { delta in
+            moveSelection(delta)
+            refreshQuickLookIfVisible()
+        }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             guard HotkeyManager.shared.isQuickPanelVisible else { return event }
             userInteractedSinceShow = true
@@ -1940,6 +1944,7 @@ struct QuickPanelView: View {
     private func removeKeyMonitor() {
         if let monitor = keyMonitor { NSEvent.removeMonitor(monitor); keyMonitor = nil }
         if let monitor = flagsMonitor { NSEvent.removeMonitor(monitor); flagsMonitor = nil }
+        QuickLookHelper.shared.onNavigateCards = nil
         OptionKeyMonitor.shared.isOptionPressed = false
     }
 

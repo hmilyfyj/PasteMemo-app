@@ -485,6 +485,27 @@ final class QuickPanelWindowController {
     }
 
     func restoreKey() {
+        reclaimPanelFocus()
+    }
+
+    func setQuickLookPreviewVisible(_ visible: Bool) {
+        suppressDismiss = visible
+    }
+
+    func keepPanelInteractiveDuringQuickLook() {
+        reclaimPanelFocus()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.reclaimPanelFocus()
+            }
+        }
+    }
+
+    func restorePanelInteractionAfterQuickLookClose() {
+        reclaimPanelFocus()
+    }
+
+    private func reclaimPanelFocus() {
         guard let panel, panel.isVisible else { return }
         panel.orderFrontRegardless()
         panel.makeKey()
