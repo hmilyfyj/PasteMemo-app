@@ -98,6 +98,9 @@ struct QuickPanelView: View {
     /// true = 焦点在图片（←→↑↓ 四向移动，顶行按 ↑ 退回标签级）。
     /// 没有这层状态时，→ 移到「图片」分类的瞬间方向键就被网格吞掉，分类切换"卡死"。
     @State private var isGridFocused = false
+    /// Defer the 30k-item card rail until the panel is actually shown.
+    /// warmUp() otherwise layouts the whole tree off-screen and SIGSEGVs.
+    @State private var isBottomRailArmed = false
     @State private var cachedGroupedItems: [GroupedItem<ClipItem>] = []
     @State private var cachedHistoryRows: [ClipHistoryListBuilder.Row] = []
     @State private var cachedHistoryRowIndexByID: [PersistentIdentifier: Int] = [:]
@@ -362,6 +365,7 @@ struct QuickPanelView: View {
             store.isActive = false
         }
         .onReceive(NotificationCenter.default.publisher(for: .quickPanelWillDismiss)) { _ in
+            isBottomRailArmed = false
             // isActive 必须在这里归位，不能只靠 onDisappear：面板隐藏走的是
             // orderOut，视图仍留在窗口层级里，onDisappear 不会触发。isActive
             // 悬在 true 会让隐藏期间的每次复制都同步跑全量 performRefresh
@@ -391,6 +395,7 @@ struct QuickPanelView: View {
             targetApp = QuickPanelWindowController.shared.previousApp
         }
         .onReceive(NotificationCenter.default.publisher(for: .quickPanelDidShow)) { _ in
+            isBottomRailArmed = true
             showCommandPalette = false
             searchText = ""
             pill = nil
@@ -2776,7 +2781,7 @@ extension QuickPanelView {
                 emptyStateView
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .quickPanelBottomSection()
-            } else {
+            } else if isBottomRailArmed {
                 bottomClipRail
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 if isBottomExpanded {
