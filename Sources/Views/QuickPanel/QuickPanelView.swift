@@ -1490,6 +1490,19 @@ struct QuickPanelView: View {
                 }
             }
 
+            // Type-to-search when the floating panel is open and search is idle.
+            if isBottomFloating, !hasCmd, !hasControl, !isSearchFocused {
+                if let characters = event.characters, let character = characters.first,
+                   character.isLetter || character.isNumber {
+                    if QuickLookHelper.shared.isPreviewVisible {
+                        QuickLookHelper.shared.closePreview()
+                    }
+                    searchText += String(character)
+                    isSearchFocused = true
+                    return nil
+                }
+            }
+
             // Group suggestion keyboard navigation
             if isShowingSuggestions {
                 let total = totalSuggestionCount
@@ -2851,6 +2864,11 @@ extension QuickPanelView {
                             )
                         }
                         .onTapGesture { handleItemClick(itemID) }
+                        .onRightClick {
+                            if !selectedItemIDs.contains(itemID) {
+                                selectItem(itemID)
+                            }
+                        }
                         .onAppear {
                             if item.id == displayOrderItems.last?.id { store.loadMore() }
                         }
