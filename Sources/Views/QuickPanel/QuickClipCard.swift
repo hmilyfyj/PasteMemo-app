@@ -18,12 +18,6 @@ struct QuickClipCard: View {
         .background(cardBackground)
         .overlay(cardBorder)
         .clipShape(RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous))
-        .shadow(
-            color: isSelected ? QuickPanelBottomTheme.selectionBlue.opacity(0.22) : .black.opacity(0.20),
-            radius: isSelected ? 18 : 10,
-            y: isSelected ? 8 : 5
-        )
-        .offset(y: isSelected ? -1 : 0)
         .contentShape(RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous))
     }
 

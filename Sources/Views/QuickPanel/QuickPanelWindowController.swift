@@ -359,9 +359,12 @@ final class QuickPanelWindowController {
         // on macOS 26 (_postWindowNeedsUpdateConstraints).
         hosting.sizingOptions = []
 
+        let bottom = panelStyle == .bottomFloating
         let panel = KeyablePanel(
             contentRect: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight),
-            styleMask: [.nonactivatingPanel, .titled, .borderless, .resizable, .fullSizeContentView],
+            styleMask: bottom
+                ? [.nonactivatingPanel, .borderless, .resizable]
+                : [.nonactivatingPanel, .titled, .borderless, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -384,14 +387,16 @@ final class QuickPanelWindowController {
         panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
         panel.standardWindowButton(.zoomButton)?.isHidden = true
 
-        // Cover the titlebar with a draggable view so clicks there
-        // go through isMovableByWindowBackground instead of system titlebar handling
-        let titlebarCover = NSTitlebarAccessoryViewController()
-        titlebarCover.layoutAttribute = .top
-        let coverView = DragOnlyView(frame: NSRect(x: 0, y: 0, width: 0, height: 1))
-        coverView.autoresizingMask = [.width]
-        titlebarCover.view = coverView
-        panel.addTitlebarAccessoryViewController(titlebarCover)
+        if panelStyle != .bottomFloating {
+            // Cover the titlebar with a draggable view so clicks there
+            // go through isMovableByWindowBackground instead of system titlebar handling
+            let titlebarCover = NSTitlebarAccessoryViewController()
+            titlebarCover.layoutAttribute = .top
+            let coverView = DragOnlyView(frame: NSRect(x: 0, y: 0, width: 0, height: 1))
+            coverView.autoresizingMask = [.width]
+            titlebarCover.view = coverView
+            panel.addTitlebarAccessoryViewController(titlebarCover)
+        }
 
         let hostingView = hosting.view
         hostingView.translatesAutoresizingMaskIntoConstraints = false
