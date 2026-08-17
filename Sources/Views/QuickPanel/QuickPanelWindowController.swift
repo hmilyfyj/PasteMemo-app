@@ -106,8 +106,8 @@ final class QuickPanelWindowController {
     private var panelWidth: CGFloat {
         if panelStyle == .bottomFloating {
             let screen = NSScreen.screenWithMouse ?? NSScreen.main
-            let frame = screen?.frame ?? .zero
-            return QuickPanelBottomDefaults.storedWidth() ?? QuickPanelBottomGeometry.panelWidth(for: frame)
+            let visible = screen?.visibleFrame ?? .zero
+            return QuickPanelBottomDefaults.storedWidth() ?? QuickPanelBottomGeometry.panelWidth(for: visible)
         }
         let saved = UserDefaults.standard.double(forKey: "\(SIZE_KEY).width")
         return saved > 0 ? max(saved, MIN_WIDTH) : DEFAULT_WIDTH
@@ -438,7 +438,7 @@ final class QuickPanelWindowController {
                     let mode = QuickPanelBottomMode(
                         rawValue: UserDefaults.standard.string(forKey: QuickPanelBottomDefaults.modeStorageKey) ?? ""
                     ) ?? .compact
-                    QuickPanelBottomDefaults.persist(size: size, mode: mode, screenFrame: screen?.frame ?? .zero)
+                    QuickPanelBottomDefaults.persist(size: size, mode: mode, screenFrame: screen?.visibleFrame ?? .zero)
                 } else {
                     UserDefaults.standard.set(Double(size.width), forKey: "\(SIZE_KEY).width")
                     UserDefaults.standard.set(Double(size.height), forKey: "\(SIZE_KEY).height")

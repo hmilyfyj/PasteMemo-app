@@ -23,8 +23,8 @@ enum QuickPanelBottomMode: String {
 }
 
 enum QuickPanelBottomGeometry {
-    static let edgeGap: CGFloat = 10
-    static let horizontalInset: CGFloat = 0
+    static let edgeGap: CGFloat = 12
+    static let horizontalInset: CGFloat = edgeGap
     static let bottomInset: CGFloat = edgeGap
     static let compactHeight: CGFloat = 252
     static let expandedHeight: CGFloat = 760
@@ -52,7 +52,7 @@ enum QuickPanelBottomGeometry {
 
     static func panelWidth(for screenFrame: CGRect) -> CGFloat {
         let available = max(screenFrame.width - horizontalInset * 2, 0)
-        return min(maxWidth, max(minimumWidth, available))
+        return min(maxWidth, available)
     }
 
     static func clampedWidth(_ width: CGFloat, screenFrame: CGRect) -> CGFloat {
@@ -77,13 +77,13 @@ enum QuickPanelBottomGeometry {
         preferredWidth: CGFloat? = nil,
         preferredHeight: CGFloat? = nil
     ) -> CGRect {
-        let width = clampedWidth(preferredWidth ?? panelWidth(for: screenFrame), screenFrame: screenFrame)
+        let width = clampedWidth(preferredWidth ?? panelWidth(for: visibleFrame), screenFrame: visibleFrame)
         let height = clampedHeight(
             preferredHeight ?? defaultHeight(for: mode, visibleFrame: visibleFrame),
             visibleFrame: visibleFrame,
             mode: mode
         )
-        let originX = screenFrame.midX - width / 2
+        let originX = visibleFrame.minX + horizontalInset
         let originY = visibleFrame.minY + bottomInset
         return CGRect(x: originX, y: originY, width: width, height: height)
     }
@@ -93,6 +93,7 @@ enum QuickPanelBottomDefaults {
     static let sizeStorageKey = "quickPanelBottomSize"
     static let widthIsCustomKey = "quickPanelBottomWidthIsCustom"
     static let modeStorageKey = "quickPanelBottomMode"
+    static let fullBleedMigrationKey = "quickPanelBottomFullBleedWidth.v1"
 
     static func resetStoredSizing(defaults: UserDefaults = .standard) {
         defaults.removeObject(forKey: "\(sizeStorageKey).width")
@@ -106,7 +107,16 @@ enum QuickPanelBottomDefaults {
         defaults.removeObject(forKey: "quickPanelSize.height")
     }
 
+    static func migrateDefaultWidthIfNeeded(defaults: UserDefaults = .standard) {
+        guard !defaults.bool(forKey: fullBleedMigrationKey) else { return }
+        defaults.removeObject(forKey: "\(sizeStorageKey).width")
+        defaults.set(false, forKey: widthIsCustomKey)
+        defaults.set(true, forKey: fullBleedMigrationKey)
+    }
+
     static func storedWidth(defaults: UserDefaults = .standard) -> CGFloat? {
+        migrateDefaultWidthIfNeeded(defaults: defaults)
+        guard defaults.bool(forKey: widthIsCustomKey) else { return nil }
         let value = defaults.double(forKey: "\(sizeStorageKey).width")
         return value > 0 ? value : nil
     }
