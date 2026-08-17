@@ -439,17 +439,19 @@ final class QuickPanelWindowController {
         ) { [weak panel, weak state] _ in
             Task { @MainActor in
                 guard let size = panel?.frame.size else { return }
+                // Only publish width here. Height drives card metrics; writing it
+                // during AppKit layout retriggers SwiftUI and SIGSEGVs (macOS 26).
                 state?.width = size.width
-                state?.height = size.height
             }
         }
         liveResizeObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didEndLiveResizeNotification,
             object: panel,
             queue: .main
-        ) { [weak panel] _ in
+        ) { [weak panel, weak state] _ in
             Task { @MainActor in
                 guard let size = panel?.frame.size else { return }
+                state?.height = size.height
                 if QuickPanelStyle.stored == .bottomFloating {
                     let screen = panel.flatMap { win in
                         NSScreen.screens.first(where: { $0.frame.intersects(win.frame) })
