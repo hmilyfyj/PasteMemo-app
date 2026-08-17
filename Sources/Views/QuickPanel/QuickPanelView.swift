@@ -2798,14 +2798,7 @@ extension QuickPanelView {
         .padding(.bottom, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .quickPanelBottomShell()
-        .frame(
-            minWidth: QuickPanelBottomGeometry.minimumWidth,
-            maxWidth: .infinity,
-            minHeight: isBottomExpanded
-                ? QuickPanelBottomGeometry.minimumExpandedHeight
-                : QuickPanelBottomGeometry.minimumCompactHeight,
-            maxHeight: .infinity
-        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     var bottomClipRail: some View {

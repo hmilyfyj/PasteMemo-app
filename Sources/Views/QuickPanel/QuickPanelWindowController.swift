@@ -354,6 +354,10 @@ final class QuickPanelWindowController {
             .modelContainer(modelContainer)
 
         let hosting = NSHostingController(rootView: content.ignoresSafeArea())
+        // Hosting view is edge-pinned below. If SwiftUI also publishes minSize
+        // as window constraints, Auto Layout throws during the display cycle
+        // on macOS 26 (_postWindowNeedsUpdateConstraints).
+        hosting.sizingOptions = []
 
         let panel = KeyablePanel(
             contentRect: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight),
