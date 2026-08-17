@@ -264,6 +264,7 @@ final class QuickPanelWindowController {
         }
         removeMoveObserver()
         snapGuide?.orderOut(nil)
+        QuickLookHelper.shared.closePreview()
         if panelStyle != .bottomFloating {
             savePosition(panel)
         }
@@ -481,6 +482,12 @@ final class QuickPanelWindowController {
         }
 
         return panel
+    }
+
+    func restoreKey() {
+        guard let panel, panel.isVisible else { return }
+        panel.orderFrontRegardless()
+        panel.makeKey()
     }
 
     func handleStyleChange(to style: QuickPanelStyle) {
