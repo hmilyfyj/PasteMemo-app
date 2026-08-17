@@ -800,11 +800,11 @@ struct QuickPanelView: View {
     }
 
     private var searchBar: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: isBottomFloating ? 6 : 10) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 18))
+                .font(.system(size: isBottomFloating ? 13 : 18))
                 .foregroundStyle(.tertiary)
-                .frame(width: 22, height: 22)
+                .frame(width: isBottomFloating ? 16 : 22, height: isBottomFloating ? 16 : 22)
 
             if let pill {
                 pillView(for: pill)
@@ -813,7 +813,7 @@ struct QuickPanelView: View {
 
             TextField(L10n.tr("quick.search"), text: $searchText)
                 .textFieldStyle(.plain)
-                .font(.system(size: 16))
+                .font(.system(size: isBottomFloating ? 13 : 16))
                 .focused($isSearchFocused)
 
             if !searchText.isEmpty || pill != nil {
@@ -857,10 +857,10 @@ struct QuickPanelView: View {
         }
         // 固定一个比最高 pill 略大的行高，pill 出现/消失时 HStack 不会撑高，
         // 搜索图标、下方 tabBar 都不会上下跳动
-        .frame(height: 28)
-        .padding(.horizontal, 20)
-        .padding(.top, 22)
-        .padding(.bottom, 14)
+        .frame(height: isBottomFloating ? 22 : 28)
+        .padding(.horizontal, isBottomFloating ? 10 : 20)
+        .padding(.top, isBottomFloating ? 2 : 22)
+        .padding(.bottom, isBottomFloating ? 0 : 14)
         // 避免 pill 出现/消失时输入框位置被 SwiftUI 默认动画插值造成的"抖动"
         .animation(nil, value: selectedFilter)
         .animation(nil, value: pill)
@@ -910,8 +910,8 @@ struct QuickPanelView: View {
                         .id(QuickFilter.aiAgent)
                     }
                 }
-                .padding(.horizontal, 18)
-                .padding(.bottom, 8)
+                .padding(.horizontal, isBottomFloating ? 10 : 18)
+                .padding(.bottom, isBottomFloating ? 0 : 8)
             }
             .onChange(of: selectedFilter) {
                 withAnimation(.easeOut(duration: 0.15)) {
@@ -1566,6 +1566,20 @@ struct QuickPanelView: View {
             }
 
             switch Int(event.keyCode) {
+            case 49: // Space — 底部悬浮且搜索为空时预览当前卡片
+                if isBottomFloating, !hasCmd, !hasControl, !hasShift {
+                    if let textView = event.window?.firstResponder as? NSTextView,
+                       textView.hasMarkedText() {
+                        return event
+                    }
+                    if searchText.isEmpty {
+                        if let item = currentItem {
+                            QuickLookHelper.shared.toggle(item: item)
+                        }
+                        return nil
+                    }
+                }
+                return event
             case 126: // Up
                 if isBottomFloating { switchType(-1) } else { moveSelection(-1, extendSelection: hasShift) }
                 return nil
@@ -2755,7 +2769,7 @@ struct QuickPanelView: View {
 
 extension QuickPanelView {
     var bottomFloatingLayout: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 4) {
             searchBar
             NonDraggableArea { tabBar }
             if filteredItems.isEmpty {
@@ -2774,7 +2788,9 @@ extension QuickPanelView {
             footerBar
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(QuickPanelBottomTheme.contentInset)
+        .padding(.horizontal, 8)
+        .padding(.top, 2)
+        .padding(.bottom, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .quickPanelBottomShell()
         .frame(
