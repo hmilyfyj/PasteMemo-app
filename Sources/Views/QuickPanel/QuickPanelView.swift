@@ -2755,30 +2755,28 @@ struct QuickPanelView: View {
 
 extension QuickPanelView {
     var bottomFloatingLayout: some View {
-        GeometryReader { proxy in
-            let metrics = bottomCardMetrics(for: proxy.size)
-            VStack(spacing: 8) {
-                searchBar
-                NonDraggableArea { tabBar }
-                if filteredItems.isEmpty {
-                    emptyStateView
+        VStack(spacing: 8) {
+            searchBar
+            NonDraggableArea { tabBar }
+            if filteredItems.isEmpty {
+                emptyStateView
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .quickPanelBottomSection()
+            } else {
+                bottomClipRail
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                if isBottomExpanded {
+                    previewPane
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .quickPanelBottomSection()
-                } else {
-                    bottomClipRail(metrics: metrics)
-                        .frame(height: metrics.railHeight)
-                    if isBottomExpanded {
-                        previewPane
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .quickPanelBottomSection()
-                    }
                 }
-                footerBar
             }
-            .padding(QuickPanelBottomTheme.contentInset)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .quickPanelBottomShell()
+            footerBar
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .padding(QuickPanelBottomTheme.contentInset)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .quickPanelBottomShell()
         .frame(
             minWidth: QuickPanelBottomGeometry.minimumWidth,
             maxWidth: .infinity,
@@ -2789,26 +2787,22 @@ extension QuickPanelView {
         )
     }
 
-    func bottomCardMetrics(for size: CGSize) -> (railHeight: CGFloat, cardWidth: CGFloat, cardHeight: CGFloat, spacing: CGFloat) {
-        let spacing: CGFloat = 10
-        let railHeight = min(max(size.height * 0.58, 168), 240)
-        let cardHeight = max(railHeight - 8, 150)
-        let cardWidth = min(max(cardHeight * 0.86, 168), 220)
-        return (railHeight, cardWidth, cardHeight, spacing)
-    }
-
-    func bottomClipRail(metrics: (railHeight: CGFloat, cardWidth: CGFloat, cardHeight: CGFloat, spacing: CGFloat)) -> some View {
-        ScrollViewReader { proxy in
+    var bottomClipRail: some View {
+        GeometryReader { rail in
+            let spacing: CGFloat = 10
+            let cardHeight = max(rail.size.height - 8, 120)
+            let cardWidth = min(max(cardHeight * 0.72, 160), 320)
+            ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(alignment: .top, spacing: metrics.spacing) {
+                LazyHStack(alignment: .top, spacing: spacing) {
                     ForEach(displayOrderItems) { item in
                         let itemID = item.persistentModelID
                         QuickClipCard(
                             item: item,
                             isSelected: selectedItemIDs.contains(itemID),
                             shortcutIndex: shortcutIndex(for: item),
-                            cardWidth: metrics.cardWidth,
-                            cardHeight: metrics.cardHeight,
+                            cardWidth: cardWidth,
+                            cardHeight: cardHeight,
                             searchText: searchText
                         )
                         .id(itemID)
@@ -2850,6 +2844,7 @@ extension QuickPanelView {
                 }
             }
             .id(scrollResetToken)
+            }
         }
         .quickPanelBottomSection()
     }
