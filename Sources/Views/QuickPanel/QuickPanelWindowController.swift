@@ -26,7 +26,11 @@ let QUICK_PANEL_PREVIEW_BREAKPOINT: CGFloat = 620
 @MainActor
 final class QuickPanelLayoutState: ObservableObject {
     @Published var width: CGFloat
-    init(width: CGFloat) { self.width = width }
+    @Published var height: CGFloat
+    init(width: CGFloat, height: CGFloat) {
+        self.width = width
+        self.height = height
+    }
     var shouldShowPreview: Bool { width >= QUICK_PANEL_PREVIEW_BREAKPOINT }
 }
 private let TOP_INSET_RATIO: CGFloat = 0.15
@@ -337,7 +341,7 @@ final class QuickPanelWindowController {
 
     private func buildPanel(clipboardManager: ClipboardManager, modelContainer: ModelContainer) -> NSPanel {
         let initialWidth = panelWidth
-        let state = QuickPanelLayoutState(width: initialWidth)
+        let state = QuickPanelLayoutState(width: initialWidth, height: panelHeight)
         self.layoutState = state
 
         let content = QuickPanelView()
@@ -436,6 +440,7 @@ final class QuickPanelWindowController {
             Task { @MainActor in
                 guard let size = panel?.frame.size else { return }
                 state?.width = size.width
+                state?.height = size.height
             }
         }
         liveResizeObserver = NotificationCenter.default.addObserver(

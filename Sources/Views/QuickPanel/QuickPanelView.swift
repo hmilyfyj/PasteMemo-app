@@ -2804,11 +2804,13 @@ extension QuickPanelView {
     }
 
     var bottomClipRail: some View {
-        GeometryReader { rail in
-            let spacing: CGFloat = 10
-            let cardHeight = max(rail.size.height - 8, 120)
-            let cardWidth = min(max(cardHeight * 0.72, 160), 320)
-            ScrollViewReader { proxy in
+        let spacing: CGFloat = 10
+        // Search + tabs + footer + padding. Avoid GeometryReader: it relayouts
+        // the 30k-item rail on every pass and SIGSEGVs AppKit on macOS 26.
+        let chrome: CGFloat = 100
+        let cardHeight = max(layoutState.height - chrome, 120)
+        let cardWidth = min(max(cardHeight * 0.72, 160), 320)
+        return ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .top, spacing: spacing) {
                     ForEach(displayOrderItems) { item in
@@ -2860,7 +2862,6 @@ extension QuickPanelView {
                 }
             }
             .id(scrollResetToken)
-            }
         }
         .quickPanelBottomSection()
     }
