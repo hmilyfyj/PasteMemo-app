@@ -409,7 +409,9 @@ final class QuickPanelWindowController {
         // Glass 只用在系统原生支持的场景（设置窗口侧边栏、popover 材质背景）。
         let container = NSView(frame: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight))
         container.wantsLayer = true
-        container.layer?.cornerRadius = 16
+        container.layer?.cornerRadius = panelStyle == .bottomFloating
+            ? QuickPanelBottomTheme.windowCornerRadius
+            : 16
         container.layer?.masksToBounds = true
 
         let visualEffect = NSVisualEffectView(frame: container.bounds)

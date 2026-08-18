@@ -9,8 +9,8 @@ struct QuickClipCard: View {
     let cardWidth: CGFloat
     let cardHeight: CGFloat
     var searchText: String = ""
-    
-    @State private var isHovered: Bool = false
+
+    @Environment(\.colorScheme) private var colorScheme
 
     init(
         item: ClipItem,
@@ -40,11 +40,14 @@ struct QuickClipCard: View {
         }
         .frame(width: cardWidth, height: cardHeight)
         .contentShape(RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous))
-        .onHover { hovering in
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                isHovered = hovering
-            }
-        }
+    }
+
+    private var palette: QuickPanelBottomTheme.Palette {
+        .resolve(colorScheme)
+    }
+
+    private var accent: Color {
+        PasteCardAccent.resolved(type: item.contentType, bundleID: item.sourceAppBundleID).color
     }
 
     private var regularBody: some View {
@@ -55,15 +58,6 @@ struct QuickClipCard: View {
         .background(cardBackground)
         .overlay(cardBorder)
         .clipShape(RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous))
-        .shadow(
-            color: isSelected ? QuickPanelBottomTheme.selectionBlue.opacity(0.22) : .black.opacity(0.20),
-            radius: isSelected ? 18 : 10,
-            y: isSelected ? 8 : 5
-        )
-        .scaleEffect(isHovered ? 1.02 : 1.0)
-        .offset(y: isSelected ? -1 : 0)
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovered)
     }
 
     private var liveResizeBody: some View {
@@ -108,25 +102,11 @@ struct QuickClipCard: View {
         }
         .background(
             RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: isSelected
-                            ? [
-                                QuickPanelBottomTheme.accentBlue.opacity(0.44),
-                                Color(red: 0.11, green: 0.13, blue: 0.18),
-                            ]
-                            : [
-                                Color(red: 0.10, green: 0.10, blue: 0.11),
-                                Color(red: 0.09, green: 0.09, blue: 0.10),
-                            ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+                .fill(palette.cardFill)
         )
         .overlay(
             RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous)
-                .stroke(isSelected ? QuickPanelBottomTheme.selectionBlue.opacity(0.44) : Color.white.opacity(0.05), lineWidth: 1)
+                .stroke(accent.opacity(isSelected ? 1 : 0.45), lineWidth: isSelected ? 2 : 1)
         )
     }
 
@@ -196,27 +176,31 @@ struct QuickClipCard: View {
     }
 
     private var footer: some View {
-        HStack(spacing: 8) {
-            Text(metaText)
-                .font(.system(size: 12.5, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white.opacity(0.74))
-                .lineLimit(1)
+        HStack(alignment: .bottom, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                if !footerTitle.isEmpty {
+                    Text(footerTitle)
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .foregroundStyle(palette.footerTitle)
+                        .lineLimit(1)
+                }
+                Text(metaText)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(palette.footerMeta)
+                    .lineLimit(1)
+            }
 
             Spacer(minLength: 0)
 
             if let shortcutIndex {
                 Text("⌘\(shortcutIndex)")
                     .font(.system(size: 11.5, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.82))
+                    .foregroundStyle(palette.shortcutText)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
                     .background(
                         Capsule()
-                            .fill(Color.white.opacity(0.12))
-                    )
-                    .overlay(
-                        Capsule()
-                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                            .fill(palette.shortcutFill)
                     )
                     .opacity(isLiveResizing ? 0.75 : 1)
             }
@@ -224,96 +208,37 @@ struct QuickClipCard: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(
-            Group {
-                if isLiveResizing {
-                    Color.black.opacity(0.16)
-                } else {
-                    LinearGradient(
-                        colors: [Color.clear, Color.black.opacity(0.10), Color.black.opacity(0.24)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                }
-            }
+            LinearGradient(
+                colors: palette.footerScrim,
+                startPoint: .top,
+                endPoint: .bottom
+            )
         )
     }
 
     private var cardBackground: some View {
         RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous)
-            .fill(
-                LinearGradient(
-                    colors: isLiveResizing
-                        ? [
-                            Color(red: 0.11, green: 0.11, blue: 0.12),
-                            Color(red: 0.10, green: 0.10, blue: 0.11),
-                        ]
-                        : isSelected
-                        ? [
-                            Color(red: 0.12, green: 0.24, blue: 0.46),
-                            Color(red: 0.09, green: 0.18, blue: 0.35),
-                        ]
-                        : [
-                            Color(red: 0.12, green: 0.12, blue: 0.13),
-                            Color(red: 0.09, green: 0.09, blue: 0.10),
-                        ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
+            .fill(palette.cardFill)
     }
 
     private var cardBorder: some View {
         RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous)
             .strokeBorder(
-                isLiveResizing
-                    ? AnyShapeStyle(Color.white.opacity(0.06))
-                    : isSelected
-                    ? AnyShapeStyle(
-                        LinearGradient(
-                            colors: [
-                                QuickPanelBottomTheme.accentBlue,
-                                QuickPanelBottomTheme.selectionBlue,
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    : AnyShapeStyle(
-                        Color.white.opacity(0.08)
-                    ),
-                lineWidth: isSelected && !isLiveResizing ? 1.6 : 1
+                accent.opacity(isSelected ? 1 : 0.55),
+                lineWidth: isSelected ? 2.2 : 1.2
             )
     }
 
     private var headerBackground: some View {
         LinearGradient(
-            colors: isLiveResizing
-                ? [
-                    Color.white.opacity(0.16),
-                    Color.white.opacity(0.08),
-                ]
-                : isSelected
-                ? [
-                    QuickPanelBottomTheme.accentBlue.opacity(0.96),
-                    QuickPanelBottomTheme.selectionBlue.opacity(0.88),
-                ]
-                : headerGradientColors,
+            colors: [accent, accent.opacity(0.88)],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
     }
 
-    private var headerGradientColors: [Color] {
-        CardColorCache.shared.getGradientColors(for: item, icon: sourceAppIcon)
-    }
-
     private var sourceAppIcon: NSImage? {
         appIcon(forBundleID: item.sourceAppBundleID, name: item.sourceApp)
-    }
-    
-    @MainActor
-    private var sampledHeaderBaseColor: NSColor? {
-        CardColorCache.shared.getHeaderBaseColor(for: item, icon: sourceAppIcon)
     }
 
     private var previewContentPadding: EdgeInsets {
@@ -390,7 +315,11 @@ struct QuickClipCard: View {
 
     @ViewBuilder
     private var previewBackground: some View {
-        QuickPanelBottomTheme.previewBackground
+        LinearGradient(
+            colors: [palette.previewTop, palette.previewBottom],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
     }
 
     @ViewBuilder
@@ -402,10 +331,10 @@ struct QuickClipCard: View {
                     .foregroundStyle(.orange)
                 Text(L10n.tr("sensitive.masked"))
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.92))
+                    .foregroundStyle(palette.primaryText)
                 Text(L10n.tr("sensitive.optionHint"))
                     .font(.system(size: 11))
-                    .foregroundStyle(QuickPanelBottomTheme.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
                 Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -432,26 +361,26 @@ struct QuickClipCard: View {
                     } else {
                         Image(systemName: "link")
                             .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(.white.opacity(0.82))
+                            .foregroundStyle(palette.secondaryText)
                             .frame(width: 24, height: 24)
-                            .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                            .background(palette.shortcutFill, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                     }
                     Text(linkHost)
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.9))
+                        .foregroundStyle(palette.secondaryText)
                         .lineLimit(1)
                 }
 
                 if searchText.isEmpty {
                     Text(linkTitle)
                         .font(.system(size: 12.5, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.9))
+                        .foregroundStyle(palette.primaryText)
                         .lineLimit(4)
                         .multilineTextAlignment(.leading)
                 } else {
                     HighlightedText(linkTitle, query: extractSearchQuery(from: searchText))
                         .font(.system(size: 12.5, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.9))
+                        .foregroundStyle(palette.primaryText)
                         .lineLimit(4)
                         .multilineTextAlignment(.leading)
                 }
@@ -460,7 +389,7 @@ struct QuickClipCard: View {
 
                 Text(item.content)
                     .font(.system(size: 10.5))
-                    .foregroundStyle(QuickPanelBottomTheme.tertiaryText)
+                    .foregroundStyle(palette.tertiaryText)
                     .lineLimit(2)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -475,12 +404,12 @@ struct QuickClipCard: View {
                 if searchText.isEmpty {
                     Text(fileDisplayTitle)
                         .font(.system(size: 12.5, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.92))
+                        .foregroundStyle(palette.primaryText)
                         .lineLimit(3)
                 } else {
                     HighlightedText(fileDisplayTitle, query: extractSearchQuery(from: searchText))
                         .font(.system(size: 12.5, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.92))
+                        .foregroundStyle(palette.primaryText)
                         .lineLimit(3)
                 }
 
@@ -489,7 +418,7 @@ struct QuickClipCard: View {
                 if let sourceApp = item.sourceApp, !sourceApp.isEmpty {
                     Text(sourceApp)
                         .font(.system(size: 10.5))
-                        .foregroundStyle(QuickPanelBottomTheme.tertiaryText)
+                        .foregroundStyle(palette.tertiaryText)
                         .lineLimit(1)
                 }
             }
@@ -506,7 +435,7 @@ struct QuickClipCard: View {
 
                 Text(parsed.formatted(parsed.originalFormat))
                     .font(.system(size: 12.5, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.88))
+                    .foregroundStyle(palette.primaryText)
                     .lineLimit(1)
 
                 Spacer(minLength: 0)
@@ -517,18 +446,18 @@ struct QuickClipCard: View {
                 if searchText.isEmpty {
                     Text(primaryText)
                         .font(.system(size: 12.5, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.94))
+                        .foregroundStyle(palette.primaryText)
                         .lineLimit(4)
                 } else {
                     HighlightedText(primaryText, query: extractSearchQuery(from: searchText))
                         .font(.system(size: 12.5, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.94))
+                        .foregroundStyle(palette.primaryText)
                         .lineLimit(4)
                 }
 
                 Text(secondaryText)
                     .font(.system(size: 11))
-                    .foregroundStyle(QuickPanelBottomTheme.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
                     .lineLimit(6)
 
                 Spacer(minLength: 0)
@@ -552,21 +481,34 @@ struct QuickClipCard: View {
         VStack(alignment: .leading, spacing: 10) {
             Image(systemName: item.contentType == .image ? "photo" : item.contentType.icon)
                 .font(.system(size: item.contentType == .image ? 26 : 22, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.76))
+                .foregroundStyle(palette.secondaryText)
 
             Text(primaryText)
                 .font(.system(size: 12.5, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.9))
+                .foregroundStyle(palette.primaryText)
                 .lineLimit(3)
 
             Spacer(minLength: 0)
 
             Text(lightweightMetaText)
                 .font(.system(size: 10.5, weight: .medium))
-                .foregroundStyle(QuickPanelBottomTheme.tertiaryText)
+                .foregroundStyle(palette.tertiaryText)
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var footerTitle: String {
+        switch item.contentType {
+        case .link:
+            return linkTitle
+        case .file, .document, .archive, .application, .video, .audio:
+            return fileDisplayTitle
+        case .image, .color:
+            return ""
+        default:
+            return ""
+        }
     }
 
     private var primaryText: String {

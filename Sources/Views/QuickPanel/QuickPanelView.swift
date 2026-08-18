@@ -61,6 +61,7 @@ struct QuickPanelView: View {
     @EnvironmentObject var clipboardManager: ClipboardManager
     @EnvironmentObject private var layoutState: QuickPanelLayoutState
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.colorScheme) private var colorScheme
     @State private var store = ClipItemStore()
     @State private var searchText = ""
     @State private var groupSuggestionIndex = -1
@@ -892,7 +893,11 @@ struct QuickPanelView: View {
                     .id(QuickFilter.all)
                     if secondaryRow == .types {
                         ForEach(availableContentTypes, id: \.self) { type in
-                            badge(type.label, isActive: selectedFilter == .type(type)) {
+                            badge(
+                                type.label,
+                                isActive: selectedFilter == .type(type),
+                                dot: PasteCardAccent.typeAccent(type).color
+                            ) {
                                 selectedFilter = selectedFilter == .type(type) ? .all : .type(type)
                                 isSearchFocused = true
                             }
@@ -934,17 +939,27 @@ struct QuickPanelView: View {
         store.sidebarCounts.byGroup.filter { $0.count > 0 }
     }
 
-    private func badge(_ label: String, isActive: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(label)
-                .font(.system(size: 11, weight: isActive ? .medium : .regular))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .foregroundStyle(isActive ? .white : Color(nsColor: .secondaryLabelColor))
-                .background(
-                    isActive ? Color.accentColor : Color.primary.opacity(0.06),
-                    in: Capsule()
-                )
+    private func badge(_ label: String, isActive: Bool, dot: Color? = nil, action: @escaping () -> Void) -> some View {
+        let palette = QuickPanelBottomTheme.Palette.resolve(isBottomFloating ? colorScheme : .dark)
+        return Button(action: action) {
+            HStack(spacing: 6) {
+                if let dot {
+                    Circle()
+                        .fill(dot)
+                        .frame(width: 7, height: 7)
+                }
+                Text(label)
+                    .font(.system(size: 11, weight: isActive ? .semibold : .regular))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .foregroundStyle(isBottomFloating ? (isActive ? palette.badgeActiveText : palette.badgeIdleText) : (isActive ? .white : Color(nsColor: .secondaryLabelColor)))
+            .background(
+                isBottomFloating
+                    ? (isActive ? palette.badgeActiveFill : palette.badgeIdleFill)
+                    : (isActive ? Color.accentColor : Color.primary.opacity(0.06)),
+                in: Capsule()
+            )
         }
         .buttonStyle(.plain)
     }
