@@ -17,7 +17,7 @@ struct QuickClipCard: View {
         isSelected: Bool,
         isLiveResizing: Bool = false,
         shortcutIndex: Int?,
-        cardWidth: CGFloat = 188,
+        cardWidth: CGFloat = 220,
         cardHeight: CGFloat = 220,
         searchText: String = ""
     ) {
