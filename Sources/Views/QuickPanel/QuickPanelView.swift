@@ -2847,8 +2847,10 @@ extension QuickPanelView {
         let spacing: CGFloat = 10
         // Search + tabs + footer + padding. Avoid GeometryReader: it relayouts
         // the 30k-item rail on every pass and SIGSEGVs AppKit on macOS 26.
-        let chrome: CGFloat = 100
-        let cardHeight = max(layoutState.height - chrome, 120)
+        let cardHeight = QuickPanelBottomGeometry.cardSide(
+            panelHeight: layoutState.height,
+            expanded: isBottomExpanded
+        )
         let cardWidth = cardHeight
         return ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
