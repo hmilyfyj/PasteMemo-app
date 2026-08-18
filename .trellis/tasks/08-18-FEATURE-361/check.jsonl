@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/app/quality-guidelines.md", "reason": "swift test / make check / 本机安装"}
+{"file": ".trellis/spec/app/directory-structure.md", "reason": "测试放 Tests/，UI 放 QuickPanel"}
+{"file": ".trellis/tasks/08-18-FEATURE-361/prd.md", "reason": "对照验收：打开无滑入、无逐卡投影、窗口切片单测"}
