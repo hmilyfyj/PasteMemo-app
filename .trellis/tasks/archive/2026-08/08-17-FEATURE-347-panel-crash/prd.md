@@ -24,6 +24,6 @@
 
 ## 验收标准
 
-- [ ] `swift build` 通过。
-- [ ] 启动 `/Applications/PasteMemo.app` 后进程仍在。
-- [ ] 打开底部悬浮框后至少 30 秒不出现新的 PasteMemo crash report。
+- [x] `swift build` 通过。
+- [x] 启动 `/Applications/PasteMemo.app` 后进程仍在。
+- [x] 打开底部悬浮框后至少 30 秒不出现新的 PasteMemo crash report。
