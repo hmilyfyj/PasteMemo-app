@@ -39,3 +39,31 @@ FEATURE-350 已 done 且 PR #3 已 MERGED。核验 8 条 AC 后勾选，在 feat
 ### Next Steps
 
 - 推送 feature/FEATURE-350-trellis 并开目标 main 的归档 PR，待人工评审
+
+
+## Session 2: FEATURE-363 归档 FEATURE-347 八项
+
+**Date**: 2026-08-19
+**Task**: FEATURE-363 归档 FEATURE-347 八项
+**Branch**: `feature/FEATURE-347-ql-keys`
+
+### Summary
+
+Multica FEATURE-347 已 done，8 项业务改动均已合入 origin/main。在 feature/FEATURE-347-ql-keys 跑完 trellis-check 与 finish-work 4 步并归档。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6746586` | (see git log) |
+| `d2726a5` | (see git log) |
+| `0e6ca6d` | (see git log) |
+| `aa8034a` | (see git log) |
+| `224318a` | (see git log) |
+| `13fadda` | (see git log) |
+| `959e0c4` | (see git log) |
+| `53e3745` | (see git log) |
+
+### Status
+
+[OK] **Completed**
