@@ -26,8 +26,8 @@
 
 ## 验收标准
 
-- [ ] 无已存自定义宽度时，面板左右距屏幕可见边缘约 12pt。
-- [ ] 换到更宽/更窄的屏后，非自定义宽度会按新 `visibleFrame` 重算。
-- [ ] 用户拖过宽度后，下次打开仍用拖过的宽度。
-- [ ] 本机旧 `quickPanelBottomSize.width=1922` 在升级后不再挡住新默认。
-- [ ] `swift build` 通过，release 装到 `/Applications/PasteMemo.app`。
+- [x] 无已存自定义宽度时，面板左右距屏幕可见边缘约 12pt。
+- [x] 换到更宽/更窄的屏后，非自定义宽度会按新 `visibleFrame` 重算。
+- [x] 用户拖过宽度后，下次打开仍用拖过的宽度。
+- [x] 本机旧 `quickPanelBottomSize.width=1922` 在升级后不再挡住新默认。
+- [x] `swift build` 通过，release 装到 `/Applications/PasteMemo.app`。
