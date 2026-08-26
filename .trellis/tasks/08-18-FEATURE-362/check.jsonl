@@ -1,0 +1,3 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/app/quality-guidelines.md", "reason": "swift test / 本机安装"}
+{"file": ".trellis/tasks/08-18-FEATURE-362/prd.md", "reason": "对照浅色外壳、品牌色、描边、双行页脚验收"}
