@@ -10,8 +10,6 @@ struct QuickClipCard: View {
     let cardHeight: CGFloat
     var searchText: String = ""
     
-    @State private var isHovered: Bool = false
-
     init(
         item: ClipItem,
         isSelected: Bool,
@@ -40,11 +38,7 @@ struct QuickClipCard: View {
         }
         .frame(width: cardWidth, height: cardHeight)
         .contentShape(RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous))
-        .onHover { hovering in
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                isHovered = hovering
-            }
-        }
+        .transaction { $0.animation = nil }
     }
 
     private var regularBody: some View {
@@ -55,15 +49,7 @@ struct QuickClipCard: View {
         .background(cardBackground)
         .overlay(cardBorder)
         .clipShape(RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous))
-        .shadow(
-            color: isSelected ? QuickPanelBottomTheme.selectionBlue.opacity(0.22) : .black.opacity(0.20),
-            radius: isSelected ? 18 : 10,
-            y: isSelected ? 8 : 5
-        )
-        .scaleEffect(isHovered ? 1.02 : 1.0)
-        .offset(y: isSelected ? -1 : 0)
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovered)
+        .compositingGroup()
     }
 
     private var liveResizeBody: some View {
@@ -304,16 +290,12 @@ struct QuickClipCard: View {
     }
 
     private var headerGradientColors: [Color] {
-        CardColorCache.shared.getGradientColors(for: item, icon: sourceAppIcon)
+        let color = QuickPanelBottomTheme.headerColor(for: item.contentType)
+        return [color, color.opacity(0.84)]
     }
 
     private var sourceAppIcon: NSImage? {
         appIcon(forBundleID: item.sourceAppBundleID, name: item.sourceApp)
-    }
-    
-    @MainActor
-    private var sampledHeaderBaseColor: NSColor? {
-        CardColorCache.shared.getHeaderBaseColor(for: item, icon: sourceAppIcon)
     }
 
     private var previewContentPadding: EdgeInsets {
@@ -377,10 +359,9 @@ struct QuickClipCard: View {
         } else if let sourceAppIcon {
             Image(nsImage: sourceAppIcon)
                 .resizable()
-                .interpolation(.high)
+                .interpolation(.medium)
                 .scaledToFit()
                 .frame(width: min(headerBadgeWidth - 18, 32), height: 32)
-                .shadow(color: .black.opacity(0.18), radius: 3, y: 1)
         } else {
             Image(systemName: item.contentType.icon)
                 .font(.system(size: 24, weight: .bold))
@@ -416,7 +397,7 @@ struct QuickClipCard: View {
                   let image = ImageCache.shared.thumbnail(for: data, key: item.itemID, size: imagePreviewMaxDimension) {
             Image(nsImage: image)
                 .resizable()
-                .interpolation(.high)
+                .interpolation(.medium)
                 .scaledToFit()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if item.contentType == .link {
@@ -426,7 +407,7 @@ struct QuickClipCard: View {
                        let image = ImageCache.shared.favicon(for: data, key: item.content) {
                         Image(nsImage: image)
                             .resizable()
-                            .interpolation(.high)
+                            .interpolation(.medium)
                             .frame(width: 24, height: 24)
                             .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                     } else {
@@ -470,7 +451,6 @@ struct QuickClipCard: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: 46, height: 46)
-                    .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
 
                 if searchText.isEmpty {
                     Text(fileDisplayTitle)

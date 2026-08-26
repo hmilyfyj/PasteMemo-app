@@ -19,6 +19,13 @@
 - 可测逻辑补 `Tests/` 里已有风格的 XCTest 文件，例如 `Tests/CodeDetectorTests.swift`、`Tests/RuleConditionTests.swift`
 - 只改文档 / Trellis 脚手架时，不必重装应用
 
+## 底部悬浮轨道
+
+- 卡片用描边和类型色表达选中，不要逐卡投影、hover 缩放或弹簧动画
+- 打开底部面板时窗口一次到位，不要边滑入边排版卡片
+- 轨道按选中附近窗口切片，禁止对全量历史做 ForEach
+- 高度只在 `didEndLiveResize` 回写；不要用 GeometryReader 量卡片高度
+
 ## 禁止
 
 - 提交 `sparkle_private_key.pem`
