@@ -89,6 +89,25 @@ enum QuickPanelBottomGeometry {
     }
 }
 
+enum QuickPanelBottomRailWindow {
+    static let defaultCount = 40
+    static let sideBuffer = 16
+    static let expandStep = 16
+    static let maxCount = 80
+
+    static func range(itemCount: Int, selectedIndex: Int, grownCount: Int) -> Range<Int> {
+        guard itemCount > 0 else { return 0..<0 }
+        let selected = min(max(selectedIndex, 0), itemCount - 1)
+        let count = max(grownCount, defaultCount)
+        if selected < count {
+            return 0..<min(itemCount, count)
+        }
+        let start = max(0, selected - sideBuffer)
+        let end = min(itemCount, max(start + count, selected + 1))
+        return start..<end
+    }
+}
+
 enum QuickPanelBottomDefaults {
     static let sizeStorageKey = "quickPanelBottomSize"
     static let widthIsCustomKey = "quickPanelBottomWidthIsCustom"

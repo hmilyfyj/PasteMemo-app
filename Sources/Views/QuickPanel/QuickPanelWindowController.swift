@@ -196,7 +196,8 @@ final class QuickPanelWindowController {
 
         let shouldAnimate = isLaunchAnimationEnabled
         if panelStyle == .bottomFloating {
-            positionBottomFloating(panel, animated: shouldAnimate)
+            // Slide-in fights SwiftUI card layout and drops frames. Land in place.
+            positionBottomFloating(panel, animated: false)
         } else {
             positionPanel(panel)
         }

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/app/index.md", "reason": "Swift/macOS 分层与开发前检查"}
+{"file": ".trellis/spec/app/quality-guidelines.md", "reason": "测试与本机安装命令"}
+{"file": ".trellis/spec/app/fork-and-release.md", "reason": "PR 目标 main，不推 upstream"}
+{"file": ".trellis/tasks/08-18-FEATURE-361/design.md", "reason": "窗口切片与减特效取舍"}

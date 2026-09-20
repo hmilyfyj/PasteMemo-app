@@ -101,6 +101,7 @@ struct QuickPanelView: View {
     /// Defer the 30k-item card rail until the panel is actually shown.
     /// warmUp() otherwise layouts the whole tree off-screen and SIGSEGVs.
     @State private var isBottomRailArmed = false
+    @State private var railWindowCount = QuickPanelBottomRailWindow.defaultCount
     @State private var cachedGroupedItems: [GroupedItem<ClipItem>] = []
     @State private var cachedHistoryRows: [ClipHistoryListBuilder.Row] = []
     @State private var cachedHistoryRowIndexByID: [PersistentIdentifier: Int] = [:]
@@ -366,6 +367,7 @@ struct QuickPanelView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .quickPanelWillDismiss)) { _ in
             isBottomRailArmed = false
+            railWindowCount = QuickPanelBottomRailWindow.defaultCount
             // isActive 必须在这里归位，不能只靠 onDisappear：面板隐藏走的是
             // orderOut，视图仍留在窗口层级里，onDisappear 不会触发。isActive
             // 悬在 true 会让隐藏期间的每次复制都同步跑全量 performRefresh
@@ -396,6 +398,7 @@ struct QuickPanelView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .quickPanelDidShow)) { _ in
             isBottomRailArmed = true
+            railWindowCount = QuickPanelBottomRailWindow.defaultCount
             showCommandPalette = false
             searchText = ""
             pill = nil
@@ -441,6 +444,7 @@ struct QuickPanelView: View {
 
             rebuildGroupedItems()
             scrollResetToken = UUID()
+            railWindowCount = QuickPanelBottomRailWindow.defaultCount
             selectDefaultHistoryItem()
             targetApp = QuickPanelWindowController.shared.previousApp
             isSearchFocused = true
@@ -784,6 +788,7 @@ struct QuickPanelView: View {
 
         store.applyFilters()
         scrollResetToken = UUID()
+        railWindowCount = QuickPanelBottomRailWindow.defaultCount
     }
 
     /// 打开面板时计算要恢复的 tab 主筛选：开关关 → `.all`；开关开 → 解码并对当前上下文
@@ -2831,54 +2836,48 @@ extension QuickPanelView {
     var bottomClipRail: some View {
         let spacing: CGFloat = 10
         // Search + tabs + footer + padding. Avoid GeometryReader: it relayouts
-        // the 30k-item rail on every pass and SIGSEGVs AppKit on macOS 26.
+        // the card rail on every pass and SIGSEGVs AppKit on macOS 26.
         let chrome: CGFloat = 100
         let cardHeight = max(layoutState.height - chrome, 120)
         let cardWidth = min(max(cardHeight * 0.72, 160), 320)
+        let items = displayOrderItems
+        let selectedID = lastNavigatedID ?? selectedItemIDs.first
+        let selectedIndex = selectedID.flatMap { id in
+            items.firstIndex(where: { $0.persistentModelID == id })
+        } ?? 0
+        let railRange = QuickPanelBottomRailWindow.range(
+            itemCount: items.count,
+            selectedIndex: selectedIndex,
+            grownCount: railWindowCount
+        )
+        let windowedItems = items[railRange]
         return ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .top, spacing: spacing) {
-                    ForEach(displayOrderItems) { item in
+                    ForEach(windowedItems) { item in
                         let itemID = item.persistentModelID
-                        QuickClipCard(
+                        let isSelected = selectedItemIDs.contains(itemID)
+                        let isPopoverHost = showCommandPalette
+                            && isSelected
+                            && (lastNavigatedID ?? selectedItemIDs.first) == itemID
+                        bottomRailCard(
                             item: item,
-                            isSelected: selectedItemIDs.contains(itemID),
-                            shortcutIndex: shortcutIndex(for: item),
+                            itemID: itemID,
+                            isSelected: isSelected,
                             cardWidth: cardWidth,
                             cardHeight: cardHeight,
-                            searchText: searchText
+                            isPopoverHost: isPopoverHost
                         )
-                        .id(itemID)
-                        .popover(
-                            isPresented: Binding(
-                                get: {
-                                    showCommandPalette
-                                        && selectedItemIDs.contains(itemID)
-                                        && (lastNavigatedID ?? selectedItemIDs.first) == itemID
-                                },
-                                set: { if !$0 { showCommandPalette = false } }
-                            ),
-                            attachmentAnchor: .point(.top),
-                            arrowEdge: .top
-                        ) {
-                            CommandPaletteContent(
-                                item: item,
-                                isMultiSelected: isMultiSelected,
-                                onAction: { handleCommandAction($0) },
-                                onDismiss: { showCommandPalette = false }
-                            )
-                        }
-                        .onTapGesture { handleItemClick(itemID) }
-                        .onRightClick {
-                            if !selectedItemIDs.contains(itemID) {
-                                selectItem(itemID)
-                            }
-                        }
                         .onAppear {
-                            if item.id == displayOrderItems.last?.id { store.loadMore() }
-                        }
-                        .contextMenu {
-                            historyItemContextMenu(item: item)
+                            if item.id == items.last?.id {
+                                store.loadMore()
+                            } else if item.id == windowedItems.last?.id,
+                                      railRange.upperBound < items.count {
+                                railWindowCount = min(
+                                    railWindowCount + QuickPanelBottomRailWindow.expandStep,
+                                    QuickPanelBottomRailWindow.maxCount
+                                )
+                            }
                         }
                     }
                 }
@@ -2887,13 +2886,64 @@ extension QuickPanelView {
             }
             .onChange(of: lastNavigatedID) {
                 guard let id = lastNavigatedID else { return }
-                withAnimation(.easeOut(duration: 0.16)) {
+                var transaction = Transaction()
+                transaction.animation = nil
+                withTransaction(transaction) {
                     proxy.scrollTo(id)
                 }
             }
             .id(scrollResetToken)
         }
         .quickPanelBottomSection()
+    }
+
+    @ViewBuilder
+    private func bottomRailCard(
+        item: ClipItem,
+        itemID: PersistentIdentifier,
+        isSelected: Bool,
+        cardWidth: CGFloat,
+        cardHeight: CGFloat,
+        isPopoverHost: Bool
+    ) -> some View {
+        let card = QuickClipCard(
+            item: item,
+            isSelected: isSelected,
+            shortcutIndex: shortcutIndex(for: item),
+            cardWidth: cardWidth,
+            cardHeight: cardHeight,
+            searchText: searchText
+        )
+        .id(itemID)
+        .onTapGesture { handleItemClick(itemID) }
+        .onRightClick {
+            if !selectedItemIDs.contains(itemID) {
+                selectItem(itemID)
+            }
+        }
+        .contextMenu {
+            historyItemContextMenu(item: item)
+        }
+
+        if isPopoverHost {
+            card.popover(
+                isPresented: Binding(
+                    get: { showCommandPalette },
+                    set: { if !$0 { showCommandPalette = false } }
+                ),
+                attachmentAnchor: .point(.top),
+                arrowEdge: .top
+            ) {
+                CommandPaletteContent(
+                    item: item,
+                    isMultiSelected: isMultiSelected,
+                    onAction: { handleCommandAction($0) },
+                    onDismiss: { showCommandPalette = false }
+                )
+            }
+        } else {
+            card
+        }
     }
 
     func refreshQuickLookIfVisible() {

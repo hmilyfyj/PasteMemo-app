@@ -88,12 +88,6 @@ private struct QuickPanelBottomShellModifier: ViewModifier {
                 RoundedRectangle(cornerRadius: QuickPanelBottomTheme.windowCornerRadius, style: .continuous)
                     .stroke(QuickPanelBottomTheme.shellOverlay, lineWidth: 1)
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: QuickPanelBottomTheme.windowCornerRadius, style: .continuous)
-                    .stroke(Color.black.opacity(0.42), lineWidth: 1)
-                    .blur(radius: 0.4)
-            )
-            .shadow(color: .black.opacity(0.4), radius: 24, y: 12)
     }
 }
 
