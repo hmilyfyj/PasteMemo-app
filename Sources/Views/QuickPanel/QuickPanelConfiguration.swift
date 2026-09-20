@@ -34,6 +34,31 @@ enum QuickPanelBottomGeometry {
     static let minimumWidth: CGFloat = 860
     static let defaultCompactHeightRatio: CGFloat = 0.25
 
+    /// Vertical chrome that sits outside the card rail.
+    /// Keep this in sync with `bottomFloatingLayout` / `searchBar` / `tabBar` / `footerBar`.
+    static let outerPadding: CGFloat = 8
+    static let stackSpacing: CGFloat = 4
+    static let searchHeight: CGFloat = 22
+    static let tabBarHeight: CGFloat = 24
+    static let footerHeight: CGFloat = 40
+    static let railInnerPadding: CGFloat = 8
+    static let chromeSlack: CGFloat = 8
+
+    /// Space left for square cards after search, tabs, footer and paddings.
+    static func cardSide(panelHeight: CGFloat, expanded: Bool) -> CGFloat {
+        let gaps = expanded ? 4 : 3
+        let reserved = outerPadding * 2
+            + searchHeight
+            + tabBarHeight
+            + footerHeight
+            + stackSpacing * CGFloat(gaps)
+            + railInnerPadding
+            + chromeSlack
+        let remaining = panelHeight - reserved
+        let railHeight = expanded ? remaining / 2 : remaining
+        return max(railHeight, 1)
+    }
+
     static func defaultHeight(for mode: QuickPanelBottomMode, visibleFrame: CGRect? = nil) -> CGFloat {
         if let visibleFrame {
             switch mode {
