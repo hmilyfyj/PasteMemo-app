@@ -7,6 +7,7 @@ private enum QuickFilter: Equatable, Hashable {
     case all
     case pinned
     case aiAgent
+    case sms
     case type(ClipContentType)
     case group(String)
 
@@ -16,6 +17,7 @@ private enum QuickFilter: Equatable, Hashable {
         case .all: return "all"
         case .pinned: return "pinned"
         case .aiAgent: return "aiAgent"
+        case .sms: return "sms"
         case .type(let t): return "type:\(t.rawValue)"
         case .group(let name): return "group:\(name)"
         }
@@ -28,6 +30,7 @@ private enum QuickFilter: Equatable, Hashable {
         case "all": self = .all
         case "pinned": self = .pinned
         case "aiAgent": self = .aiAgent
+        case "sms": self = .sms
         default:
             guard let colon = storageString.firstIndex(of: ":") else { return nil }
             let prefix = String(storageString[..<colon])
@@ -56,6 +59,50 @@ private enum PillSelection: Equatable {
 private let PANEL_WIDTH: CGFloat = 750
 private let PANEL_HEIGHT: CGFloat = 510
 private let LIST_WIDTH: CGFloat = 340
+/// ⌘K 命令面板浮层宽度。约占面板宽度的 45%，跟 Raycast 的 actions 面板一个比例；
+/// 280 那种窄条撑不住带图标 + 快捷键徽章的两端对齐布局。
+private let PALETTE_WIDTH: CGFloat = 340
+/// 浮层高度上限。放宽到 460 是为了尽量「一屏望全」——动作项十几条时滚动条一出现，
+/// 扫一眼直接按快捷键的用法就废了。仍保留上限是防止面板拖得很高时菜单跟着长满屏。
+private let PALETTE_MAX_HEIGHT: CGFloat = 460
+/// 面板本地坐标系名。列表要把自己的 frame 报到这个空间里，浮层才能算出
+/// 「选中行在面板中的绝对位置」。
+private let PANEL_COORD_SPACE = "quickPanel"
+
+/// 列表区域在面板坐标系中的 frame
+private struct ListFramePreferenceKey: PreferenceKey {
+    static let defaultValue: CGRect = .zero
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+        let next = nextValue()
+        if next != .zero { value = next }
+    }
+}
+
+/// ⌘K 浮层的实际高度。必须按实测值定位，不能拿 PALETTE_MAX_HEIGHT 当高度——
+/// 那是上限，用它 clamp 会把「选中行靠下」的情况一路推到面板中上部。
+private struct PaletteHeightPreferenceKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        let next = nextValue()
+        if next > 0 { value = next }
+    }
+}
+
+/// tabBar 这一排的本地坐标系名。拖拽切换要把手指位置和各标签的 frame 放在同一个
+/// 空间里比较，用 `.local` 会随子视图变，用 `.global` 又会被窗口位置污染。
+private let TAB_STRIP_COORD_SPACE = "quickPanelTabStrip"
+
+/// 每个筛选标签在 tabBar 坐标系中的 frame，供拖拽命中测试用。
+private struct TabFramesPreferenceKey: PreferenceKey {
+    static let defaultValue: [QuickFilter: CGRect] = [:]
+    static func reduce(value: inout [QuickFilter: CGRect], nextValue: () -> [QuickFilter: CGRect]) {
+        value.merge(nextValue()) { _, new in new }
+    }
+}
+
+/// 拖拽时纵向拉开多远算「手指移出了控件、这次取消」。UISegmentedControl 同款反悔手势；
+/// 太小会让正常横拖的抖动误判成取消，太大则永远反悔不了。
+private let TAB_DRAG_CANCEL_SLOP: CGFloat = 36
 
 struct QuickPanelView: View {
     @EnvironmentObject var clipboardManager: ClipboardManager
@@ -76,11 +123,28 @@ struct QuickPanelView: View {
     @State private var userTypedSlash = false
     @State private var selectedItemIDs: Set<PersistentIdentifier> = []
     @State private var selectedFilter: QuickFilter = .all
+    /// 各筛选标签在 tabBar 坐标系里的 frame，由子视图上报。滑块定位和拖拽命中都查它。
+    @State private var tabFrames: [QuickFilter: CGRect] = [:]
+    /// 拖拽中手指在 tabBar 坐标系里的 x。非 nil 即「正在拖」：滑块改为跟着这个值
+    /// 连续定位（可以停在两个标签中间），同时鼓大一圈。
+    ///
+    /// 拖的过程**不写回 store**——切一次筛选要重查 + 整棵列表重建，横扫过五个标签
+    /// 就是五次，所以跟 AppKit 的 NSSegmentedControl 一样：跟随只动视觉，松手才 commit。
+    @State private var tabDragX: CGFloat?
+    /// 按下时命中的标签。用来区分「原地点选中项」（= 取消筛选回到全部）和
+    /// 「从别处拖过来落在它上面」（= 正常选中），后者不该被当成 toggle。
+    @State private var tabDragOrigin: QuickFilter?
+    /// 选中滑块的 tint 要按外观反向取：深色提亮、浅色压暗，才能从同为 .regular
+    /// 的容器里分出来。
+    @Environment(\.colorScheme) private var colorScheme
     @State private var keyMonitor: Any?
     @State private var flagsMonitor: Any?
     @FocusState private var isSearchFocused: Bool
     @State private var lastClickedID: PersistentIdentifier?
     @State private var lastClickTime: Date = .distantPast
+    /// 输入法正在组字。此时拼音只存在于 field editor 的 marked text 里，SwiftUI 的
+    /// `searchText` 还是空的，自定义 placeholder 会照常画出来、糊在拼音上。
+    @State private var isIMEComposing = false
     @State private var lastNavigatedID: PersistentIdentifier?
     @State private var selectionAnchor: PersistentIdentifier?
     @State private var showAllShortcuts = false
@@ -113,7 +177,9 @@ struct QuickPanelView: View {
     @AppStorage(QuickPanelSettings.secondaryRowKey) private var quickPanelSecondaryRowRaw = QuickPanelSecondaryRow.types.rawValue
     @AppStorage(QuickPanelSettings.rememberLastFilterKey) private var rememberLastFilter = false
     @AppStorage(QuickPanelSettings.lastFilterKey) private var lastFilterStorage = "all"
+    @AppStorage(QuickPanelSettings.tabOrderKey) private var tabOrderRaw = ""
     @AppStorage(QuickPanelSettings.imageLayoutKey) private var imageLayoutRaw = QuickPanelImageLayout.list.rawValue
+    @AppStorage(QuickPanelSettings.hiddenTabTypesKey) private var hiddenTabTypesRaw = ""
     @AppStorage(QuickPanelSettings.imageGridDensityKey) private var imageGridDensityRaw = QuickPanelImageGridDensity.medium.rawValue
 
     private var secondaryRow: QuickPanelSecondaryRow {
@@ -137,7 +203,8 @@ struct QuickPanelView: View {
     }
 
     private var isImageGridActive: Bool {
-        QuickPanelImageLayout(rawValue: imageLayoutRaw) == .grid
+        !isBottomFloating
+            && QuickPanelImageLayout(rawValue: imageLayoutRaw) == .grid
             && selectedFilter == .type(.image)
             && !displayOrderItems.isEmpty
     }
@@ -222,6 +289,11 @@ struct QuickPanelView: View {
         return item
     }
 
+    private func refreshIMEComposing() {
+        let composing = (NSApp.keyWindow?.firstResponder as? NSTextView)?.hasMarkedText() ?? false
+        if composing != isIMEComposing { isIMEComposing = composing }
+    }
+
     private func selectItem(_ id: PersistentIdentifier) {
         selectedItemIDs = [id]
         lastNavigatedID = id
@@ -293,8 +365,9 @@ struct QuickPanelView: View {
         VStack(spacing: 0) {
             searchBar
             // 标签条排除背景拖拽：否则点分类标签时窗口跟着微拖「晃动」
-            NonDraggableArea { tabBar }
-            Divider().opacity(0.3)
+            if shouldShowTabBar {
+                NonDraggableArea { tabBar }
+            }
             if filteredItems.isEmpty {
                 emptyStateView
             } else if isImageGridActive {
@@ -313,7 +386,6 @@ struct QuickPanelView: View {
                     }
                 }
             }
-            Divider().opacity(0.3)
             footerBar
         }
         .frame(minWidth: 360, minHeight: 420)
@@ -349,6 +421,8 @@ struct QuickPanelView: View {
             .allowsHitTesting(true)
         }
         } // ZStack
+        // 切换选中行不用单独监听：onFocusedRowFrame 每轮都会上报，那里已经会同步。
+        .onChange(of: showCommandPalette) { syncCommandPalettePanel() }
         .onAppear {
             store.configure(modelContext: modelContext)
             rebuildGroupedItems()
@@ -379,6 +453,7 @@ struct QuickPanelView: View {
             showCommandPalette = false
             suggestionsArmed = false
             userTypedSlash = false
+            isIMEComposing = false
         }
         .onReceive(NotificationCenter.default.publisher(for: .quickPanelPinnedResignKey)) { _ in
             // Pinned + user clicked another app: release search focus so the text field
@@ -406,6 +481,10 @@ struct QuickPanelView: View {
             userTypedSlash = false
             userInteractedSinceShow = false
             isGridFocused = false
+            // 拖拽切标签的途中被 Esc / 失焦关掉面板时手势收不到 onEnded，
+            // 残留的拖拽位置会让下次打开滑块停在没被选中的标签上、还是鼓大的。
+            tabDragX = nil
+            tabDragOrigin = nil
             // 延后一小会儿再放开建议浮层，给 SwiftUI 一次 tick 把状态提交到渲染树，
             // 避免刚 orderFrontRegardless 时显示上一次的 `/` 建议面板。
             // 代价：打开 80ms 内如果立即输入 `/`，这一帧的建议不会渲染，
@@ -445,7 +524,21 @@ struct QuickPanelView: View {
             targetApp = QuickPanelWindowController.shared.previousApp
             isSearchFocused = true
         }
+        // marked text 的变化不走 SwiftUI 绑定，只能听 field editor 自己的通知
+        .onReceive(NotificationCenter.default.publisher(for: NSText.didChangeNotification)) { _ in
+            refreshIMEComposing()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSTextView.didChangeSelectionNotification)) { _ in
+            refreshIMEComposing()
+        }
         .onChange(of: searchText) {
+            // 组字确认后 searchText 才会拿到值，此时 marked text 已清，直接收状态；
+            // 退格删空了则要回头问一次 field editor（可能又在组新的字）。
+            if !searchText.isEmpty {
+                isIMEComposing = false
+            } else {
+                refreshIMEComposing()
+            }
             if pill != nil {
                 // Pill is active — search text is just keyword within the pill's scope
                 store.searchText = searchText
@@ -467,8 +560,20 @@ struct QuickPanelView: View {
             // 切分类回到标签级焦点：←→ 继续切分类，↓ 才进入网格
             isGridFocused = false
             applyFiltersToStore()
+            // 切分类 = 导航动作，一律选中新列表第一条（与打开面板时「列表顶部 = 预览」
+            // 一致）。不能交给 onChange(of: store.items) 的兜底——它只在旧选中项从新列表
+            // 消失时才重选，于是「全部 → 文本 → 全部」会把途中自动选中的文本条目带回
+            // 「全部」，看起来选中随机跳到了第三行。store.applyFilters() 是同步的
+            // （show 流程同一序列），这里 rebuild 后缓存即为新列表。
+            rebuildGroupedItems()
+            selectDefaultHistoryItem()
         }
-        .onChange(of: pill) { applyFiltersToStore() }
+        .onChange(of: pill) {
+            applyFiltersToStore()
+            // 同上：pill 筛选切换也是导航动作，选中新列表第一条。
+            rebuildGroupedItems()
+            selectDefaultHistoryItem()
+        }
         .onChange(of: quickPanelSecondaryRowRaw) {
             // 切换 tabBar 维度时，相关过滤会失配，统一重置成干净状态
             selectedFilter = .all
@@ -653,6 +758,7 @@ struct QuickPanelView: View {
                         }
                     )
                 }
+                .hideScrollerTrack()
                 .frame(height: min(suggestionsContentHeight, Self.suggestionsMaxHeight))
                 .onPreferenceChange(SuggestionsHeightKey.self) { suggestionsContentHeight = $0 }
                 .onChange(of: groupSuggestionIndex) {
@@ -763,6 +869,7 @@ struct QuickPanelView: View {
     private func applyFilters(primary: QuickFilter, pill: PillSelection?) {
         store.pinnedOnly = false
         store.aiAgentOnly = false
+        store.smsOnly = false
         store.filterType = nil
         store.groupName = nil
         store.sourceApp = nil
@@ -771,6 +878,7 @@ struct QuickPanelView: View {
         case .all: break
         case .pinned: store.pinnedOnly = true
         case .aiAgent: store.aiAgentOnly = true
+        case .sms: store.smsOnly = true
         case .type(let t): store.filterType = t
         case .group(let name): store.groupName = name
         }
@@ -791,16 +899,22 @@ struct QuickPanelView: View {
     /// 用缓存的 sidebarCounts 校验（命中常见的"上次开/关之间数据没变"场景）；
     /// 若数据在关闭期间变了导致缓存过期，由调用方的 `totalCount == 0` 兜底再退回 `.all`。
     private func restoredFilterOnShow() -> QuickFilter {
-        guard rememberLastFilter, let stored = QuickFilter(storageString: lastFilterStorage) else { return .all }
+        guard rememberLastFilter, let stored = QuickFilter(storageString: lastFilterStorage) else {
+            return fallbackTabFilter
+        }
         switch stored {
-        case .all, .pinned:
-            return stored
+        case .all:
+            return fallbackTabFilter
+        case .pinned:
+            return isTabVisible(.pinned) ? .pinned : fallbackTabFilter
         case .aiAgent:
-            return store.sidebarCounts.aiAgent > 0 ? .aiAgent : .all
+            return store.sidebarCounts.aiAgent > 0 ? .aiAgent : fallbackTabFilter
+        case .sms:
+            return (isTabVisible(.sms) && store.sidebarCounts.sms > 0) ? .sms : fallbackTabFilter
         case .type(let t):
-            return (secondaryRow == .types && availableContentTypes.contains(t)) ? .type(t) : .all
+            return (secondaryRow == .types && availableContentTypes.contains(t)) ? .type(t) : fallbackTabFilter
         case .group(let name):
-            return (secondaryRow == .groups && availableGroupsForTab.contains { $0.name == name }) ? .group(name) : .all
+            return (secondaryRow == .groups && availableGroupsForTab.contains { $0.name == name }) ? .group(name) : fallbackTabFilter
         }
     }
 
@@ -816,10 +930,22 @@ struct QuickPanelView: View {
                     .transition(.identity)
             }
 
-            TextField(L10n.tr("quick.search"), text: $searchText)
+            // placeholder 自己画，不交给 NSTextField：它有焦点时由 field editor 绘制、
+            // 失焦后换回 cell 绘制，两者基线差约 1pt，⌘K 一失焦 placeholder 就往下挪一下。
+            // SwiftUI Text 不随焦点换绘制器，位置固定。
+            TextField("", text: $searchText)
                 .textFieldStyle(.plain)
                 .font(.system(size: isBottomFloating ? 13 : 16))
                 .focused($isSearchFocused)
+                .overlay(alignment: .leading) {
+                    if searchText.isEmpty, !isIMEComposing {
+                        Text(L10n.tr("quick.search"))
+                            .font(.system(size: isBottomFloating ? 13 : 16))
+                            .foregroundStyle(Color(nsColor: .placeholderTextColor))
+                            .lineLimit(1)
+                            .allowsHitTesting(false)
+                    }
+                }
 
             if !searchText.isEmpty || pill != nil {
                 Button {
@@ -839,13 +965,17 @@ struct QuickPanelView: View {
                 QuickPanelWindowController.shared.isPinned = isPanelPinned
             } label: {
                 Image(systemName: isPanelPinned ? "pin.fill" : "pin")
-                    .font(.system(size: 12))
+                    // 13pt medium：和旁边 12pt medium 的计数数字视觉重量对齐，
+                    // 12pt regular 的线条在同款灰底里显得比数字轻
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(
                         isPanelPinned ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(HierarchicalShapeStyle.tertiary)
                     )
                     .frame(width: 28, height: 24)
+                    // 未固定时也给和右侧计数胶囊同样的灰底：两者高度一样、只有
+                    // 一个有底色时 pin 显得孤零零，读不成一组右侧工具
                     .background(
-                        isPanelPinned ? AnyShapeStyle(Color.accentColor.opacity(0.15)) : AnyShapeStyle(Color.clear),
+                        isPanelPinned ? AnyShapeStyle(Color.accentColor.opacity(0.15)) : AnyShapeStyle(Color.primary.opacity(0.05)),
                         in: RoundedRectangle(cornerRadius: 5)
                     )
                     .contentShape(Rectangle())
@@ -874,64 +1004,96 @@ struct QuickPanelView: View {
 
     // MARK: - Tabs
 
+    @ViewBuilder
     private var tabBar: some View {
-        // ScrollViewReader + onChange：窄窗口下标签溢出时，无论切换来源
-        // （Tab 键、方向键、鼠标点击、`/` 命令）都让选中标签滚入可见区。
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    badge(L10n.tr("filter.pinned"), isActive: selectedFilter == .pinned) {
-                        selectedFilter = selectedFilter == .pinned ? .all : .pinned
-                        isSearchFocused = true
-                    }
-                    .id(QuickFilter.pinned)
-                    badge(L10n.tr("filter.all"), isActive: selectedFilter == .all) {
-                        selectedFilter = .all
-                        isSearchFocused = true
-                    }
-                    .id(QuickFilter.all)
-                    if secondaryRow == .types {
-                        ForEach(availableContentTypes, id: \.self) { type in
-                            badge(type.label, isActive: selectedFilter == .type(type)) {
-                                selectedFilter = selectedFilter == .type(type) ? .all : .type(type)
-                                isSearchFocused = true
+        if isBottomFloating {
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(filterItems, id: \.filter) { item in
+                            badge(item.label, isActive: selectedFilter == item.filter) {
+                                commitTab(item.filter, wasOrigin: true)
                             }
-                            .id(QuickFilter.type(type))
-                        }
-                    } else {
-                        ForEach(availableGroupsForTab, id: \.name) { group in
-                            badge(group.name, isActive: selectedFilter == .group(group.name)) {
-                                selectedFilter = selectedFilter == .group(group.name) ? .all : .group(group.name)
-                                isSearchFocused = true
-                            }
-                            .id(QuickFilter.group(group.name))
+                            .id(item.filter)
                         }
                     }
-                    if store.sidebarCounts.aiAgent > 0 {
-                        badge(L10n.tr("filter.aiAgent"), isActive: selectedFilter == .aiAgent) {
-                            selectedFilter = selectedFilter == .aiAgent ? .all : .aiAgent
-                            isSearchFocused = true
-                        }
-                        .id(QuickFilter.aiAgent)
+                    .padding(.horizontal, 10)
+                }
+                .onChange(of: selectedFilter) {
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        proxy.scrollTo(selectedFilter, anchor: nil)
                     }
                 }
-                .padding(.horizontal, isBottomFloating ? 10 : 18)
-                .padding(.bottom, isBottomFloating ? 0 : 8)
+                .onAppear { proxy.scrollTo(selectedFilter, anchor: nil) }
             }
-            .onChange(of: selectedFilter) {
-                withAnimation(.easeOut(duration: 0.15)) {
+        } else {
+        // macOS 26 用 Liquid Glass 的自定义控件 API。注意：`.pickerStyle(.segmented)`
+        // 在这里**不会**自动变成 Liquid Glass——系统只对它自己拥有的容器（toolbar /
+        // sidebar / sheet）自动升级，而快捷面板是 borderless panel、没有 toolbar，
+        // 内容区里的原生分段控件拿到的仍是老的扁平样式。
+        if #available(macOS 26.0, *) {
+            // ScrollViewReader + onChange：窄窗口下标签溢出时，无论切换来源
+            // （Tab 键、方向键、鼠标点击、`/` 命令）都让选中标签滚入可见区。
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    GlassEffectContainer(spacing: 6) {
+                        HStack(spacing: 2) {
+                            ForEach(filterItems, id: \.filter) { item in
+                                tabLabel(item.label, filter: item.filter)
+                                    .id(item.filter)
+                            }
+                        }
+                        // 滑块必须在文字**下面**。曾经想学 iOS 26 tab bar「扫过时把底下
+                        // 文字透镜放大」，把它 overlay 到文字上——`.regular` 玻璃会模糊
+                        // 下方内容，结果是标签的字直接被糊没。iOS 那个效果是 UITabBar
+                        // 控件内部实现，`.glassEffect` 这个材质 API 给不了，别再试。
+                        // background 和 overlay 一样不参与布局，滑块鼓大不会撑开这一排。
+                        .background(alignment: .topLeading) { tabSlider }
+                        // 命中测试、滑块定位、手势坐标三者必须同一个原点，
+                        // 所以坐标系挂在 HStack 上（overlay 的 topLeading 也是这里）
+                        .coordinateSpace(name: TAB_STRIP_COORD_SPACE)
+                        .onPreferenceChange(TabFramesPreferenceKey.self) { tabFrames = $0 }
+                        .padding(3)
+                        // 标签之间的 2pt 缝隙、外圈 3pt padding 都要能接住手指，
+                        // 否则横扫过缝隙时滑块会闪断一帧。
+                        .contentShape(Rectangle())
+                        .gesture(tabDragGesture)
+                        // 整排再套一层玻璃做容器：未选中项是 .identity（不渲染玻璃），
+                        // 少了这层整排就只剩文字浮在面板上、跟背景糊成一片。两层玻璃都在
+                        // 同一个 GlassEffectContainer 里，系统会正确处理嵌套与融合。
+                        // 和底栏胶囊、⌘K 卡片统一走 GlassSurface（同一档 .regular），
+                        // 三处浮起元素才是同一种材质。滑块靠 tint 跟容器拉开，不靠降容器档位。
+                        .modifier(GlassSurface(shape: Capsule()))
+                    }
+                    .padding(.horizontal, 18)
+                    // 12 让胶囊悬在搜索行和列表正中间；8 时贴列表太近
+                    .padding(.bottom, 12)
+                    // 放得下时撑到可视宽度并居中；放不下时 minWidth 不起作用，
+                    // 内容保持实际宽度、恢复可滚动。少了这句就永远贴左，右边空一片。
+                    .frame(minWidth: layoutState.width, alignment: .center)
+                }
+                .onChange(of: selectedFilter) {
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        proxy.scrollTo(selectedFilter, anchor: nil)
+                    }
+                }
+                .onAppear {
+                    // 面板重开恢复上次筛选时，选中标签可能已在可视区外，进场先对齐一次
                     proxy.scrollTo(selectedFilter, anchor: nil)
                 }
             }
-            .onAppear {
-                // 面板重开恢复上次筛选时，选中标签可能已在可视区外，进场先对齐一次
-                proxy.scrollTo(selectedFilter, anchor: nil)
+        } else {
+            Picker(L10n.tr("filter.types"), selection: $selectedFilter) {
+                ForEach(filterItems, id: \.filter) { item in
+                    Text(item.label).tag(item.filter)
+                }
             }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, 18)
+            .padding(.bottom, 12)
         }
-    }
-
-    private var availableGroupsForTab: [(name: String, icon: String, count: Int, preservesItems: Bool)] {
-        store.sidebarCounts.byGroup.filter { $0.count > 0 }
+        }
     }
 
     private func badge(_ label: String, isActive: Bool, action: @escaping () -> Void) -> some View {
@@ -949,6 +1111,243 @@ struct QuickPanelView: View {
         .buttonStyle(.plain)
     }
 
+    /// 文字该按选中样式画的那个标签。拖拽中跟着手指底下最近的标签走，平时等于真实筛选。
+    /// 注意它是**离散**的（整格跳），只管字重和颜色；滑块位置是另一套连续量。
+    private var highlightedTab: QuickFilter {
+        if let x = tabDragX, let hit = tabHit(atX: x) { return hit }
+        return selectedFilter
+    }
+
+    /// 单个筛选标签。这里只有文字——选中态那块玻璃是整排共用的一个滑块
+    /// （`tabSlider`），不再挂在标签自己身上：挂在标签上的 `.glassEffect` 只能在
+    /// 标签之间整格跳，做不到横扫时连续跟手。
+    ///
+    /// 字重随选中态变化是原本就有的效果，跨到滑块连续跟手之后才暴露出会带着整排
+    /// 重排，所以下面用隐形副本把宽度钉死。
+    ///
+    /// 也不用 Button：点击和拖拽由整排共用的 `tabDragGesture` 一手包办。Button 自带
+    /// 的手势在 SwiftUI 里优先级高于父级 `.gesture`，留着它会把
+    /// `DragGesture(minimumDistance: 0)` 的 onChanged 吃掉，拖拽永远不触发。
+    @ViewBuilder
+    private func tabLabel(_ label: String, filter: QuickFilter) -> some View {
+        let isActive = highlightedTab == filter
+        ZStack {
+            // 隐形的 .medium 副本负责撑宽度。字重随选中态变化本身会改变文字宽度，
+            // 横扫时每经过一个标签整排就重排一次，滑块跟着抖得很明显——宽度锁死
+            // 在最粗那一档，排版就和选中态解耦了。
+            Text(label)
+                .font(.system(size: 11, weight: .medium))
+                .hidden()
+            Text(label)
+                .font(.system(size: 11, weight: isActive ? .medium : .regular))
+                // 未选中也走 primary，只降一点透明度：secondaryLabelColor 在玻璃上
+                // 太淡、一排标签读起来发灰。选中态靠字重 + 滑块玻璃区分就够了。
+                .foregroundStyle(isActive ? Color.primary : Color.primary.opacity(0.75))
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 5)
+        // Text 的 padding 是透明的，不补这句边上一圈就是死区
+        .contentShape(Rectangle())
+        // 把自己的位置报给整排，滑块定位和拖拽命中都查这张表
+        .background {
+            GeometryReader { geo in
+                Color.clear.preference(
+                    key: TabFramesPreferenceKey.self,
+                    value: [filter: geo.frame(in: .named(TAB_STRIP_COORD_SPACE))]
+                )
+            }
+        }
+        // 去掉 Button 后无障碍身份也跟着没了，手动补回按钮语义
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(isActive ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAction { commitTab(filter, wasOrigin: true) }
+    }
+
+    /// 选中滑块。整排只有这一块玻璃，位置/尺寸完全由状态算出来，
+    /// 所以拖拽时能停在两个标签中间的任意位置，而不是整格跳。
+    @available(macOS 26.0, *)
+    @ViewBuilder
+    private var tabSlider: some View {
+        if let base = tabSliderBaseFrame {
+            let dragging = tabDragX != nil
+            let w = base.width * (dragging ? Self.tabSliderGrowX : 1)
+            let h = base.height * (dragging ? Self.tabSliderGrowY : 1)
+            Color.clear
+                .frame(width: w, height: h)
+                // tint 按外观反向取：容器和滑块同为 .regular，不加 tint 在深色下会被
+                // 渲染成相近亮度、滑块直接消失在容器里。
+                .glassEffect(.regular.tint(sliderTint).interactive(), in: .capsule)
+                // 鼓大时保持中心不动，两边一起往外涨
+                .offset(x: base.midX - w / 2, y: base.midY - h / 2)
+                // 关键：动画只认 snapToken。拖拽中 token 恒定，位置逐帧变化直接落地
+                // ——加任何动画都会让滑块滞后于手指，就不跟手了。按下和松手时 token
+                // 变一次，鼓起/缩回和吸附到目标标签由同一条 spring 一起完成。
+                .animation(.spring(response: 0.3, dampingFraction: 0.78), value: tabSliderSnapToken)
+        }
+    }
+
+    /// 拖拽时滑块自身的膨胀倍率——只是这块玻璃变大，不放大底下的文字
+    /// （那是 UITabBar 的私有能力，见 `tabBar` 里的说明）。纵向这档恰好吃满容器的
+    /// 3pt 内边距，再大就会溢出横向 ScrollView 的内容高度、被裁掉上下两头。
+    private static let tabSliderGrowX: CGFloat = 1.06
+    private static let tabSliderGrowY: CGFloat = 1.20
+
+    /// 滑块动画的触发依据。拖拽中恒为 `(true, nil)`，手指怎么移都不触发动画；
+    /// 按下、松手、键盘切换会让它变一次，那一下才走 spring。
+    private struct TabSliderSnapToken: Equatable {
+        let dragging: Bool
+        let filter: QuickFilter?
+    }
+
+    private var tabSliderSnapToken: TabSliderSnapToken {
+        tabDragX != nil
+            ? TabSliderSnapToken(dragging: true, filter: nil)
+            : TabSliderSnapToken(dragging: false, filter: selectedFilter)
+    }
+
+    /// 这排标签按显示顺序排好的 frame。`tabFrames` 是字典、无序，
+    /// 插值和命中测试都得按屏幕上的左右顺序来。
+    private var orderedTabs: [(filter: QuickFilter, frame: CGRect)] {
+        filterItems.compactMap { item in tabFrames[item.filter].map { (item.filter, $0) } }
+    }
+
+    /// 滑块的目标位置与尺寸（不含拖拽膨胀）。拖拽中在相邻两个标签之间按手指位置
+    /// 连续插值：中心严格跟着手指，宽度在两个标签的宽度之间线性过渡——标签宽度
+    /// 不一（「全部」vs「AI Agent」差一倍），只挪位置不插宽度的话滑块扫到窄标签上
+    /// 会明显盖出去一截。
+    private var tabSliderBaseFrame: CGRect? {
+        let ordered = orderedTabs
+        guard let first = ordered.first, let last = ordered.last else { return nil }
+        guard let x = tabDragX else { return tabFrames[selectedFilter] }
+        guard ordered.count > 1 else { return first.frame }
+        // 钳在首末标签的中心之间：再往外滑块就该整块探出这一排了
+        let clamped = min(max(x, first.frame.midX), last.frame.midX)
+        let i = (0..<(ordered.count - 1)).first {
+            clamped >= ordered[$0].frame.midX && clamped <= ordered[$0 + 1].frame.midX
+        } ?? 0
+        let lo = ordered[i].frame, hi = ordered[i + 1].frame
+        let span = hi.midX - lo.midX
+        let t = span > 0 ? (clamped - lo.midX) / span : 0
+        let w = lo.width + (hi.width - lo.width) * t
+        return CGRect(x: clamped - w / 2, y: lo.minY, width: w, height: lo.height)
+    }
+
+    /// 整排共用的拖拽手势：`minimumDistance: 0` 让它同时承担「点一下」和
+    /// 「按住横扫」。扫的过程只更新滑块位置，松手才把筛选落到 store。
+    @available(macOS 26.0, *)
+    private var tabDragGesture: some Gesture {
+        DragGesture(minimumDistance: 0, coordinateSpace: .named(TAB_STRIP_COORD_SPACE))
+            .onChanged { value in
+                // 纵向拉开够远 = 反悔，滑块弹回真实筛选，继续拖也不再跟随
+                guard isWithinTabStrip(value.location) else {
+                    tabDragX = nil
+                    return
+                }
+                if tabDragOrigin == nil { tabDragOrigin = tabHit(atX: value.location.x) }
+                tabDragX = value.location.x
+            }
+            .onEnded { value in
+                let origin = tabDragOrigin
+                tabDragOrigin = nil
+                guard isWithinTabStrip(value.location),
+                      let hit = tabHit(atX: value.location.x) else {
+                    // 反悔：滑块滑回真实筛选，不改数据
+                    tabDragX = nil
+                    return
+                }
+                commitTab(hit, wasOrigin: origin == hit)
+            }
+    }
+
+    /// 落地一次筛选切换。`wasOrigin` 表示手指按下和抬起都在同一个标签上——
+    /// 只有这种「原地点击」才保留「再点一下选中项 = 取消筛选」的老语义；
+    /// 从别处拖过来落在选中项上是普通选中，不能反手把人清回全部。
+    private func commitTab(_ filter: QuickFilter, wasOrigin: Bool) {
+        let target: QuickFilter = (wasOrigin && selectedFilter == filter) ? .all : filter
+        withAnimation(.snappy(duration: 0.28)) {
+            selectedFilter = target
+            // 必须和 selectedFilter 同一个事务里清掉：分两次写会让滑块先弹回旧位置
+            // 再滑到新位置，横扫到底松手时非常明显。
+            tabDragX = nil
+            isSearchFocused = true
+        }
+    }
+
+    /// 手指是否还在这排标签的纵向范围内（横向越界不算，见 `tabHit`）。
+    private func isWithinTabStrip(_ point: CGPoint) -> Bool {
+        guard let anyFrame = orderedTabs.first?.frame else { return false }
+        return point.y > anyFrame.minY - TAB_DRAG_CANCEL_SLOP
+            && point.y < anyFrame.maxY + TAB_DRAG_CANCEL_SLOP
+    }
+
+    /// 按 x 找标签。横向拖出两端不取消、而是钳到首/末个——一路扫到头是选第一个/
+    /// 最后一个的自然表达，在这儿判越界会让边上两个标签特别难选中。
+    private func tabHit(atX x: CGFloat) -> QuickFilter? {
+        let ordered = orderedTabs
+        guard let first = ordered.first, let last = ordered.last else { return nil }
+        if x <= first.frame.minX { return first.filter }
+        if x >= last.frame.maxX { return last.filter }
+        return ordered.first { x >= $0.frame.minX && x < $0.frame.maxX }?.filter ?? last.filter
+    }
+
+    private var availableGroupsForTab: [(name: String, icon: String, count: Int, preservesItems: Bool)] {
+        store.sidebarCounts.byGroup.filter { $0.count > 0 }
+    }
+
+    /// 选中滑块相对容器的提亮/压暗量。深色外观往白走、浅色外观往黑走——两边都是
+    /// 「离容器更远一档」，所以同一个 .regular 容器上滑块都能显出来。
+    private var sliderTint: Color {
+        colorScheme == .dark ? Color.white.opacity(0.14) : Color.black.opacity(0.07)
+    }
+
+    /// tabBar 的全部分段项，按显示顺序拍平成一个数组。分隔线要判断相邻关系
+    /// （选中项两侧不画线），散成 5 个独立调用点就拿不到「下一项是谁」。
+    private var filterItems: [(filter: QuickFilter, label: String)] {
+        var items: [(filter: QuickFilter, label: String)] = []
+        // 置顶固定第一位，不参与排序；关掉它只是整项消失，不会挪位置
+        if isTabVisible(.pinned) {
+            items.append((.pinned, L10n.tr("filter.pinned")))
+        }
+        // 全部 / 各内容类型：顺序和显隐都来自设置
+        for tab in QuickPanelSettings.resolvedTabItems(from: tabOrderRaw) where isTabVisible(tab) {
+            switch tab {
+            case .pinned: break  // 上面已处理
+            case .all: items.append((.all, tab.label))
+            case .sms:
+                // 没开短信转发的用户一条都没有，标签不该占位
+                if store.sidebarCounts.sms > 0 { items.append((.sms, tab.label)) }
+            case .type(let type):
+                if secondaryRow == .types, availableContentTypes.contains(type) {
+                    items.append((.type(type), type.label))
+                }
+            }
+        }
+        // 分组和 AI 不参与自定义排序：分组随用户建删动态增减，没法预先排。
+        if secondaryRow == .groups {
+            items += availableGroupsForTab.map { (QuickFilter.group($0.name), $0.name) }
+        }
+        if store.sidebarCounts.aiAgent > 0 {
+            items.append((.aiAgent, L10n.tr("filter.aiAgent")))
+        }
+        return items
+    }
+
+    private func isTabVisible(_ tab: QuickPanelTabItem) -> Bool {
+        !QuickPanelSettings.hiddenTabIDs(from: hiddenTabTypesRaw).contains(tab.storageID)
+    }
+
+    /// 标签栏一项都不剩时整排卸掉，别留一条空白占着高度。
+    private var shouldShowTabBar: Bool { !filterItems.isEmpty }
+
+    /// 面板打开时的兜底筛选：默认就是「全部」，只有它被用户关掉了才退到第一个可见标签。
+    ///
+    /// 不能直接取 `filterItems.first`——默认顺序第一个是「置顶」，那样每次打开面板都
+    /// 落在置顶上，等于悄悄换掉了默认视图。
+    private var fallbackTabFilter: QuickFilter {
+        isTabVisible(.all) ? .all : (filterItems.first?.filter ?? .all)
+    }
+
+
     // MARK: - List
 
     /// When the preview pane is hidden (narrow window) the list is the whole
@@ -964,7 +1363,9 @@ struct QuickPanelView: View {
             selectedItemIDs: selectedItemIDs,
             focusedItemID: lastNavigatedID ?? selectedItemIDs.first,
             scrollTargetID: lastNavigatedID,
-            showCommandPalette: showCommandPalette,
+            // 恒 false：palette 已改由 QuickPanelView 的右下角浮层承担，
+            // 让列表/网格继续以为它开着会多触发一轮可见行重建。
+            showCommandPalette: false,
             allowMultipleSelection: true,
             scrollAlignment: .nearest,
             itemRowHeight: isCompactList ? 40 : 48,
@@ -1005,18 +1406,20 @@ struct QuickPanelView: View {
                     .padding(.bottom, 2)
             },
             contextMenu: { item in
-                historyItemContextMenu(item: item)
+                historyItemMenuItems(item: item)
             },
-            commandPaletteContent: { item in
-                CommandPaletteContent(
-                    item: item,
-                    isMultiSelected: isMultiSelected,
-                    manualRules: manualRulesForPalette(item: item),
-                    preservedGroupNames: SmartGroupRetention.preservedGroupNames(in: modelContext),
-                    onAction: { handleCommandAction($0) },
-                    onDismiss: { showCommandPalette = false; isSearchFocused = true }
-                )
-            }
+            // palette 现在由 QuickPanelView 自己画浮层，列表不再挂 popover。
+            // 传 EmptyView 而不是删参数：NativeClipHistoryList 还被主窗口用着，
+            // 那边仍走 popover 路径，接口不动免得波及。
+            commandPaletteContent: { _ in EmptyView() },
+            onFocusedRowFrame: { row, list in
+                // 锚点存在 CommandPalettePanel（引用类型）里，不走 @State：
+                // @State 赋值不会在同一个调用栈里生效，而「上报」和「⌘K 打开」
+                // 两条路径会在同一轮里先后定位，必有一条读到旧坐标并覆盖掉另一条。
+                CommandPalettePanel.shared.updateAnchor(row: row, list: list)
+                if showCommandPalette { syncCommandPalettePanel() }
+            },
+            hidesScrollerTrack: true
         )
         // 过滤条件切换时需要整棵列表重建，避免旧的 NSTableView 选择/滚动状态残留。
         .id(scrollResetToken)
@@ -1033,14 +1436,16 @@ struct QuickPanelView: View {
             // 选中状态本身保留——回车仍能直接粘贴当前选中项。
             selectedItemIDs: isGridFocused ? selectedItemIDs : [],
             focusedItemID: isGridFocused ? (lastNavigatedID ?? selectedItemIDs.first) : nil,
-            showCommandPalette: showCommandPalette,
+            // 恒 false：palette 已改由 QuickPanelView 的右下角浮层承担，
+            // 让列表/网格继续以为它开着会多触发一轮可见行重建。
+            showCommandPalette: false,
             onTap: { id in handleItemClick(id) },
             onCommandPaletteDismiss: {
                 showCommandPalette = false
                 isSearchFocused = true
             },
             onLoadMore: { store.loadMore() },
-            contextMenu: { item in historyItemContextMenu(item: item) },
+            contextMenu: { item in historyItemMenuItems(item: item) },
             commandPalette: { item in
                 CommandPaletteContent(
                     item: item,
@@ -1113,10 +1518,126 @@ struct QuickPanelView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    // MARK: - Command Palette Overlay
+    /// 把 ⌘K 菜单交给独立浮窗显示。放在窗口内做不到「左边缘不压住条目」——窄窗口
+    /// 没有预览区、菜单必然整个落在窗口外，宽窗口下菜单也可能比预览区宽。
+    private func syncCommandPalettePanel() {
+        // Bottom cards keep their anchored popover; only the classic list reports
+        // row frames to the upstream command palette window.
+        guard !isBottomFloating, showCommandPalette,
+              let item = currentItem,
+              let window = QuickPanelWindowController.shared.panelWindow,
+              CommandPalettePanel.shared.anchorRow != .zero else {
+            CommandPalettePanel.shared.hide()
+            return
+        }
+        CommandPalettePanel.shared.show(
+            content: paletteCard(for: item),
+            width: PALETTE_WIDTH,
+            maxHeight: PALETTE_MAX_HEIGHT,
+            parent: window,
+            onDismiss: {
+                showCommandPalette = false
+                isSearchFocused = true
+            }
+        )
+    }
+
+    /// 菜单卡片本体。这里不能加 .shadow：套在玻璃上会让整块卡片退化成实色。投影由
+    /// CommandPalettePanel 在另一个透明子窗口里画（见其类注释）。
+    @ViewBuilder
+    private func paletteCard(for item: ClipItem) -> some View {
+        // ScrollView 已挪进 CommandPaletteContent（要和 selectedIndex 同处一个 view
+        // 才能让键盘焦点带着滚动条走），这里只负责限宽限高。
+        let card = CommandPaletteContent(
+            item: item,
+            isMultiSelected: isMultiSelected,
+            manualRules: manualRulesForPalette(item: item),
+            preservedGroupNames: SmartGroupRetention.preservedGroupNames(in: modelContext),
+            onAction: { handleCommandAction($0) },
+            onDismiss: { showCommandPalette = false; isSearchFocused = true },
+            embedded: true
+        )
+        .frame(width: PALETTE_WIDTH)
+        .frame(maxHeight: PALETTE_MAX_HEIGHT)
+        .fixedSize(horizontal: false, vertical: true)
+
+        // 仍然是官方 glassEffect（不是实色白——那样就丢了玻璃质感），只是加一层
+        // 跟随外观的 tint 把它压向「白」：菜单浮在独立窗口里，背后是桌面/别的 App，
+        // 裸玻璃取到的颜色跟面板内完全不同、看着发灰。tint 用 controlBackgroundColor
+        // 跟底栏胶囊同色系，浅色近白、深色深灰。
+        // 不描边：立体感交给投影，一圈灰边会把边缘压平、反而像贴在背景上。
+        // 直接复用底栏胶囊的 GlassSurface：同一个 modifier，背景色/边框/光晕不可能
+        // 走样。此前手搓的那套（不透明对比层 + 渐变描边模拟高光）是为了压住独立
+        // 窗口背后透上来的深色，但结果就是盖掉真高光再画一圈假的，越描越偏。
+        card.modifier(GlassSurface(shape: RoundedRectangle(cornerRadius: 16)))
+    }
+
     // MARK: - Footer
 
+    /// 底栏图标按钮。macOS 26 用原生 `.buttonStyle(.glass)`——玻璃外形、hover 与
+    /// 按压态全由系统给，不用自己维护。旧系统降级到 plain + 手写 hover 高亮。
+    private struct GlassIconButton: ViewModifier {
+        func body(content: Content) -> some View {
+            if #available(macOS 26.0, *) {
+                content.buttonStyle(.glass)
+            } else {
+                content
+                    .buttonStyle(.plain)
+                    .modifier(HoverHighlight())
+            }
+        }
+    }
+
+    /// macOS 14/15 下图标按钮的 hover 高亮（26 上走 .buttonStyle(.glass)）。
+    /// 刻意只给真正可点的按钮加——footerKey 是纯展示的键位提示，给它加 hover 态
+    /// 会让用户以为能点。
+    private struct HoverHighlight: ViewModifier {
+        @State private var isHovering = false
+
+        func body(content: Content) -> some View {
+            content
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.primary.opacity(isHovering ? 0.09 : 0))
+                )
+                .animation(.easeOut(duration: 0.12), value: isHovering)
+                .onHover { isHovering = $0 }
+        }
+    }
+
+    /// 玻璃表面。macOS 26 用官方 `.glassEffect()`，旧系统降级到 material + 描边。
+    /// 刻意不再手绘「实底 + 阴影」去模拟玻璃——那套只是长得像，系统一升级就漂移，
+    /// 深浅色和外观切换还全得自己维护。
+    private struct GlassSurface<S: Shape>: ViewModifier {
+        let shape: S
+
+        func body(content: Content) -> some View {
+            if #available(macOS 26.0, *) {
+                content.glassEffect(.regular, in: shape)
+            } else {
+                content
+                    .background(.regularMaterial, in: shape)
+                    .overlay(shape.stroke(.separator, lineWidth: 0.5))
+            }
+        }
+    }
+
+    /// 把 footer 里所有玻璃元素装进同一个 `GlassEffectContainer`。官方要求多个玻璃
+    /// 元素共享容器才会正确融合——靠近时 liquid 合并、展开/收起时 morph。之前裸用
+    /// `.glassEffect()` 觉得「立不起来」，缺的就是这一层，不是该退回手绘实底。
+    private struct FooterGlassContainer: ViewModifier {
+        func body(content: Content) -> some View {
+            if #available(macOS 26.0, *) {
+                GlassEffectContainer(spacing: 12) { content }
+            } else {
+                content
+            }
+        }
+    }
+
     private var footerBar: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 8) {
             // Expandable shortcuts panel
             if showAllShortcuts {
                 WrappingHStack(spacing: 12, lineSpacing: 6, alignment: .trailing) {
@@ -1135,10 +1656,14 @@ struct QuickPanelView: View {
                     }
                     footerKey("⌘⌫", L10n.tr("quick.delete"))
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 6)
-                .frame(maxWidth: .infinity)
-                .background(Color.primary.opacity(0.02))
+                // frame 放在玻璃之后：WrappingHStack 本来就会收到 VStack 传下来的
+                // 可用宽度提案、该换行时自然换行，这里再套 maxWidth: .infinity 只会
+                // 强制它通栏，玻璃跟着铺满、和下面贴合内容的主胶囊左右对不齐。
+                // 先让玻璃贴合内容，最后整体推到右边，两块玻璃右边缘才成一组。
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .modifier(GlassSurface(shape: RoundedRectangle(cornerRadius: 18)))
+                .frame(maxWidth: .infinity, alignment: .trailing)
             }
 
             // Main footer bar
@@ -1165,72 +1690,88 @@ struct QuickPanelView: View {
                         .foregroundStyle(.quaternary)
                 }
                 Spacer()
-                HStack(spacing: 12) {
-                    let compact = !layoutState.shouldShowPreview
-                    if isMultiSelected {
-                        footerKey("↵", quickPanelAutoPaste ? (isTargetFinder ? L10n.tr("quick.saveToFolder") : L10n.tr("quick.batchPaste")) : L10n.tr("action.copy"))
-                        if !compact, quickPanelAutoPaste, !isTargetFinder {
-                            footerKey("⇧↵", L10n.tr("quick.pasteNewLine"))
-                        }
-                        if !compact {
-                            footerKey("⌘↵", quickPanelAutoPaste ? L10n.tr("action.pasteAsPlainText") : L10n.tr("cmd.copyAsPlainText"))
-                        }
-                    } else {
-                        if let cur = currentItem {
-                            footerKey("↵", primaryFooterLabel(for: cur))
-                            if !compact, quickPanelAutoPaste {
-                                if !(cur.imageData != nil && canPasteToFinderFolder), !canSaveTextToFolder {
-                                    footerKey("⇧↵", L10n.tr("quick.pasteNewLine"))
+                HStack(spacing: 10) {
+                    // 底栏动作全部收进一颗玻璃胶囊，直接落在面板玻璃上——底栏本身
+                    // 没有背景条和分隔线。
+                    HStack(spacing: 10) {
+                        let compact = !layoutState.shouldShowPreview
+                        if isMultiSelected {
+                            footerKey("↵", quickPanelAutoPaste ? (isTargetFinder ? L10n.tr("quick.saveToFolder") : L10n.tr("quick.batchPaste")) : L10n.tr("action.copy"))
+                            if !compact, quickPanelAutoPaste, !isTargetFinder {
+                                footerKey("⇧↵", L10n.tr("quick.pasteNewLine"))
+                            }
+                            if !compact {
+                                footerKey("⌘↵", quickPanelAutoPaste ? L10n.tr("action.pasteAsPlainText") : L10n.tr("cmd.copyAsPlainText"))
+                            }
+                        } else {
+                            if let cur = currentItem {
+                                footerKey("↵", primaryFooterLabel(for: cur))
+                                if !compact, quickPanelAutoPaste {
+                                    if !(cur.pasteableImageData != nil && canPasteToFinderFolder), !canSaveTextToFolder {
+                                        footerKey("⇧↵", L10n.tr("quick.pasteNewLine"))
+                                    }
+                                }
+                                if !compact, let cmdEnterLabel = cmdEnterFooterLabel(for: cur) {
+                                    footerKey("⌘↵", cmdEnterLabel)
                                 }
                             }
-                            if !compact, let cmdEnterLabel = cmdEnterFooterLabel(for: cur) {
-                                footerKey("⌘↵", cmdEnterLabel)
+                        }
+                        if !compact, let cur = currentItem, cur.isSensitive, !isMultiSelected {
+                            footerKey("⌥", L10n.tr("sensitive.peek"))
+                        }
+                        if !compact {
+                            // 唯一可点的 footerKey：点一下等同按 ⌘K。其余 footerKey
+                            // 仍是纯展示，所以 hover 高亮也只给这一个。
+                            Button {
+                                showCommandPalette.toggle()
+                                if showCommandPalette { isSearchFocused = false }
+                            } label: {
+                                footerKey("⌘K", L10n.tr("cmd.title"))
                             }
+                            .buttonStyle(.plain)
+                            .modifier(HoverHighlight())
+                            .pointerCursor()
                         }
-                    }
-                    if !compact, let cur = currentItem, cur.isSensitive, !isMultiSelected {
-                        footerKey("⌥", L10n.tr("sensitive.peek"))
-                    }
-                    if !compact {
-                        footerKey("⌘K", L10n.tr("cmd.title"))
-                    }
-                    footerKey("esc", L10n.tr("quick.close"))
+                        footerKey("esc", L10n.tr("quick.close"))
 
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            showAllShortcuts.toggle()
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                showAllShortcuts.toggle()
+                            }
+                        } label: {
+                            Image(systemName: showAllShortcuts ? "keyboard.chevron.compact.down" : "keyboard")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
                         }
-                    } label: {
-                        Image(systemName: showAllShortcuts ? "keyboard.chevron.compact.down" : "keyboard")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.tertiary)
-                            .frame(width: 20, height: 20)
-                    }
-                    .buttonStyle(.plain)
-                    .pointerCursor()
+                        .modifier(GlassIconButton())
+                        .pointerCursor()
 
-                    Button {
-                        handleDismiss()
-                        AppAction.shared.openSettings?()
-                    } label: {
-                        Image(systemName: "gearshape")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.tertiary)
-                            .frame(width: 20, height: 20)
+                        Button {
+                            handleDismiss()
+                            AppAction.shared.openSettings?()
+                        } label: {
+                            Image(systemName: "gearshape")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                        }
+                        .modifier(GlassIconButton())
+                        .pointerCursor()
                     }
-                    .buttonStyle(.plain)
-                    .pointerCursor()
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .modifier(GlassSurface(shape: Capsule()))
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(Color.primary.opacity(0.03))
         }
+        // 水平 padding 提到 VStack 上，展开区和主动作条才会左右对齐
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .modifier(FooterGlassContainer())
     }
 
     private func primaryFooterLabel(for item: ClipItem) -> String {
         if quickPanelAutoPaste {
-            if item.imageData != nil, canPasteToFinderFolder {
+            if item.pasteableImageData != nil, canPasteToFinderFolder {
                 return L10n.tr("quick.pasteImage")
             }
             if canSaveTextToFolder {
@@ -1247,10 +1788,6 @@ struct QuickPanelView: View {
     }
 
     private func cmdEnterFooterLabel(for item: ClipItem) -> String? {
-        if item.contentType == .link {
-            return L10n.tr("cmd.openLink")
-        }
-
         if isFileBasedItem(item) {
             return quickPanelAutoPaste ? L10n.tr("quick.pastePath") : L10n.tr("quick.copyPath")
         }
@@ -1259,7 +1796,7 @@ struct QuickPanelView: View {
             return L10n.tr("quick.saveToFolder")
         }
 
-        if [.text, .code, .color, .email, .phone].contains(item.contentType) {
+        if [.text, .code, .color, .email, .phone, .link].contains(item.contentType) {
             return quickPanelAutoPaste ? L10n.tr("action.pasteAsPlainText") : L10n.tr("cmd.copyAsPlainText")
         }
 
@@ -1270,10 +1807,8 @@ struct QuickPanelView: View {
         // 这里只服务 ⌘K 面板里的“次级动作”标签与执行，保持和面板文案一致，
         // 不复用 footer 文案，避免被 quickPanelAutoPaste 的复制/粘贴分支影响。
         switch item.contentType {
-        case .text, .code, .color, .email, .phone, .mixed:
+        case .text, .code, .color, .email, .phone, .mixed, .link:
             return L10n.tr("cmd.pasteAsPlainText")
-        case .link:
-            return L10n.tr("cmd.openLink")
         case .image, .file, .document, .archive, .application, .video, .audio:
             return L10n.tr("cmd.pastePath")
         }
@@ -1281,113 +1816,100 @@ struct QuickPanelView: View {
 
     private func footerKey(_ key: String, _ label: String) -> some View {
         HStack(spacing: 4) {
+            // 和 ⌘K 卡片里的键位标签同一套画法：独立圆角小方块 + 细描边
             Text(key)
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .font(.system(size: 11, weight: .medium, design: .rounded))
                 .foregroundStyle(.secondary)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
+                .padding(.horizontal, 5)
+                .frame(minWidth: 22, minHeight: 22)
+                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.primary.opacity(0.10), lineWidth: 0.5)
+                )
             Text(label)
                 .font(.system(size: 11))
-                .foregroundStyle(.tertiary)
+                // 说明文字是主信息，走 primary；键位标记退到 secondary 做层级
+                // （参考 Raycast 底栏：文字近黑、键帽偏灰）。之前 .tertiary 在玻璃上几乎看不清。
+                .foregroundStyle(.primary)
                 .lineLimit(1)
         }
         .fixedSize(horizontal: true, vertical: false)
     }
 
     @ViewBuilder
-    private func historyItemContextMenu(item: ClipItem) -> some View {
+    /// Right-click menu for a history row (AppKit `NSMenu`, see `NativeMenu.swift`).
+    private func historyItemMenuItems(item: ClipItem) -> [NativeMenuItem] {
         let itemID = item.persistentModelID
+        var menu: [NativeMenuItem] = []
 
         if isMultiSelected, selectedItemIDs.contains(itemID) {
             let items = currentItems
             // 复制置顶，与主窗口右键菜单一致
-            Button(L10n.tr("action.mergeCopy")) {
-                copyItemsToClipboard(items)
-            }
+            menu.append(.item(L10n.tr("action.mergeCopy")) { copyItemsToClipboard(items) })
             let hasPinned = items.contains(where: \.isPinned)
-            Button(hasPinned ? L10n.tr("action.unpin") : L10n.tr("action.pin")) {
-                let newValue = !hasPinned
-                for i in items { i.isPinned = newValue }
-                ClipItemStore.saveAndNotify(modelContext)
-            }
+            menu.append(.item(hasPinned ? L10n.tr("action.unpin") : L10n.tr("action.pin")) {
+                ActionExecutor.applyMetadata([hasPinned ? .unpin : .pin], to: items, context: modelContext)
+            })
             let hasSensitive = items.contains(where: \.isSensitive)
-            Button(hasSensitive ? L10n.tr("sensitive.unmarkSensitive") : L10n.tr("sensitive.markSensitive")) {
-                let newValue = !hasSensitive
-                for i in items { i.isSensitive = newValue }
-                ClipItemStore.saveAndNotify(modelContext)
-            }
-            Divider()
-            quickPanelGroupMenu(items: items)
+            menu.append(.item(hasSensitive ? L10n.tr("sensitive.unmarkSensitive") : L10n.tr("sensitive.markSensitive")) {
+                ActionExecutor.applyMetadata([hasSensitive ? .unmarkSensitive : .markSensitive], to: items, context: modelContext)
+            })
+            menu.append(.separator)
+            menu.append(groupMenuItem(items: items))
             if items.contains(where: { $0.groupName != nil }) {
-                Button(L10n.tr("action.removeFromGroup")) {
-                    removeFromGroup(items: items)
-                }
+                menu.append(.item(L10n.tr("action.removeFromGroup")) { removeFromGroup(items: items) })
             }
-            Divider()
-            Button(L10n.tr("relay.addToQueue")) {
-                RelayManager.shared.addToQueue(clipItems: items)
-            }
-            Divider()
-            Button(L10n.tr("action.delete"), role: .destructive) {
-                handleDeleteSelected()
-            }
-        } else {
-            // 复制置顶，与主窗口右键菜单一致
-            Button(L10n.tr("action.mergeCopy")) {
-                copyItemsToClipboard([item])
-                selectItem(itemID)
-            }
-            Button(item.isPinned ? L10n.tr("action.unpin") : L10n.tr("action.pin")) {
-                item.isPinned.toggle()
-                ClipItemStore.saveAndNotify(modelContext)
-                selectItem(itemID)
-            }
-            Button(item.isSensitive ? L10n.tr("sensitive.unmarkSensitive") : L10n.tr("sensitive.markSensitive")) {
-                item.isSensitive.toggle()
-                ClipItemStore.saveAndNotify(modelContext)
-                selectItem(itemID)
-            }
-            if ProManager.AUTOMATION_ENABLED {
-                let manualRules = fetchEnabledRules()
-                    .filter { $0.triggerMode == .manual && $0.matches(item: item) }
-                if !manualRules.isEmpty {
-                    Divider()
-                    Menu(L10n.tr("cmd.automation")) {
-                        ForEach(manualRules) { rule in
-                            Button(rule.isBuiltIn ? L10n.tr(rule.name) : rule.name) {
-                                applyRule(rule, to: item)
-                            }
-                        }
+            menu.append(.separator)
+            menu.append(.item(L10n.tr("relay.addToQueue")) { RelayManager.shared.addToQueue(clipItems: items) })
+            menu.append(.separator)
+            menu.append(.item(L10n.tr("action.delete"), destructive: true) { handleDeleteSelected() })
+            return menu
+        }
+
+        // 复制置顶，与主窗口右键菜单一致
+        menu.append(.item(L10n.tr("action.mergeCopy")) {
+            copyItemsToClipboard([item])
+            selectItem(itemID)
+        })
+        menu.append(.item(item.isPinned ? L10n.tr("action.unpin") : L10n.tr("action.pin")) {
+            ActionExecutor.applyMetadata([item.isPinned ? .unpin : .pin], to: [item], context: modelContext)
+            selectItem(itemID)
+        })
+        menu.append(.item(item.isSensitive ? L10n.tr("sensitive.unmarkSensitive") : L10n.tr("sensitive.markSensitive")) {
+            ActionExecutor.applyMetadata([item.isSensitive ? .unmarkSensitive : .markSensitive], to: [item], context: modelContext)
+            selectItem(itemID)
+        })
+        if ProManager.AUTOMATION_ENABLED {
+            let manualRules = fetchEnabledRules()
+                .filter { $0.triggerMode == .manual && $0.matches(item: item) }
+            if !manualRules.isEmpty {
+                menu.append(.separator)
+                menu.append(.submenu(L10n.tr("cmd.automation"), manualRules.map { rule in
+                    .item(rule.isBuiltIn ? L10n.tr(rule.name) : rule.name) {
+                        ActionExecutor.apply(rule, to: [item], host: QuickPanelWindowController.shared, context: modelContext)
                     }
-                }
-            }
-            Divider()
-            quickPanelGroupMenu(items: [item])
-            if item.groupName != nil {
-                Button(L10n.tr("action.removeFromGroup")) {
-                    removeFromGroup(items: [item])
-                    selectItem(itemID)
-                }
-            }
-            Divider()
-            if !item.content.isEmpty || item.imageData != nil {
-                Button(L10n.tr("relay.addToQueue")) {
-                    RelayManager.shared.addToQueue(clipItems: [item])
-                }
-                Button(L10n.tr("relay.splitAndRelay")) {
-                    relaySplitText = item.content
-                }
-            }
-            Divider()
-            Button(L10n.tr("action.copyDebugInfo")) {
-                copyDebugInfo(for: item)
-            }
-            Divider()
-            Button(L10n.tr("action.delete"), role: .destructive) {
-                deleteItem(item)
+                }))
             }
         }
+        menu.append(.separator)
+        menu.append(groupMenuItem(items: [item]))
+        if item.groupName != nil {
+            menu.append(.item(L10n.tr("action.removeFromGroup")) {
+                removeFromGroup(items: [item])
+                selectItem(itemID)
+            })
+        }
+        menu.append(.separator)
+        if !item.content.isEmpty || item.imageData != nil {
+            menu.append(.item(L10n.tr("relay.addToQueue")) { RelayManager.shared.addToQueue(clipItems: [item]) })
+            menu.append(.item(L10n.tr("relay.splitAndRelay")) { relaySplitText = item.content })
+        }
+        menu.append(.separator)
+        menu.append(.item(L10n.tr("action.copyDebugInfo")) { copyDebugInfo(for: item) })
+        menu.append(.separator)
+        menu.append(.item(L10n.tr("action.delete"), destructive: true) { deleteItem(item) })
+        return menu
     }
 
     // MARK: - Actions
@@ -1481,8 +2003,19 @@ struct QuickPanelView: View {
                     isSearchFocused = true
                     return nil
                 case 35 where !hasControl:
+                    // 和面板里那行保持一致：有链接可开时 `P` 是「打开链接」，
+                    // 判定同样来自 TextEntityExtractor.openableLink
+                    if let item = currentItem,
+                       let link = TextEntityExtractor.openableLink(for: item) {
+                        handleCommandAction(.openLink(
+                            url: link.url, display: link.display, primary: true
+                        ))
+                        return nil
+                    }
                     if let item = currentItem, item.contentType != .color {
-                        handleCommandAction(.cmdEnter(label: cmdEnterPaletteLabel(for: item)))
+                        handleCommandAction(.cmdEnter(
+                            label: cmdEnterPaletteLabel(for: item), hasKey: true
+                        ))
                         return nil
                     }
                     return event
@@ -1770,7 +2303,13 @@ struct QuickPanelView: View {
         22: 6, 26: 7, 28: 8, 25: 9,
     ]
 
-    private var availableContentTypes: [ClipContentType] { store.availableTypes }
+    /// 标签栏里实际显示的类型：在「有内容 + 有权限」的基础上，再去掉用户在设置里
+    /// 隐藏的。用 @AppStorage 读是为了配置一改标签栏立刻重算，不用另铺通知。
+    private var availableContentTypes: [ClipContentType] {
+        guard !hiddenTabTypesRaw.isEmpty else { return store.availableTypes }
+        let hidden = Set(hiddenTabTypesRaw.split(separator: ",").map(String.init))
+        return store.availableTypes.filter { !hidden.contains($0.rawValue) }
+    }
 
     private func switchType(_ delta: Int) {
         if secondaryRow == .types {
@@ -1780,32 +2319,19 @@ struct QuickPanelView: View {
         }
     }
 
-    private func switchTypeFilter(_ delta: Int) {
-        let types = availableContentTypes
-        var allFilters: [QuickFilter] = [.pinned, .all]
-        allFilters.append(contentsOf: types.map { .type($0) })
-        if store.sidebarCounts.aiAgent > 0 { allFilters.append(.aiAgent) }
+    /// ⌃Tab 切换筛选。两个模式都直接跟着 `filterItems` 走——它就是标签栏画出来的
+    /// 顺序（含用户自定义排序和隐藏），另拼一份迟早和视觉对不上。
+    private func switchTypeFilter(_ delta: Int) { cycleTabFilter(delta) }
 
-        if let idx = allFilters.firstIndex(of: selectedFilter) {
-            let newIdx = (idx + delta + allFilters.count) % allFilters.count
-            selectedFilter = allFilters[newIdx]
-        } else {
-            selectedFilter = delta > 0 ? allFilters.first! : allFilters.last!
-        }
-    }
+    private func switchGroupFilter(_ delta: Int) { cycleTabFilter(delta) }
 
-    private func switchGroupFilter(_ delta: Int) {
-        let groups = availableGroupsForTab
-        // tabBar 顺序：[.pinned, .all, .group(g1), .group(g2), ..., .aiAgent?]
-        var all: [QuickFilter] = [.pinned, .all]
-        all.append(contentsOf: groups.map { .group($0.name) })
-        if store.sidebarCounts.aiAgent > 0 { all.append(.aiAgent) }
-
+    private func cycleTabFilter(_ delta: Int) {
+        let all = filterItems.map(\.filter)
+        guard !all.isEmpty else { return }
         if let idx = all.firstIndex(of: selectedFilter) {
-            let newIdx = (idx + delta + all.count) % all.count
-            selectedFilter = all[newIdx]
+            selectedFilter = all[(idx + delta + all.count) % all.count]
         } else {
-            selectedFilter = delta > 0 ? all.first! : all.last!
+            selectedFilter = delta > 0 ? all[0] : all[all.count - 1]
         }
     }
 
@@ -1847,6 +2373,15 @@ struct QuickPanelView: View {
         case .copy:
             let items = isMultiSelected ? currentItems : (currentItem.map { [$0] } ?? [])
             if !items.isEmpty { copyItemsFullFidelity(items, dismissAfterCopy: true, playSound: true) }
+        case .openLink(let url, _, _):
+            if let target = URL.fromLinkString(url) {
+                QuickPanelWindowController.shared.dismiss()
+                NSWorkspace.shared.open(target)
+            }
+        case .pasteEntityCode(let code):
+            if let item = currentItem {
+                pasteExtractedString(code, from: item)
+            }
         case .retryOCR:
             if let item = currentItem, item.contentType == .image, item.imageData != nil {
                 OCRTaskCoordinator.shared.retry(itemID: item.itemID)
@@ -1857,7 +2392,7 @@ struct QuickPanelView: View {
             }
         case .openInPreview:
             if let item = currentItem {
-                QuickLookHelper.shared.openInPreviewApp(item: item)
+                QuickLookHelper.shared.present(item: item)
             }
         case .addToRelay:
             let items = isMultiSelected ? currentItems : (currentItem.map { [$0] } ?? [])
@@ -1867,23 +2402,14 @@ struct QuickPanelView: View {
                 relaySplitText = item.content
             }
         case .pin:
-            if isMultiSelected {
-                let items = currentItems
-                let shouldPin = !items.contains(where: \.isPinned)
-                for i in items { i.isPinned = shouldPin }
-            } else {
-                currentItem?.isPinned.toggle()
-            }
-            ClipItemStore.saveAndNotify(modelContext)
+            // Toggle lives here in the row; the action itself is a plain set/unset.
+            let items = isMultiSelected ? currentItems : (currentItem.map { [$0] } ?? [])
+            let shouldPin = !items.contains(where: \.isPinned)
+            ActionExecutor.applyMetadata([shouldPin ? .pin : .unpin], to: items, context: modelContext)
         case .toggleSensitive:
-            if isMultiSelected {
-                let items = currentItems
-                let hasSensitive = items.contains(where: \.isSensitive)
-                for i in items { i.isSensitive = !hasSensitive }
-            } else {
-                currentItem?.isSensitive.toggle()
-            }
-            ClipItemStore.saveAndNotify(modelContext)
+            let items = isMultiSelected ? currentItems : (currentItem.map { [$0] } ?? [])
+            let shouldMark = !items.contains(where: \.isSensitive)
+            ActionExecutor.applyMetadata([shouldMark ? .markSensitive : .unmarkSensitive], to: items, context: modelContext)
         case .copyColorFormat(let format, _):
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
@@ -1899,29 +2425,19 @@ struct QuickPanelView: View {
                     ?? item.content.components(separatedBy: "\n").first { !$0.isEmpty }
                         .map { ($0 as NSString).expandingTildeInPath }
                 if let path {
-                    NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: URL(fileURLWithPath: path).deletingLastPathComponent().path)
+                    dismissAndRevealInFinder(path)
                 }
-            }
-        case .transform(let ruleAction):
-            if let item = currentItem {
-                let processed = AutomationEngine.shared.applyAction(ruleAction, to: item.content)
-                item.content = processed
-                item.displayTitle = ClipItem.buildTitle(content: processed, contentType: item.contentType)
-                if ruleAction == .stripRichText {
-                    item.richTextData = nil
-                    item.richTextType = nil
-                }
-                ClipItemStore.saveAndNotify(modelContext)
             }
         case .delete:
             handleDeleteSelected()
         case .runRule(let ruleID, _):
-            guard let item = currentItem else { return }
+            let items = isMultiSelected ? currentItems : (currentItem.map { [$0] } ?? [])
+            guard !items.isEmpty else { return }
             let descriptor = FetchDescriptor<AutomationRule>(
                 predicate: #Predicate { $0.ruleID == ruleID }
             )
             if let rule = try? modelContext.fetch(descriptor).first {
-                applyRule(rule, to: item)
+                ActionExecutor.apply(rule, to: items, host: QuickPanelWindowController.shared, context: modelContext)
             }
         }
     }
@@ -1973,29 +2489,17 @@ struct QuickPanelView: View {
     }
 
     @ViewBuilder
-    private func quickPanelGroupMenu(items: [ClipItem]) -> some View {
+    private func groupMenuItem(items: [ClipItem]) -> NativeMenuItem {
         let groupNames = Set(items.compactMap(\.groupName))
         let currentGroup = groupNames.count == 1 ? groupNames.first : nil
-        Menu(L10n.tr("action.assignGroup")) {
-            ForEach(store.sidebarCounts.byGroup, id: \.name) { group in
-                if group.name == currentGroup {
-                    Button {} label: {
-                        Label(group.name, systemImage: "checkmark")
-                    }
-                    .disabled(true)
-                } else {
-                    Button(group.name) {
-                        assignToGroup(items: items, name: group.name)
-                    }
-                }
-            }
-            if !store.sidebarCounts.byGroup.isEmpty {
-                Divider()
-            }
-            Button(L10n.tr("action.newGroup")) {
-                showNewGroupAlert(for: items)
+        var children: [NativeMenuItem] = store.sidebarCounts.byGroup.map { group in
+            .item(group.name, checked: group.name == currentGroup, enabled: group.name != currentGroup) {
+                assignToGroup(items: items, name: group.name)
             }
         }
+        if !children.isEmpty { children.append(.separator) }
+        children.append(.item(L10n.tr("action.newGroup")) { showNewGroupAlert(for: items) })
+        return .submenu(L10n.tr("action.assignGroup"), children)
     }
 
     private func isFileBasedItem(_ item: ClipItem) -> Bool {
@@ -2007,13 +2511,16 @@ struct QuickPanelView: View {
     }
 
     private var canPasteToFinderFolder: Bool {
-        guard let item = currentItem, item.imageData != nil else { return false }
-        return clipboardManager.isFinderApp(QuickPanelWindowController.shared.previousApp)
+        // `pasteableImageData`, not `imageData`: a video's stored poster frame must not
+        // turn "paste into this Finder window" into "drop a JPEG here".
+        guard let item = currentItem, item.pasteableImageData != nil else { return false }
+        return isTargetFinder
     }
 
     private func handleMultiPaste(asPlainText: Bool, forceNewLine: Bool = false, respectAutoPaste: Bool = true) {
         let items = currentItems
         guard !items.isEmpty else { return }
+        QuickPanelWindowController.shared.refreshTargetFocusIfPinned()
 
         if respectAutoPaste && !quickPanelAutoPaste {
             guard !forceNewLine else { return }
@@ -2068,11 +2575,10 @@ struct QuickPanelView: View {
         let textItems = items.filter { !isFileBasedItem($0) && $0.content != "[Image]" }
         let imageItems = items.filter { isPureImage($0) }
 
-        guard let folder = clipboardManager.getFinderSelectedFolder() else {
+        guard let folder = finderSelectedFolder(fallback: {
             // Fallback: paste as files if possible
             dismissAndRestoreApp { app in clipboardManager.pasteMultiple(items, targetApp: app) }
-            return
-        }
+        }) else { return }
 
         // Save pure images to folder — write the verbatim original, never the thumbnail.
         for img in imageItems {
@@ -2251,89 +2757,12 @@ struct QuickPanelView: View {
         assignToGroup(items: items, name: result.name)
     }
 
-    private func applyTransform(_ action: RuleAction, to item: ClipItem) {
-        let processed = AutomationEngine.shared.applyAction(action, to: item.content)
-        let contentChanged = processed != item.content
-        item.content = processed
-        item.displayTitle = ClipItem.buildTitle(content: processed, contentType: item.contentType)
-        // Clear rich text whenever content changed (or user explicitly asked).
-        if contentChanged || action == .stripRichText {
-            item.richTextData = nil
-            item.richTextType = nil
-        }
-        ClipItemStore.saveAndNotify(modelContext)
-    }
-
     private func fetchEnabledRules() -> [AutomationRule] {
         let descriptor = FetchDescriptor<AutomationRule>(
             predicate: #Predicate { $0.enabled },
             sortBy: [SortDescriptor(\.sortOrder)]
         )
         return (try? modelContext.fetch(descriptor)) ?? []
-    }
-
-    private func applyRule(_ rule: AutomationRule, to item: ClipItem) {
-        let actions = rule.actions
-        guard !actions.isEmpty else { return }
-
-        // If the rule contains runShortcut, take the async path: transform
-        // through text actions first, then invoke the shortcut, and write the
-        // shortcut's output to NSPasteboard so it shows up as a new clip.
-        if actions.contains(where: { if case .runShortcut = $0 { return true }; return false }) {
-            Task { @MainActor in
-                await runRuleViaShortcut(rule, on: item)
-            }
-            return
-        }
-
-        let processed = AutomationEngine.executeActions(actions, on: item.content)
-        let contentChanged = processed != item.content
-        // Include metadata actions (move to group / pin / mark sensitive): a rule that
-        // only moves the clip to a group leaves the text unchanged, so guarding on
-        // contentChanged alone made such rules silently no-op here. (issue #71)
-        guard contentChanged || AutomationEngine.containsSpecialAction(actions) else { return }
-        item.content = processed
-        item.displayTitle = ClipItem.buildTitle(content: processed, contentType: item.contentType)
-        // Clear rich text if content changed — otherwise stale rich formatting
-        // shows through in the preview pane even though content has been updated.
-        if contentChanged || actions.contains(.stripRichText) {
-            item.richTextData = nil
-            item.richTextType = nil
-        }
-        // markSensitive / pin / move-to-group — shared with the capture & main-window paths.
-        ClipboardManager.shared.applyMetadataActions(actions, to: item, context: modelContext)
-        ClipItemStore.saveAndNotify(modelContext)
-    }
-
-    @MainActor
-    private func runRuleViaShortcut(_ rule: AutomationRule, on item: ClipItem) async {
-        // PasteMemo pipes the clip in and triggers the Shortcut. The Shortcut
-        // itself handles output (Copy to Clipboard, Post webhook, Show
-        // Notification, etc). We never mutate NSPasteboard here.
-        var currentContent = item.content
-        // Verbatim original (not the thumbnail) — the Shortcut may save/process the image.
-        let currentImageData = item.imageBytesForExport()
-        let currentContentType = item.contentType
-
-        for action in rule.actions {
-            if case .runShortcut(let name) = action {
-                do {
-                    _ = try await ShortcutRunner.run(
-                        name: name,
-                        content: currentContent,
-                        imageData: currentImageData,
-                        contentType: currentContentType
-                    )
-                } catch {
-                    ShortcutNotifier.showFailure(ruleName: name, error: error)
-                    return
-                }
-            } else {
-                currentContent = action.execute(on: currentContent)
-            }
-        }
-        let displayName = rule.isBuiltIn ? L10n.tr(rule.name) : rule.name
-        ShortcutNotifier.showSuccess(ruleName: displayName)
     }
 
     private func deleteItems(_ itemsToDelete: [ClipItem]) {
@@ -2395,11 +2824,27 @@ struct QuickPanelView: View {
             handleDismiss()
         } else if let path = item.revealableFinderPath {
             // File / path clips: ⌘O jumps to the item in Finder instead of Quick Look.
-            handleDismiss()
-            NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: URL(fileURLWithPath: path).deletingLastPathComponent().path)
+            dismissAndRevealInFinder(path)
         } else {
             QuickLookHelper.shared.toggle(item: item)
         }
+    }
+
+    /// 「在 Finder 中显示」的统一出口（⌘O 底栏 / ⌘K 面板共用）：先收面板再让 Finder 选中文件。
+    /// 面板不收的话，它作为浮动 key 窗口一直压在 Finder 窗口上面，Finder 虽已显示文件却
+    /// 像「没到前台」；收面板走 force 路径会把焦点交还 previousApp，再由 Finder 自己抢前台。
+    private func dismissAndRevealInFinder(_ path: String) {
+        // ⌘K 面板对文件类条目一律列出该动作，路径可能已失效（文件删了 / 移走了）。
+        // 先收面板再发现 Finder 打不开，用户看到的是「面板没了、什么都没发生」——
+        // 所以先验存在性，失效就留在面板里提示，顺手把命令浮层收掉。
+        guard FileManager.default.fileExists(atPath: path) else {
+            showCommandPalette = false
+            isSearchFocused = true
+            ToastCenter.shared.show(ToastDescriptor(message: L10n.tr("file.unavailable.missing"), icon: .info))
+            return
+        }
+        handleDismiss()
+        NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: URL(fileURLWithPath: path).deletingLastPathComponent().path)
     }
 
     private func handleDismiss() {
@@ -2408,13 +2853,41 @@ struct QuickPanelView: View {
         ImageCache.shared.reclaimFreedMemory()
     }
 
+    /// 「把内容存成文件放进 Finder 当前文件夹」这组动作的总开关。
+    ///
+    /// 目标是 Finder **且**它的键盘焦点不在文本输入控件上时才成立：焦点在搜索框 /
+    /// 重命名框里时，用户要的是把内容粘进那个框（走正常 ⌘V），而不是在文件夹里
+    /// 凭空生成一个文件——只判断「目标 App 是不是 Finder」会让 Finder 搜索框粘贴
+    /// 完全失效（默默建了个 .txt，搜索框里什么都没有）。
     private var isTargetFinder: Bool {
         clipboardManager.isFinderApp(QuickPanelWindowController.shared.previousApp)
+            && !QuickPanelWindowController.shared.previousFocusIsTextInput
+    }
+
+    /// 访达当前文件夹。访达没响应时提示并返回 nil（面板留着，用户可以再按一次）；
+    /// 其他拿不到的情况（拒绝了控制访达等）交给 `fallback`。
+    private func finderSelectedFolder(fallback: () -> Void = {}) -> URL? {
+        let lookup = clipboardManager.getFinderSelectedFolder(beforeConsentPrompt: {
+            // 面板在 .statusBar 层级，会盖住系统授权框；置顶也收，焦点交还访达。
+            QuickPanelWindowController.shared.dismiss(force: true)
+        })
+        switch lookup {
+        case .folder(let url):
+            return url
+        case .consentNotGranted:
+            return nil
+        case .notResponding:
+            ToastCenter.shared.show(ToastDescriptor(message: L10n.tr("finder.notResponding"), icon: .info))
+            return nil
+        case .unavailable:
+            fallback()
+            return nil
+        }
     }
 
     private var canSaveAttachmentToFolder: Bool {
         guard let item = currentItem,
-              item.imageData != nil,
+              item.pasteableImageData != nil,
               item.contentType != .image else { return false }
         return isTargetFinder
     }
@@ -2434,14 +2907,12 @@ struct QuickPanelView: View {
 
     private func handleCmdEnter(respectAutoPaste: Bool = true) {
         guard let item = currentItem else { return }
-        // Link → open in browser
-        if item.contentType == .link,
-           let url = item.resolvedURL {
-            QuickPanelWindowController.shared.dismiss()
-            NSWorkspace.shared.open(url)
-        }
+        QuickPanelWindowController.shared.refreshTargetFocusIfPinned()
+        // ⌘↩ 在所有条目上是同一件事：纯文本粘贴（文件类是粘贴路径），任何条目都不
+        // 开链接——链接条目整条就是 URL，粘纯文本和富文本去格式是同一个语义。开链接
+        // 是 ⌘K 里 `P` 那行和 ⌘O 的事。
         // File-based (including file images) → paste path
-        else if isFileBasedItem(item) {
+        if isFileBasedItem(item) {
             if !respectAutoPaste || quickPanelAutoPaste {
                 handlePastePath()
             } else {
@@ -2453,7 +2924,7 @@ struct QuickPanelView: View {
             handlePasteTextToFolder()
         }
         // Text-like types → paste as plain text
-        else if [.text, .code, .color, .email, .phone, .mixed].contains(item.contentType) {
+        else if [.text, .code, .color, .email, .phone, .mixed, .link].contains(item.contentType) {
             if !respectAutoPaste || quickPanelAutoPaste {
                 handlePlainTextPaste(item)
             } else {
@@ -2502,36 +2973,59 @@ struct QuickPanelView: View {
     /// immediately, then recognize on demand while the target app refocuses
     /// concurrently, and paste.
     private func pasteOCRText(for item: ClipItem) {
-        let appToRestore = QuickPanelWindowController.shared.previousApp
-        markItemUsed(item)
-
         if let cached = item.ocrText, !cached.isEmpty {
-            writeStringToPasteboard(cached)
-            SoundManager.playPaste()
-            QuickPanelWindowController.shared.dismiss()
-            if let app = appToRestore {
-                app.activate()
-                clipboardManager.simulatePaste(targetApp: app)
-            } else {
-                ToastCenter.shared.show(ToastDescriptor(message: L10n.tr("action.copied"), icon: .success))
-            }
+            pasteExtractedString(cached, from: item)
             return
         }
 
+        let appToRestore = QuickPanelWindowController.shared.previousApp
+        markItemUsed(item)
         let id = item.itemID
         QuickPanelWindowController.shared.dismiss()
         appToRestore?.activate()   // refocus overlaps the on-demand OCR below
         Task { @MainActor in
-            guard let text = await OCRTaskCoordinator.shared.recognizeOnDemand(itemID: id), !text.isEmpty else {
+            let startedAt = Date()
+            guard let text = await OCRTaskCoordinator.shared.recognizeOnDemandWithProgress(itemID: id),
+                  !text.isEmpty else {
                 ToastCenter.shared.show(ToastDescriptor(message: L10n.tr("detail.ocr.empty"), icon: .info))
                 return
             }
-            guard appToRestore != nil else {
+            // 慢到用户已经切走时不能再盲目粘贴，判定规则见 `onDemandPasteRoute`。
+            let route = OCRTaskCoordinator.onDemandPasteRoute(
+                elapsed: Date().timeIntervalSince(startedAt),
+                grace: Self.ocrPasteGracePeriod,
+                hasTarget: appToRestore != nil,
+                targetIsFrontmost: appToRestore.map {
+                    NSWorkspace.shared.frontmostApplication?.processIdentifier == $0.processIdentifier
+                } ?? false
+            )
+            guard route == .paste, let app = appToRestore else {
                 writeStringToPasteboard(text)
                 ToastCenter.shared.show(ToastDescriptor(message: L10n.tr("action.copied"), icon: .success))
                 return
             }
-            clipboardManager.pasteAsPlainText(text, targetApp: appToRestore)
+            clipboardManager.pasteAsPlainText(text, targetApp: app)
+        }
+    }
+
+    /// 现场 OCR 快到这个时限内完成时，直接粘进当初记下的目标 App——用户不可能在这点
+    /// 时间里切走，也不必让 `frontmostApplication` 的异步更新有机会误判成「切走了」。
+    private static let ocrPasteGracePeriod: TimeInterval = 1.0
+
+    /// 粘贴一段「来自这个条目、但不是条目全文」的文本：OCR 识别结果、内容里认出来的
+    /// 提取码。时序和普通回车粘贴（`dismissAndPaste`）一致——收面板、激活目标 App、
+    /// ⌘V 在同一拍里走完；没有目标 App（在主窗口里操作）就只写剪贴板。
+    private func pasteExtractedString(_ text: String, from item: ClipItem) {
+        let appToRestore = QuickPanelWindowController.shared.previousApp
+        markItemUsed(item)
+        writeStringToPasteboard(text)
+        SoundManager.playPaste()
+        QuickPanelWindowController.shared.dismiss()
+        if let app = appToRestore {
+            app.activate()
+            clipboardManager.simulatePaste(targetApp: app)
+        } else {
+            ToastCenter.shared.show(ToastDescriptor(message: L10n.tr("action.copied"), icon: .success))
         }
     }
 
@@ -2546,7 +3040,7 @@ struct QuickPanelView: View {
     private func handlePasteTextToFolder() {
         guard let item = currentItem else { return }
 
-        guard let folder = clipboardManager.getFinderSelectedFolder() else { return }
+        guard let folder = finderSelectedFolder() else { return }
 
         let ext = item.resolvedFileExtension
         guard let savedURL = clipboardManager.saveTextToFolder(item.content, folder: folder, fileExtension: ext) else { return }
@@ -2570,7 +3064,7 @@ struct QuickPanelView: View {
 
     private func handlePasteLinkToFolder() {
         guard let item = currentItem, item.contentType == .link else { return }
-        guard let folder = clipboardManager.getFinderSelectedFolder() else { return }
+        guard let folder = finderSelectedFolder() else { return }
 
         let content = item.content.trimmingCharacters(in: .whitespacesAndNewlines)
         let linkTitle = item.linkTitle
@@ -2722,6 +3216,7 @@ struct QuickPanelView: View {
 
     private func handlePaste(forceNewLine: Bool = false, respectAutoPaste: Bool = true) {
         guard let item = currentItem else { return }
+        QuickPanelWindowController.shared.refreshTargetFocusIfPinned()
         if respectAutoPaste && !quickPanelAutoPaste {
             guard !forceNewLine else { return }
             // ⌘C / Enter-to-copy must put full-fidelity content on the clipboard
@@ -2747,7 +3242,7 @@ struct QuickPanelView: View {
     }
 
     private func handlePasteImageToFolder() {
-        guard let item = currentItem, item.imageData != nil else {
+        guard let item = currentItem, item.pasteableImageData != nil else {
             // No image at all, fallback to normal paste
             if let item = currentItem {
                 QuickPanelWindowController.shared.dismissAndPaste(item, clipboardManager: clipboardManager)
@@ -2755,11 +3250,8 @@ struct QuickPanelView: View {
             return
         }
 
-        guard let folder = clipboardManager.getFinderSelectedFolder() else {
-            // Can't get folder, fallback to paste image
-            handlePasteImage()
-            return
-        }
+        // Can't get folder, fallback to paste image
+        guard let folder = finderSelectedFolder(fallback: handlePasteImage) else { return }
 
         // Genuine file-backed clip (Finder copy) → copy the user's original file directly,
         // preserving its exact bytes / format / metadata and its filename.
@@ -2874,11 +3366,9 @@ extension QuickPanelView {
                                 selectItem(itemID)
                             }
                         }
+                        .nativeContextMenuMonitor { historyItemMenuItems(item: item) }
                         .onAppear {
                             if item.id == displayOrderItems.last?.id { store.loadMore() }
-                        }
-                        .contextMenu {
-                            historyItemContextMenu(item: item)
                         }
                     }
                 }

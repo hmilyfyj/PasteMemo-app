@@ -61,6 +61,7 @@
 "filter.favorites" = "收藏";
 "filter.pinned" = "置頂";
 "filter.aiAgent" = "AI Agent";
+"filter.sms" = "簡訊";
 
 /* Time */
 "time.now" = "剛剛";
@@ -79,6 +80,8 @@
 
 /* Settings */
 "settings.general" = "一般";
+"settings.nav.back" = "返回";
+"settings.nav.forward" = "前進";
 "settings.update" = "更新";
 "settings.about" = "關於";
 "settings.appearance" = "外觀";
@@ -112,6 +115,9 @@
 "settings.currentVersion" = "目前版本";
 "settings.features" = "功能";
 "settings.shortcuts" = "快捷鍵";
+"settings.shortcuts.section.quickPanel" = "快捷面板";
+"settings.shortcuts.section.manager" = "管理器視窗";
+"settings.shortcuts.section.relay" = "接力";
 "settings.quickPanelShortcut" = "開啟快捷面板";
 "settings.managerShortcut" = "開啟管理器";
 "settings.managerShortcut.global" = "全域";
@@ -128,6 +134,9 @@
 "settings.quickPanelSecondaryRow" = "快捷面板搜尋框下方顯示";
 "settings.quickPanelSecondaryRow.types" = "類型";
 "settings.quickPanelSecondaryRow.groups" = "分組";
+"settings.quickPanelTabTypes" = "標籤列顯示的分類";
+"settings.quickPanelTabTypes.hint" = "拖曳調整順序，置頂和全部也能排。取消勾選可在快捷面板隱藏該分類，主視窗側邊欄不受影響。";
+"settings.quickPanelTabTypes.reset" = "恢復預設";
 "settings.history" = "歷史記錄";
 "settings.retentionDays" = "保留時長";
 "settings.retentionDays.forever" = "永久";
@@ -202,6 +211,10 @@
 "detail.size" = "大小";
 "detail.format" = "格式";
 "detail.fileCount" = "檔案數";
+"detail.fileStatus" = "狀態";
+"file.unavailable.missing" = "檔案已不存在";
+"finder.notResponding" = "Finder 沒有回應";
+"file.unavailable.denied" = "無存取權限";
 "detail.host" = "網域";
 "detail.url" = "連結";
 "detail.aiPreview" = "AI 友善預覽";
@@ -258,7 +271,7 @@
 "menu.pause" = "暫停剪貼板監聽";
 "menu.resume" = "恢復剪貼板監聽";
 "menu.settings" = "設定";
-"menu.quit" = "結束 %@";
+"menu.quit" = "結束";
 "menu.accessibility.grant" = "⚠ 授權輔助使用權限";
 
 /* Quick Panel */
@@ -529,6 +542,11 @@
 "backup.changePath" = "更改…";
 "backup.webdav.testSuccess" = "連線成功。";
 "backup.webdav.testFailed" = "連線失敗。";
+"backup.webdav.testSuccessHTTP" = "連線成功（未加密 HTTP）。";
+"backup.webdav.authFailed" = "已連上伺服器，但使用者名稱或密碼不正確。";
+"backup.webdav.certError" = "伺服器憑證無效，無法建立安全連線。";
+"backup.webdav.invalidURL" = "伺服器位址無效，僅支援 http:// 或 https://。";
+"backup.webdav.insecureWarning" = "目前為未加密的 HTTP 連線，帳號密碼與備份資料將以明文傳輸。";
 
 // 接力模式
 // 命令面板
@@ -542,6 +560,8 @@
 "cmd.toggleSensitive" = "標記 / 取消敏感";
 "cmd.delete" = "刪除";
 "cmd.openLink" = "開啟連結";
+"cmd.openEntity" = "開啟 %@";
+"cmd.pasteEntity" = "貼上 %@";
 "cmd.pasteAsFile" = "貼上為檔案";
 "cmd.pastePath" = "貼上路徑";
 "cmd.andNewLine" = "並換行";
@@ -549,7 +569,6 @@
 "cmd.automation" = "自動化";
 
 "relay.title" = "接力模式";
-"relay.tab" = "接力";
 "relay.exit" = "退出";
 "relay.clearAndExit" = "清空並退出";
 "relay.close" = "關閉";
@@ -576,7 +595,6 @@
 "relay.settings.pasteKey" = "接力貼上快捷鍵";
 "relay.settings.pasteKeyNote" = "部分應用（終端機、Emacs）可能使用相同快捷鍵，如有衝突請自訂。";
 "relay.settings.pauseToChange" = "請先暫停或退出接力模式再修改快捷鍵。";
-"relay.settings.resetAlert" = "重新顯示開啟提示";
 "relay.settings.plainText" = "純文字貼上";
 "relay.settings.plainText.desc" = "去除富文字格式";
 "relay.settings.allowRepeatCopy" = "允許重複複製";
@@ -602,12 +620,6 @@
 "relay.settings.postPasteKey.left" = "左";
 "relay.settings.postPasteKey.right" = "右";
 "relay.settings.postPasteKey.space" = "空白鍵";
-"relay.settings.description" = "接力模式可以連續複製多條內容，然後按順序逐條貼上。適合從網頁複製一批使用者名稱，再切到 Excel 逐行貼上的場景。";
-"relay.settings.shortcuts" = "快捷鍵";
-"relay.settings.operations" = "操作說明";
-"relay.settings.op.paste" = "貼上下一條";
-"relay.settings.op.skip" = "跳過當前條";
-"relay.settings.op.previous" = "回退上一條";
 "relay.autoExit.short" = "結束後自動退出";
 "relay.loop" = "循環";
 "relay.loop.tooltip.on" = "循環接力：開（佇列結束後自動從頭開始）";
@@ -691,7 +703,91 @@
 "automation.rule.triggerMode" = "觸發模式";
 "automation.rule.triggerMode.automatic" = "自動觸發";
 "automation.rule.triggerMode.manual" = "僅手動觸發";
-"automation.rule.triggerMode.shortcutManualOnly" = "「執行捷徑」僅支援手動觸發";
+"automation.rule.triggerMode.shortcutManualOnly" = "含捷徑、AI 改寫或關閉面板的規則只能手動觸發";
+"automation.rule.outputMode" = "結果去向";
+"automation.rule.outputMode.replaceItem" = "取代目前項目";
+"automation.rule.outputMode.newItem" = "產生新項目";
+"automation.rule.outputMode.clipboard" = "僅寫入剪貼板";
+"automation.rule.outputMode.pasteToFrontmost" = "直接貼到前台";
+"automation.rule.outputMode.help" = "自動觸發時沒有貼上目標，「僅寫入剪貼板」和「直接貼到前台」都是把結果寫回剪貼板，複製後 ⌘V 直接得到處理後的內容（富文字轉為純文字）。";
+"automation.action.section.flow" = "流程";
+"automation.action.stopProcessing" = "不再執行後續規則";
+"automation.action.closeQuickPanel" = "關閉快捷面板";
+"automation.rule.triggerMode.automatic.help" = "複製時自動執行";
+"automation.rule.triggerMode.manual.help" = "在快捷面板按 ⌘K，或在項目的右鍵選單裡執行";
+"automation.action.regexReplace.pattern" = "尋找";
+"automation.preview.asyncSkipped" = "AI 改寫和捷徑不在這裡預覽";
+"automation.builtIn.restore" = "恢復內建規則";
+"automation.editor.unsaved" = "有未儲存的更改";
+"automation.editor.unsavedMessage" = "切換到其它規則前要儲存嗎？";
+"automation.editor.dontSave" = "不儲存";
+"automation.editor.on" = "開";
+"automation.editor.off" = "關";
+"automation.flow.when" = "觸發";
+"automation.flow.if" = "條件";
+"automation.flow.then" = "動作";
+"automation.flow.finally" = "結果";
+"automation.flow.allConditions" = "滿足全部條件";
+"automation.flow.anyCondition" = "滿足任一條件";
+"automation.flow.inOrder" = "按順序執行";
+"automation.action.aiTransform" = "AI 改寫";
+"automation.action.aiTransform.placeholder" = "告訴模型怎麼改，例如「翻譯成英文，只輸出譯文」";
+"automation.action.aiTransform.overrides" = "模型參數";
+"automation.action.aiTransform.followGlobal" = "跟隨全域";
+"automation.ai.notConfigured" = "還沒設定 AI 服務";
+"automation.ai.openSettings" = "去設定";
+"automation.ai.processing" = "正在執行「%@」…";
+"automation.ai.busy" = "這條還在處理中";
+"automation.ai.noChange" = "模型沒有改動這段內容";
+"automation.ai.error.tooLong" = "內容超過 %d 字，不送出";
+"automation.ai.error.sensitive" = "敏感項目不送出";
+"automation.ai.error.blockedApp" = "來源 App 在黑名單裡，不送出";
+"automation.ai.error.empty" = "模型沒有回傳內容";
+"automation.ai.error.reasoningOnly" = "模型只回傳了思考過程，沒有正文。把「思考」設為關閉再試";
+"automation.ai.error.http" = "服務回傳 %d";
+"automation.ai.error.timeout" = "要求逾時";
+"automation.ai.error.badBaseURL" = "Base URL 不是有效的 http(s) 位址";
+"automation.ai.error.cliNotFound" = "本機找不到 %@";
+"automation.ai.error.cliFailed" = "命令執行失敗";
+"automation.ai.error.cliBadOutput" = "輸出裡沒有 %@ 欄位";
+"automation.builtIn.aiTranslate" = "AI 中英互譯";
+"automation.builtIn.aiTidy" = "AI 文字整理";
+"settings.aiService" = "AI 服務";
+"settings.aiService.provider" = "服務商";
+"settings.aiService.preset.custom" = "自訂";
+"settings.aiService.model" = "模型";
+"settings.aiService.timeout" = "逾時";
+"settings.aiService.timeout.seconds" = "%d 秒";
+"settings.aiService.timeout.unit" = "秒";
+"settings.aiService.temperature" = "溫度";
+"settings.aiService.thinking" = "思考";
+"settings.aiService.thinking.auto" = "跟隨模型預設";
+"settings.aiService.thinking.off" = "關閉";
+"settings.aiService.thinking.on" = "開啟";
+"settings.aiService.showKey" = "顯示 key";
+"settings.aiService.hideKey" = "隱藏 key";
+"settings.aiService.test" = "測試連線";
+"settings.aiService.testing" = "連線中…";
+"settings.aiService.test.ok" = "連線正常，模型回覆：%@";
+"settings.aiService.test.failed" = "失敗：%@";
+"settings.aiService.privacyHint" = "只有手動執行含「AI 改寫」的規則時，才會把那一條內容送給服務商。標記為敏感的項目和黑名單來源的項目不會送出。";
+"settings.aiService.usageHint" = "透過自動化來用：新建一條規則，加「AI 改寫」動作，寫清讓模型做什麼；在快捷面板按 ⌘K 或在項目右鍵選單裡執行。只處理文字項目，圖片和檔案不會送給模型。";
+"settings.aiService.mode.remote" = "服務介面";
+"settings.aiService.mode.local" = "本機 Agent";
+"settings.aiService.cli.preset" = "Agent";
+"settings.aiService.cli.preset.custom" = "自訂";
+"settings.aiService.cli.executable" = "命令";
+"settings.aiService.cli.arguments" = "參數";
+"settings.aiService.cli.outputKey" = "取 JSON 欄位";
+"settings.aiService.cli.outputKey.placeholder" = "留空表示直接取輸出";
+"settings.aiService.cli.notFound" = "本機沒找到這個命令";
+"settings.aiService.cli.argumentsHint" = "參數裡的 %@ 會換成指令和內容；不寫它就從標準輸入送進去。";
+"settings.aiService.cli.privacyHint" = "內容交給本機的這條命令。它會不會連網、傳給誰，看命令本身。標記為敏感的項目和黑名單來源的項目不會傳送。";
+"settings.aiService.cli.timeoutHint" = "本機 Agent 比服務介面慢，一次改寫通常要幾秒。";
+"settings.aiService.cli.missingHint" = "本機沒裝 %@，或者裝在了別處——把完整路徑填在下面。";
+"settings.aiService.mode" = "呼叫方式";
+"settings.aiService.cli.model.placeholder" = "留空用 Agent 自己的預設模型";
+"settings.aiService.cli.extraArgs" = "附加參數";
 "automation.rule.notifyBeforeApply" = "觸發時彈窗確認";
 "automation.rule.newName" = "新規則";
 "automation.condition.title" = "當滿足以下條件";
@@ -752,8 +848,6 @@
 "automation.action.runShortcut.failed" = "捷徑執行失敗";
 "automation.action.runShortcut.loading" = "載入中…";
 "automation.rule.notifyOnTrigger" = "觸發時傳送通知";
-"automation.rule.writeBackToPasteboard" = "處理後寫回剪貼簿";
-"automation.rule.writeBackToPasteboard.help" = "開啟後，規則處理結果會寫回系統剪貼簿，複製後直接 ⌘V 貼上即為處理後的內容（富文字會轉為純文字）。";
 "automation.notification.title" = "自動化";
 "automation.applied" = "自動化已執行";
 "automation.validation.incomplete" = "無法啟用規則";
@@ -838,6 +932,7 @@
 "detail.ocr.failed" = "這張圖片的 OCR 辨識失敗。";
 "quick.ocrMatch" = "命中辨識文字";
 "cmd.openInPreview" = "用「預覽」打開";
+"cmd.quickLook" = "快速查看";
 "cmd.retryOCR" = "重新辨識 OCR";
 "cmd.pasteOCR" = "貼上 OCR 文字";
 
@@ -886,5 +981,25 @@
 "settings.imageGridDensity.sparse" = "疏";
 "settings.imageGridDensity.medium" = "中";
 "settings.imageGridDensity.dense" = "密";
+"settings.previewFontSize" = "預覽字體大小";
+"settings.previewFontSize.points" = "%d pt";
 
 "settings.ocr.memoryHint" = "開啟後會在背景用 Vision 辨識圖片中的文字，可能增加記憶體佔用。";
+
+// SMS verification codes
+"settings.smsCode" = "簡訊驗證碼";
+"settings.smsCode.enabled" = "自動擷取「訊息」中的簡訊驗證碼並複製";
+"settings.smsCode.needsFDA" = "讀取簡訊需要「完整磁碟取用權限」";
+"settings.smsCode.openSettings" = "打開系統設定";
+"settings.smsCode.granted" = "已取得完整磁碟取用權限";
+"settings.smsCode.hint" = "需要 iPhone 開啟「簡訊轉傳」到這台 Mac（設定 → 訊息 → 簡訊轉傳）。若授權後仍未生效，請重新啟動 PasteMemo。";
+"sms.notification.codeCopied" = "驗證碼 %@ 已複製";
+"sms.notification.fallbackTitle" = "收到疑似驗證碼簡訊";
+"sms.preview.messageLabel" = "簡訊原文";
+"settings.smsCode.description" = "開啟後，收到驗證碼簡訊時會自動擷取驗證碼、複製到剪貼板並發送通知。";
+"settings.smsCode.feedback" = "遇到未能識別的驗證碼簡訊？歡迎回饋（去識別化後的）簡訊內容，協助完善識別規則。";
+"settings.smsCode.feedbackLink" = "提交回饋";
+
+// MARK: - List row metrics
+"meta.chars" = "%@ 字";
+"meta.lines" = "%@ 行";

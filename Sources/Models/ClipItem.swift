@@ -182,6 +182,10 @@ final class ClipItem {
     /// Identifier of the AI Agent (MCP client) that wrote this item, e.g. "claude-code", "cursor".
     /// Set when the clip originates from a `clipboard_set` MCP call. nil for normal user copies.
     var agentSource: String?
+    /// Full SMS body when this clip is a verification code extracted by
+    /// SMSCodeWatcher (content holds just the code). Drives the code badge in
+    /// list rows and the original-message preview. nil for every other clip.
+    var smsMessageText: String?
 
     @MainActor
     init(
@@ -296,7 +300,19 @@ final class ClipItem {
            let original = ClipboardManager.loadOriginalImageData(at: url.path) {
             return original
         }
-        return imageData
+        return pasteableImageData
+    }
+
+    /// The part of `imageData` that stands for the clip's own content — what "paste as
+    /// image" or "save image" is entitled to hand over.
+    ///
+    /// Video clips carry `imageData` as well, but theirs is a poster frame generated for
+    /// preview. Treating it as the payload would silently produce a JPEG where the user
+    /// asked for the video (pasting into a Finder window, saving an attachment). Anything
+    /// that *renders* a preview should keep reading `imageData` directly; anything that
+    /// lets bytes leave the clip must go through this.
+    var pasteableImageData: Data? {
+        contentType == .video ? nil : imageData
     }
 
     /// Computed enum accessor — never crashes because contentTypeRaw is a plain String.

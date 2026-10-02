@@ -36,6 +36,7 @@
 "filter.favorites" = "Favoris";
 "filter.pinned" = "Épinglés";
 "filter.aiAgent" = "AI Agent";
+"filter.sms" = "SMS";
 
 /* Time */
 "time.now" = "maintenant";
@@ -45,6 +46,8 @@
 
 /* Settings */
 "settings.general" = "Général";
+"settings.nav.back" = "Retour";
+"settings.nav.forward" = "Suivant";
 "settings.update" = "Mise à jour";
 "settings.about" = "À propos";
 "settings.appearance" = "Apparence";
@@ -143,6 +146,9 @@
 /* Settings */
 "settings.features" = "Fonctionnalités";
 "settings.shortcuts" = "Raccourcis";
+"settings.shortcuts.section.quickPanel" = "Collage rapide";
+"settings.shortcuts.section.manager" = "Fenêtre du gestionnaire";
+"settings.shortcuts.section.relay" = "Relais";
 "settings.quickPanelShortcut" = "Collage rapide";
 "settings.managerShortcut" = "Ouvrir le gestionnaire";
 "settings.managerShortcut.global" = "Global";
@@ -157,6 +163,9 @@
 "settings.quickPanelSecondaryRow" = "Afficher sous la recherche du panneau rapide";
 "settings.quickPanelSecondaryRow.types" = "Types";
 "settings.quickPanelSecondaryRow.groups" = "Groupes";
+"settings.quickPanelTabTypes" = "Catégories de la barre d’onglets";
+"settings.quickPanelTabTypes.hint" = "Glissez pour réordonner. Décocher masque l'onglet dans le panneau rapide ; la barre latérale reste inchangée.";
+"settings.quickPanelTabTypes.reset" = "Réinitialiser";
 "settings.history" = "Historique";
 "settings.retentionDays" = "Conserver l'historique";
 "settings.retentionDays.forever" = "Toujours";
@@ -437,6 +446,11 @@
 "backup.changePath" = "Modifier…";
 "backup.webdav.testSuccess" = "Connexion réussie.";
 "backup.webdav.testFailed" = "Échec de la connexion.";
+"backup.webdav.testSuccessHTTP" = "Connexion réussie (HTTP non chiffré).";
+"backup.webdav.authFailed" = "Serveur joignable, mais le nom d'utilisateur ou le mot de passe est incorrect.";
+"backup.webdav.certError" = "Le certificat du serveur n'est pas valide ; impossible d'établir une connexion sécurisée.";
+"backup.webdav.invalidURL" = "URL du serveur non valide. Seuls http:// et https:// sont pris en charge.";
+"backup.webdav.insecureWarning" = "Connexion HTTP non chiffrée : les identifiants et les données de sauvegarde sont transmis en clair.";
 
 // Mode relais
 // Palette de commandes
@@ -450,6 +464,8 @@
 "cmd.toggleSensitive" = "Basculer sensible";
 "cmd.delete" = "Supprimer";
 "cmd.openLink" = "Ouvrir le lien";
+"cmd.openEntity" = "Ouvrir %@";
+"cmd.pasteEntity" = "Coller %@";
 "cmd.pasteAsFile" = "Coller comme fichier";
 "cmd.pastePath" = "Coller le chemin";
 "cmd.andNewLine" = " + saut de ligne";
@@ -457,7 +473,6 @@
 "cmd.automation" = "Automatisation";
 
 "relay.title" = "Mode Relais";
-"relay.tab" = "Relais";
 "relay.exit" = "Quitter";
 "relay.clearAndExit" = "Vider et quitter";
 "relay.close" = "Fermer";
@@ -484,7 +499,6 @@ Utilisez %@ pour coller un par un.";
 "relay.settings.pasteKey" = "Raccourci de collage relais";
 "relay.settings.pasteKeyNote" = "Certaines apps (Terminal, Emacs) peuvent utiliser le même raccourci. Personnalisez si nécessaire.";
 "relay.settings.pauseToChange" = "Mettez en pause ou quittez le mode relais pour modifier le raccourci.";
-"relay.settings.resetAlert" = "Réafficher le conseil d'activation";
 "relay.settings.plainText" = "Coller en texte brut";
 "relay.settings.plainText.desc" = "Supprimer le formatage";
 "relay.settings.allowRepeatCopy" = "Autoriser les doublons";
@@ -510,12 +524,6 @@ Utilisez %@ pour coller un par un.";
 "relay.settings.postPasteKey.left" = "Gauche";
 "relay.settings.postPasteKey.right" = "Droite";
 "relay.settings.postPasteKey.space" = "Space";
-"relay.settings.description" = "Le mode relais permet de copier plusieurs éléments et de les coller un par un. Idéal pour copier une liste de noms depuis une page web et les coller ligne par ligne dans Excel.";
-"relay.settings.shortcuts" = "Raccourcis";
-"relay.settings.operations" = "Opérations";
-"relay.settings.op.paste" = "Coller l'élément suivant";
-"relay.settings.op.skip" = "Passer l'élément actuel";
-"relay.settings.op.previous" = "Revenir à l'élément précédent";
 "relay.autoExit.short" = "Quitter auto à la fin";
 "relay.loop" = "Boucle";
 "relay.loop.tooltip.on" = "Boucle : Activée (Redémarrer depuis le début à la fin de la file)";
@@ -597,6 +605,10 @@ Utilisez %@ pour coller un par un.";
 /* Detail */
 "detail.dimensions" = "Dimensions";
 "detail.fileCount" = "Fichiers";
+"detail.fileStatus" = "Statut";
+"file.unavailable.missing" = "Le fichier n'existe plus";
+"finder.notResponding" = "Le Finder ne répond pas";
+"file.unavailable.denied" = "Aucune autorisation d'acces";
 "detail.format" = "Format";
 "detail.host" = "Hôte";
 "detail.linkTitle" = "Titre";
@@ -629,7 +641,7 @@ Utilisez %@ pour coller un par un.";
 "menu.openMain" = "Ouvrir la fenêtre principale";
 "menu.pause" = "Suspendre la surveillance du presse-papiers";
 "menu.quickPanel" = "Collage rapide";
-"menu.quit" = "Quitter %@";
+"menu.quit" = "Quitter";
 "menu.accessibility.grant" = "⚠ Autoriser l'accessibilité";
 "menu.resume" = "Reprendre la surveillance du presse-papiers";
 "menu.settings" = "Réglages";
@@ -730,7 +742,91 @@ Utilisez %@ pour coller un par un.";
 "automation.rule.triggerMode" = "Déclenchement";
 "automation.rule.triggerMode.automatic" = "Automatique";
 "automation.rule.triggerMode.manual" = "Manuel uniquement";
-"automation.rule.triggerMode.shortcutManualOnly" = "Les actions « Exécuter le raccourci » ne peuvent être déclenchées que manuellement";
+"automation.rule.triggerMode.shortcutManualOnly" = "Les règles avec « Exécuter le raccourci », « Réécriture IA » ou « Fermer le panneau rapide » ne fonctionnent qu’en déclenchement manuel";
+"automation.rule.outputMode" = "Destination du résultat";
+"automation.rule.outputMode.replaceItem" = "Remplacer cet élément";
+"automation.rule.outputMode.newItem" = "Nouvel élément";
+"automation.rule.outputMode.clipboard" = "Presse-papiers uniquement";
+"automation.rule.outputMode.pasteToFrontmost" = "Coller dans l’app au premier plan";
+"automation.rule.outputMode.help" = "Les règles automatiques n’ont pas de cible de collage : « Presse-papiers uniquement » et « Coller dans l’app au premier plan » réécrivent tous deux le résultat dans le presse-papiers, donc ⌘V juste après la copie colle le texte traité (le texte enrichi devient du texte brut).";
+"automation.action.section.flow" = "Flux";
+"automation.action.stopProcessing" = "Ne pas exécuter les règles suivantes";
+"automation.action.closeQuickPanel" = "Fermer le panneau rapide";
+"automation.rule.triggerMode.automatic.help" = "S’exécute automatiquement à la copie";
+"automation.rule.triggerMode.manual.help" = "À lancer via ⌘K dans le panneau rapide ou le menu contextuel de l’élément";
+"automation.action.regexReplace.pattern" = "Rechercher";
+"automation.preview.asyncSkipped" = "La réécriture IA et le raccourci ne sont pas prévisualisés ici";
+"automation.builtIn.restore" = "Restaurer les règles intégrées";
+"automation.editor.unsaved" = "Modifications non enregistrées";
+"automation.editor.unsavedMessage" = "Enregistrer avant de passer à une autre règle ?";
+"automation.editor.dontSave" = "Ne pas enregistrer";
+"automation.editor.on" = "Activé";
+"automation.editor.off" = "Désactivé";
+"automation.flow.when" = "Déclencheur";
+"automation.flow.if" = "Conditions";
+"automation.flow.then" = "Actions";
+"automation.flow.finally" = "Résultat";
+"automation.flow.allConditions" = "toutes les conditions sont remplies";
+"automation.flow.anyCondition" = "une condition est remplie";
+"automation.flow.inOrder" = "dans l’ordre";
+"automation.action.aiTransform" = "Réécriture IA";
+"automation.action.aiTransform.placeholder" = "Dites au modèle quoi faire, p. ex. « Traduire en anglais, ne renvoyer que la traduction »";
+"automation.action.aiTransform.overrides" = "Réglages du modèle";
+"automation.action.aiTransform.followGlobal" = "Suivre le réglage global";
+"automation.ai.notConfigured" = "Service IA non configuré";
+"automation.ai.openSettings" = "Ouvrir les réglages";
+"automation.ai.processing" = "Exécution de « %@ »…";
+"automation.ai.busy" = "Cet élément est encore en traitement";
+"automation.ai.noChange" = "Le modèle n’a rien modifié";
+"automation.ai.error.tooLong" = "Plus de %d caractères, non envoyé";
+"automation.ai.error.sensitive" = "Élément sensible, non envoyé";
+"automation.ai.error.blockedApp" = "App source sur la liste de blocage, non envoyé";
+"automation.ai.error.empty" = "Le modèle n’a rien renvoyé";
+"automation.ai.error.reasoningOnly" = "Le modèle n’a renvoyé que sa réflexion, sans réponse. Réglez « Réflexion » sur Désactivée et réessayez";
+"automation.ai.error.http" = "Le service a répondu %d";
+"automation.ai.error.timeout" = "Délai de la requête dépassé";
+"automation.ai.error.badBaseURL" = "La Base URL n’est pas une adresse http(s) valide";
+"automation.ai.error.cliNotFound" = "%@ introuvable sur ce Mac";
+"automation.ai.error.cliFailed" = "Échec de la commande";
+"automation.ai.error.cliBadOutput" = "Pas de champ %@ dans la sortie";
+"automation.builtIn.aiTranslate" = "IA : chinois ⇄ anglais";
+"automation.builtIn.aiTidy" = "IA : nettoyer le texte";
+"settings.aiService" = "Service IA";
+"settings.aiService.provider" = "Fournisseur";
+"settings.aiService.preset.custom" = "Personnalisé";
+"settings.aiService.model" = "Modèle";
+"settings.aiService.timeout" = "Délai";
+"settings.aiService.timeout.seconds" = "%d s";
+"settings.aiService.timeout.unit" = "s";
+"settings.aiService.temperature" = "Température";
+"settings.aiService.thinking" = "Réflexion";
+"settings.aiService.thinking.auto" = "Défaut du modèle";
+"settings.aiService.thinking.off" = "Désactivée";
+"settings.aiService.thinking.on" = "Activée";
+"settings.aiService.showKey" = "Afficher la clé";
+"settings.aiService.hideKey" = "Masquer la clé";
+"settings.aiService.test" = "Tester la connexion";
+"settings.aiService.testing" = "Connexion…";
+"settings.aiService.test.ok" = "Connecté. Réponse du modèle : %@";
+"settings.aiService.test.failed" = "Échec : %@";
+"settings.aiService.privacyHint" = "Le texte n’est envoyé au fournisseur que lorsque vous exécutez à la main une règle contenant « Réécriture IA ». Les éléments marqués sensibles et ceux venant d’apps de la liste de blocage ne sont jamais envoyés.";
+"settings.aiService.usageHint" = "À utiliser via l’automatisation : créez une règle avec une action « Réécriture IA » et écrivez ce que le modèle doit faire. Lancez-la avec ⌘K dans le panneau rapide ou le menu contextuel d’un élément. Éléments texte uniquement : images et fichiers ne sont jamais envoyés au modèle.";
+"settings.aiService.mode.remote" = "Service API";
+"settings.aiService.mode.local" = "Agent local";
+"settings.aiService.cli.preset" = "Agent";
+"settings.aiService.cli.preset.custom" = "Personnalisé";
+"settings.aiService.cli.executable" = "Commande";
+"settings.aiService.cli.arguments" = "Arguments";
+"settings.aiService.cli.outputKey" = "Clé JSON";
+"settings.aiService.cli.outputKey.placeholder" = "Vide : utiliser la sortie telle quelle";
+"settings.aiService.cli.notFound" = "Introuvable sur ce Mac";
+"settings.aiService.cli.argumentsHint" = "Le %@ dans les arguments est remplacé par l'instruction et le texte. Sans lui, le prompt passe par l'entrée standard.";
+"settings.aiService.cli.privacyHint" = "Le texte est transmis à cette commande sur ce Mac. C'est elle qui décide si ça part sur le réseau, et vers qui. Les éléments marqués sensibles et ceux venant d'apps bloquées ne sont jamais envoyés.";
+"settings.aiService.cli.timeoutHint" = "Un agent local est plus lent qu'un service API : quelques secondes par réécriture.";
+"settings.aiService.cli.missingHint" = "%@ n'est pas installé ici, ou se trouve ailleurs — mets le chemin complet ci-dessous.";
+"settings.aiService.mode" = "Appel via";
+"settings.aiService.cli.model.placeholder" = "Vide : le modèle par défaut de l'agent";
+"settings.aiService.cli.extraArgs" = "Arguments supplémentaires";
 "automation.rule.notifyBeforeApply" = "Confirmer avant d'appliquer";
 "automation.rule.newName" = "Nouvelle règle";
 
@@ -791,8 +887,6 @@ Utilisez %@ pour coller un par un.";
 "automation.action.runShortcut.failed" = "Shortcut failed";
 "automation.action.runShortcut.loading" = "Loading…";
 "automation.rule.notifyOnTrigger" = "Send notification on trigger";
-"automation.rule.writeBackToPasteboard" = "Réécrire le résultat dans le presse-papiers";
-"automation.rule.writeBackToPasteboard.help" = "Lorsque cette option est activée, le résultat de la règle est réécrit dans le presse-papiers système : ⌘V juste après la copie colle le texte transformé (le texte enrichi devient du texte brut).";
 "automation.notification.title" = "Automation";
 "automation.applied" = "Automation applied";
 "automation.validation.incomplete" = "Cannot enable rule";
@@ -882,6 +976,7 @@ Utilisez %@ pour coller un par un.";
 "detail.ocr.failed" = "Échec de l'OCR pour cette image.";
 "quick.ocrMatch" = "Correspondance dans le texte reconnu";
 "cmd.openInPreview" = "Ouvrir dans Aperçu";
+"cmd.quickLook" = "Coup d'œil";
 "cmd.retryOCR" = "Relancer l'OCR";
 "cmd.pasteOCR" = "Coller le texte OCR";
 
@@ -930,5 +1025,25 @@ Utilisez %@ pour coller un par un.";
 "settings.imageGridDensity.sparse" = "Espacée";
 "settings.imageGridDensity.medium" = "Moyenne";
 "settings.imageGridDensity.dense" = "Dense";
+"settings.previewFontSize" = "Taille de police de l’aperçu";
+"settings.previewFontSize.points" = "%d pt";
 
 "settings.ocr.memoryHint" = "Une fois activé, PasteMemo reconnaît le texte des images en arrière-plan via Vision, ce qui peut augmenter la mémoire utilisée.";
+
+// SMS verification codes
+"settings.smsCode" = "Codes de vérification SMS";
+"settings.smsCode.enabled" = "Copier automatiquement les codes reçus dans Messages";
+"settings.smsCode.needsFDA" = "L'accès complet au disque est requis pour lire les messages";
+"settings.smsCode.openSettings" = "Ouvrir Réglages Système";
+"settings.smsCode.granted" = "Accès complet au disque accordé";
+"settings.smsCode.hint" = "Nécessite le transfert de SMS de l'iPhone vers ce Mac (Réglages → Messages → Transfert de SMS). Si cela ne fonctionne pas après l'autorisation, relancez PasteMemo.";
+"sms.notification.codeCopied" = "Code %@ copié";
+"sms.notification.fallbackTitle" = "Message pouvant contenir un code de vérification";
+"sms.preview.messageLabel" = "Message d'origine";
+"settings.smsCode.description" = "Lorsque cette option est activée, PasteMemo extrait les codes de vérification des messages entrants, les copie dans le presse-papiers et vous en informe.";
+"settings.smsCode.feedback" = "Un code n'a pas été reconnu ? Partagez le texte (anonymisé) du message pour nous aider à améliorer les règles.";
+"settings.smsCode.feedbackLink" = "Envoyer un retour";
+
+// MARK: - List row metrics
+"meta.chars" = "%@ caractères";
+"meta.lines" = "%@ lignes";

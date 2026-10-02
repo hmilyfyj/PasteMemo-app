@@ -85,6 +85,10 @@ struct PasteMemoApp: App {
                 }
             }
             CommandGroup(replacing: .newItem) {
+                Button(L10n.tr("menu.manager")) {
+                    AppAction.shared.openMainWindow?()
+                }
+                Divider()
                 Button(L10n.tr("menu.newGroup")) {
                     AppMenuActions.showNewGroupAlert()
                 }
@@ -371,16 +375,29 @@ struct PasteMemoApp: App {
         guard FileManager.default.fileExists(atPath: storeURL.path) else { return }
         guard let db = SQLiteConnection(path: storeURL.path) else { return }
         defer { db.close() }
+        // 与 SwiftData 的连接共用同一个 WAL 库，下面的 DDL 都要写锁。等一等比撞锁即失败好：
+        // 失败的 DDL 以前连日志都没有。
+        db.setBusyTimeout(milliseconds: 3000)
 
-        // Drop legacy index on old column name before recreating on correct column
-        db.execute("DROP INDEX IF EXISTS idx_clip_type")
+        // Drop legacy index on old column name before recreating on correct column.
+        // 只在定义还指向旧列时才 DROP：以前每次启动无条件 DROP + 下面再 CREATE，等于
+        // 每次启动都开一个写事务把这个索引整个重建一遍。
+        let typeIndexSQL = db.queryStrings(
+            "SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_clip_type'"
+        ).first ?? ""
+        if !typeIndexSQL.isEmpty, !typeIndexSQL.contains("ZCONTENTTYPERAW") {
+            db.execute("DROP INDEX IF EXISTS idx_clip_type")
+        }
 
         // Defensive: ensure ZPRESERVESITEMS column exists on older stores where
-        // SwiftData's lightweight migration may not have run yet. SQLite errors
-        // on duplicate column are silently swallowed by execute().
-        db.execute("ALTER TABLE ZSMARTGROUP ADD COLUMN ZPRESERVESITEMS INTEGER DEFAULT 0")
+        // SwiftData's lightweight migration may not have run yet. 先查再加——以前是
+        // 每次启动跑一条注定报"duplicate column"的 ALTER 靠吞错误实现幂等。
+        if !db.columnExists(table: "ZSMARTGROUP", column: "ZPRESERVESITEMS") {
+            db.execute("ALTER TABLE ZSMARTGROUP ADD COLUMN ZPRESERVESITEMS INTEGER DEFAULT 0")
+        }
 
-        // Regular indexes
+        // Regular indexes. 各自 IF NOT EXISTS 幂等，失败只是退化成全表扫描、下次启动自愈，
+        // 不需要事务，但要留痕。
         let indexes = [
             "CREATE INDEX IF NOT EXISTS idx_clip_lastused ON ZCLIPITEM (ZLASTUSEDAT DESC)",
             "CREATE INDEX IF NOT EXISTS idx_clip_created ON ZCLIPITEM (ZCREATEDAT DESC)",
@@ -388,24 +405,38 @@ struct PasteMemoApp: App {
             "CREATE INDEX IF NOT EXISTS idx_clip_pinned_lastused ON ZCLIPITEM (ZISPINNED, ZLASTUSEDAT DESC)",
             "CREATE INDEX IF NOT EXISTS idx_clip_sourceapp ON ZCLIPITEM (ZSOURCEAPP)",
             "CREATE INDEX IF NOT EXISTS idx_clip_itemid ON ZCLIPITEM (ZITEMID)",
+            // 启动时孤儿缓存文件清理只查 originalImageFilePath != nil（SwiftData 翻译成
+            // `IS NOT NULL`）。不建索引是 SCAN 全表叶子页（万条级库冷启动 ~250ms）；
+            // 部分索引只含非空行（几十条），查询变成索引 SEARCH。普通索引对 IS NOT NULL 不生效。
+            "CREATE INDEX IF NOT EXISTS idx_clip_originalpath ON ZCLIPITEM (ZORIGINALIMAGEFILEPATH) WHERE ZORIGINALIMAGEFILEPATH IS NOT NULL",
         ]
-        for sql in indexes { db.execute(sql) }
+        for sql in indexes {
+            if !db.execute(sql) {
+                DiagnosticLog.log("ensureIndexes: index DDL failed: \(db.lastErrorMessage)")
+            }
+        }
 
-        // FTS5 full-text search table
-        ensureFTS(db: db)
+        // FTS5 full-text search table. 整段包进一个 IMMEDIATE 事务：里面有 DROP TRIGGER →
+        // CREATE TRIGGER，中间任何一步失败（撞锁、崩溃、强退）都会留下「已删未建」——
+        // 新条目再也进不了索引，搜索静默失效直到下次启动（issue #61 的另一个入口）。
+        // 事务化后要么全部生效，要么回滚到进入前的完整状态。
+        if !db.performInTransaction({ ensureFTS(db: db) }) {
+            DiagnosticLog.log("ensureFTS: rolled back, FTS schema left as-is: \(db.lastErrorMessage)")
+        }
     }
 
-    private static func ensureFTS(db: SQLiteConnection) {
+    /// 在 ensureIndexes 的 IMMEDIATE 事务内调用：任一语句失败返回 false，由调用方整体回滚。
+    private static func ensureFTS(db: SQLiteConnection) -> Bool {
         // Migrate from older tokenizers or older schemas to the current trigram-backed schema.
-        migrateToTrigramIfNeeded(db: db)
+        guard migrateToTrigramIfNeeded(db: db) else { return false }
 
         // Create FTS5 virtual table with trigram tokenizer for substring search
-        db.execute("""
+        guard db.execute("""
             CREATE VIRTUAL TABLE IF NOT EXISTS clip_fts USING fts5(
                 itemID UNINDEXED, content, displayTitle, linkTitle, ocrText,
                 tokenize='trigram'
             )
-        """)
+        """) else { return logDDLFailure(db, "ensureFTS") }
 
         // Auto-sync triggers. The `WHEN length(...) <= 262144` guard skips FTS
         // indexing for content over 256 KB — trigram tokenization on multi-MB
@@ -414,26 +445,26 @@ struct PasteMemoApp: App {
         // search is acceptable: substring search across megabytes of base64 is
         // not useful, and the row itself remains fully addressable by metadata.
         // Drop & recreate so existing stores pick up the guard.
-        db.execute("DROP TRIGGER IF EXISTS clip_fts_insert")
-        db.execute("DROP TRIGGER IF EXISTS clip_fts_update")
-        db.execute("""
+        guard db.execute("DROP TRIGGER IF EXISTS clip_fts_insert") else { return logDDLFailure(db, "ensureFTS") }
+        guard db.execute("DROP TRIGGER IF EXISTS clip_fts_update") else { return logDDLFailure(db, "ensureFTS") }
+        guard db.execute("""
             CREATE TRIGGER clip_fts_insert AFTER INSERT ON ZCLIPITEM
             WHEN COALESCE(length(NEW.ZCONTENT), 0) <= 262144
             BEGIN
                 INSERT INTO clip_fts(itemID, content, displayTitle, linkTitle, ocrText)
                 VALUES (NEW.ZITEMID, COALESCE(NEW.ZCONTENT, ''), COALESCE(NEW.ZDISPLAYTITLE, ''), COALESCE(NEW.ZLINKTITLE, ''), COALESCE(NEW.ZOCRTEXT, ''));
             END
-        """)
-        db.execute("""
+        """) else { return logDDLFailure(db, "ensureFTS") }
+        guard db.execute("""
             CREATE TRIGGER IF NOT EXISTS clip_fts_delete AFTER DELETE ON ZCLIPITEM BEGIN
                 DELETE FROM clip_fts WHERE itemID = OLD.ZITEMID;
             END
-        """)
+        """) else { return logDDLFailure(db, "ensureFTS") }
         // The DELETE runs unconditionally so a row that grew past the size guard
         // gets removed from FTS even when the new content can't be re-indexed.
         // The INSERT uses a `WHERE` selector instead of a trigger-level `WHEN`
         // so the same trigger can both clean up and (when small enough) re-add.
-        db.execute("""
+        guard db.execute("""
             CREATE TRIGGER clip_fts_update AFTER UPDATE OF ZCONTENT, ZDISPLAYTITLE, ZLINKTITLE, ZOCRTEXT ON ZCLIPITEM
             BEGIN
                 DELETE FROM clip_fts WHERE itemID = OLD.ZITEMID;
@@ -441,34 +472,46 @@ struct PasteMemoApp: App {
                 SELECT NEW.ZITEMID, COALESCE(NEW.ZCONTENT, ''), COALESCE(NEW.ZDISPLAYTITLE, ''), COALESCE(NEW.ZLINKTITLE, ''), COALESCE(NEW.ZOCRTEXT, '')
                 WHERE COALESCE(length(NEW.ZCONTENT), 0) <= 262144;
             END
-        """)
+        """) else { return logDDLFailure(db, "ensureFTS") }
 
         // Populate FTS from existing data if empty. Mirror the trigger guard
         // so a one-time backfill doesn't choke on legacy rows that pre-date
         // the size cap (e.g. 10 MB base64 data URIs ingested before the
         // pre-decode landed).
-        let count = db.queryStrings("SELECT COUNT(*) FROM clip_fts")
-        if count.first == "0" {
-            db.execute("""
+        // 只需判空。FTS5 虚拟表没有行数捷径，COUNT(*) 要走完整个索引（万条级库冷启动
+        // ~70ms）；LIMIT 1 探测只读一行。外层 COALESCE 保证查询成功时恰好返回一行
+        // "1"/"0"，查询失败（表缺失 / 锁忙）时 queryStrings 返回 []——此时不 backfill，
+        // 避免在表其实非空的情况下重复灌入。
+        let probe = db.queryStrings("SELECT COALESCE((SELECT 1 FROM clip_fts LIMIT 1), 0)")
+        if probe.first == "0" {
+            guard db.execute("""
                 INSERT INTO clip_fts(itemID, content, displayTitle, linkTitle, ocrText)
                 SELECT ZITEMID, COALESCE(ZCONTENT, ''), COALESCE(ZDISPLAYTITLE, ''), COALESCE(ZLINKTITLE, ''), COALESCE(ZOCRTEXT, '')
                 FROM ZCLIPITEM
                 WHERE COALESCE(length(ZCONTENT), 0) <= 262144
-            """)
+            """) else { return logDDLFailure(db, "ensureFTS") }
         }
+        return true
     }
 
-    private static func migrateToTrigramIfNeeded(db: SQLiteConnection) {
-        guard db.tableExists("clip_fts") else { return }
+    /// 返回 false 表示 DDL 失败（调用方回滚）；无需迁移也返回 true。
+    private static func migrateToTrigramIfNeeded(db: SQLiteConnection) -> Bool {
+        guard db.tableExists("clip_fts") else { return true }
         let sql = db.queryStrings(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='clip_fts'"
         )
-        guard let createSQL = sql.first else { return }
-        guard !createSQL.contains("trigram") || !createSQL.contains("ocrText") else { return }
+        guard let createSQL = sql.first else { return true }
+        guard !createSQL.contains("trigram") || !createSQL.contains("ocrText") else { return true }
         // Old tokenizer detected — drop everything and recreate
-        db.execute("DROP TRIGGER IF EXISTS clip_fts_insert")
-        db.execute("DROP TRIGGER IF EXISTS clip_fts_delete")
-        db.execute("DROP TRIGGER IF EXISTS clip_fts_update")
-        db.execute("DROP TABLE clip_fts")
+        guard db.execute("DROP TRIGGER IF EXISTS clip_fts_insert") else { return logDDLFailure(db, "migrateToTrigramIfNeeded") }
+        guard db.execute("DROP TRIGGER IF EXISTS clip_fts_delete") else { return logDDLFailure(db, "migrateToTrigramIfNeeded") }
+        guard db.execute("DROP TRIGGER IF EXISTS clip_fts_update") else { return logDDLFailure(db, "migrateToTrigramIfNeeded") }
+        guard db.execute("DROP TABLE clip_fts") else { return logDDLFailure(db, "migrateToTrigramIfNeeded") }
+        return true
+    }
+
+    private static func logDDLFailure(_ db: SQLiteConnection, _ context: String) -> Bool {
+        DiagnosticLog.log("\(context): SQLite DDL failed: \(db.lastErrorMessage)")
+        return false
     }
 }

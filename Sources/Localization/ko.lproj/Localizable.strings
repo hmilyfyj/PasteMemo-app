@@ -36,6 +36,7 @@
 "filter.favorites" = "즐겨찾기";
 "filter.pinned" = "고정됨";
 "filter.aiAgent" = "AI Agent";
+"filter.sms" = "문자";
 
 /* Time */
 "time.now" = "방금";
@@ -45,6 +46,8 @@
 
 /* Settings */
 "settings.general" = "일반";
+"settings.nav.back" = "뒤로";
+"settings.nav.forward" = "앞으로";
 "settings.update" = "업데이트";
 "settings.about" = "정보";
 "settings.appearance" = "모양";
@@ -143,6 +146,9 @@
 /* Settings */
 "settings.features" = "기능";
 "settings.shortcuts" = "단축키";
+"settings.shortcuts.section.quickPanel" = "빠른 붙여넣기";
+"settings.shortcuts.section.manager" = "관리자 창";
+"settings.shortcuts.section.relay" = "릴레이";
 "settings.quickPanelShortcut" = "빠른 붙여넣기";
 "settings.managerShortcut" = "관리자 열기";
 "settings.managerShortcut.global" = "전역";
@@ -157,6 +163,9 @@
 "settings.quickPanelSecondaryRow" = "빠른 패널 검색 아래에 표시";
 "settings.quickPanelSecondaryRow.types" = "유형";
 "settings.quickPanelSecondaryRow.groups" = "그룹";
+"settings.quickPanelTabTypes" = "탭 바에 표시할 분류";
+"settings.quickPanelTabTypes.hint" = "드래그해 순서를 바꿉니다. 체크를 해제하면 빠른 패널에서 숨겨지며 사이드바는 그대로입니다.";
+"settings.quickPanelTabTypes.reset" = "기본값";
 "settings.history" = "기록";
 "settings.retentionDays" = "기록 보관";
 "settings.retentionDays.forever" = "영구";
@@ -437,6 +446,11 @@
 "backup.changePath" = "변경…";
 "backup.webdav.testSuccess" = "연결 성공.";
 "backup.webdav.testFailed" = "연결 실패.";
+"backup.webdav.testSuccessHTTP" = "연결 성공(암호화되지 않은 HTTP).";
+"backup.webdav.authFailed" = "서버에는 연결되었지만 사용자 이름 또는 비밀번호가 올바르지 않습니다.";
+"backup.webdav.certError" = "서버 인증서가 유효하지 않아 보안 연결을 설정할 수 없습니다.";
+"backup.webdav.invalidURL" = "서버 URL이 올바르지 않습니다. http:// 또는 https://만 지원됩니다.";
+"backup.webdav.insecureWarning" = "암호화되지 않은 HTTP 연결입니다. 계정 정보와 백업 데이터가 평문으로 전송됩니다.";
 
 // 릴레이 모드
 // 명령 팔레트
@@ -450,6 +464,8 @@
 "cmd.toggleSensitive" = "민감 표시 전환";
 "cmd.delete" = "삭제";
 "cmd.openLink" = "링크 열기";
+"cmd.openEntity" = "%@ 열기";
+"cmd.pasteEntity" = "%@ 붙여넣기";
 "cmd.pasteAsFile" = "파일로 붙여넣기";
 "cmd.pastePath" = "경로 붙여넣기";
 "cmd.andNewLine" = " + 줄바꿈";
@@ -457,7 +473,6 @@
 "cmd.automation" = "자동화";
 
 "relay.title" = "릴레이 모드";
-"relay.tab" = "릴레이";
 "relay.exit" = "종료";
 "relay.clearAndExit" = "비우고 종료";
 "relay.close" = "닫기";
@@ -484,7 +499,6 @@
 "relay.settings.pasteKey" = "릴레이 붙여넣기 단축키";
 "relay.settings.pasteKeyNote" = "일부 앱(터미널, Emacs)이 같은 단축키를 사용할 수 있습니다. 충돌 시 사용자 지정하세요.";
 "relay.settings.pauseToChange" = "단축키를 변경하려면 릴레이 모드를 일시 정지하거나 종료하세요.";
-"relay.settings.resetAlert" = "활성화 팁 다시 표시";
 "relay.settings.plainText" = "일반 텍스트로 붙여넣기";
 "relay.settings.plainText.desc" = "서식 제거";
 "relay.settings.allowRepeatCopy" = "중복 복사 허용";
@@ -510,12 +524,6 @@
 "relay.settings.postPasteKey.left" = "왼쪽";
 "relay.settings.postPasteKey.right" = "오른쪽";
 "relay.settings.postPasteKey.space" = "스페이스";
-"relay.settings.description" = "릴레이 모드는 여러 항목을 복사한 후 순서대로 하나씩 붙여넣을 수 있습니다. 웹페이지에서 이름 목록을 복사하여 Excel에 행별로 붙여넣기에 적합합니다.";
-"relay.settings.shortcuts" = "단축키";
-"relay.settings.operations" = "작업 설명";
-"relay.settings.op.paste" = "다음 항목 붙여넣기";
-"relay.settings.op.skip" = "현재 항목 건너뛰기";
-"relay.settings.op.previous" = "이전 항목으로 돌아가기";
 "relay.autoExit.short" = "완료 후 자동 종료";
 "relay.loop" = "반복";
 "relay.loop.tooltip.on" = "반복: 켜짐 (대기열 종료 후 처음부터 다시 시작)";
@@ -597,6 +605,10 @@
 /* Detail - Additional */
 "detail.dimensions" = "크기";
 "detail.fileCount" = "파일 수";
+"detail.fileStatus" = "상태";
+"file.unavailable.missing" = "파일이 존재하지 않습니다";
+"finder.notResponding" = "Finder가 응답하지 않습니다";
+"file.unavailable.denied" = "접근 권한이 없습니다";
 "detail.format" = "포맷";
 "detail.host" = "호스트";
 "detail.linkTitle" = "제목";
@@ -629,7 +641,7 @@
 "menu.openMain" = "메인 윈도우 열기";
 "menu.pause" = "클립보드 모니터링 일시 정지";
 "menu.quickPanel" = "빠른 붙여넣기";
-"menu.quit" = "%@ 종료";
+"menu.quit" = "종료";
 "menu.accessibility.grant" = "⚠ 손쉬운 사용 권한 부여";
 "menu.resume" = "클립보드 모니터링 재개";
 "menu.settings" = "설정";
@@ -728,7 +740,91 @@
 "automation.rule.triggerMode" = "트리거";
 "automation.rule.triggerMode.automatic" = "자동";
 "automation.rule.triggerMode.manual" = "수동만";
-"automation.rule.triggerMode.shortcutManualOnly" = "'단축어 실행'은 수동 트리거만 지원합니다";
+"automation.rule.triggerMode.shortcutManualOnly" = "단축어 실행, AI 다시 쓰기, 빠른 패널 닫기가 포함된 규칙은 수동 트리거에서만 동작";
+"automation.rule.outputMode" = "결과 위치";
+"automation.rule.outputMode.replaceItem" = "이 항목 대체";
+"automation.rule.outputMode.newItem" = "새 항목 생성";
+"automation.rule.outputMode.clipboard" = "클립보드에만 쓰기";
+"automation.rule.outputMode.pasteToFrontmost" = "앞쪽 앱에 붙여넣기";
+"automation.rule.outputMode.help" = "자동 규칙에는 붙여넣기 대상이 없어 “클립보드에만 쓰기”와 “앞쪽 앱에 붙여넣기” 모두 결과를 클립보드에 다시 씁니다. 복사 직후 ⌘V 하면 처리된 텍스트가 붙여넣어집니다(서식 있는 텍스트는 일반 텍스트가 됨).";
+"automation.action.section.flow" = "흐름";
+"automation.action.stopProcessing" = "이후 규칙 실행 안 함";
+"automation.action.closeQuickPanel" = "빠른 패널 닫기";
+"automation.rule.triggerMode.automatic.help" = "복사할 때 자동 실행";
+"automation.rule.triggerMode.manual.help" = "빠른 패널에서 ⌘K 또는 항목의 상황 메뉴에서 실행";
+"automation.action.regexReplace.pattern" = "찾기";
+"automation.preview.asyncSkipped" = "AI 다시 쓰기와 단축어 실행은 여기서 미리보지 않습니다";
+"automation.builtIn.restore" = "내장 규칙 복원";
+"automation.editor.unsaved" = "저장하지 않은 변경 사항";
+"automation.editor.unsavedMessage" = "다른 규칙으로 전환하기 전에 저장할까요?";
+"automation.editor.dontSave" = "저장 안 함";
+"automation.editor.on" = "켬";
+"automation.editor.off" = "끔";
+"automation.flow.when" = "트리거";
+"automation.flow.if" = "조건";
+"automation.flow.then" = "동작";
+"automation.flow.finally" = "결과";
+"automation.flow.allConditions" = "모든 조건 충족";
+"automation.flow.anyCondition" = "조건 중 하나 충족";
+"automation.flow.inOrder" = "순서대로 실행";
+"automation.action.aiTransform" = "AI 다시 쓰기";
+"automation.action.aiTransform.placeholder" = "모델에게 할 일을 적으세요. 예: “영어로 번역, 번역문만 출력”";
+"automation.action.aiTransform.overrides" = "모델 설정";
+"automation.action.aiTransform.followGlobal" = "전역 설정 따르기";
+"automation.ai.notConfigured" = "AI 서비스가 설정되지 않음";
+"automation.ai.openSettings" = "설정 열기";
+"automation.ai.processing" = "“%@” 실행 중…";
+"automation.ai.busy" = "이 항목은 아직 처리 중입니다";
+"automation.ai.noChange" = "모델이 내용을 바꾸지 않았습니다";
+"automation.ai.error.tooLong" = "%d자를 넘어 보내지 않음";
+"automation.ai.error.sensitive" = "민감 항목은 보내지 않음";
+"automation.ai.error.blockedApp" = "출처 앱이 차단 목록에 있어 보내지 않음";
+"automation.ai.error.empty" = "모델이 아무것도 반환하지 않음";
+"automation.ai.error.reasoningOnly" = "모델이 사고 과정만 반환하고 답이 없습니다. 「사고」를 끔으로 바꾸고 다시 시도하세요";
+"automation.ai.error.http" = "서비스가 %d 반환";
+"automation.ai.error.timeout" = "요청 시간 초과";
+"automation.ai.error.badBaseURL" = "Base URL이 올바른 http(s) 주소가 아님";
+"automation.ai.error.cliNotFound" = "이 Mac에서 %@ 를 찾을 수 없음";
+"automation.ai.error.cliFailed" = "명령 실행 실패";
+"automation.ai.error.cliBadOutput" = "출력에 %@ 필드가 없음";
+"automation.builtIn.aiTranslate" = "AI: 중국어 ⇄ 영어 번역";
+"automation.builtIn.aiTidy" = "AI: 텍스트 정리";
+"settings.aiService" = "AI 서비스";
+"settings.aiService.provider" = "제공자";
+"settings.aiService.preset.custom" = "사용자 지정";
+"settings.aiService.model" = "모델";
+"settings.aiService.timeout" = "시간 제한";
+"settings.aiService.timeout.seconds" = "%d초";
+"settings.aiService.timeout.unit" = "초";
+"settings.aiService.temperature" = "Temperature";
+"settings.aiService.thinking" = "사고";
+"settings.aiService.thinking.auto" = "모델 기본값";
+"settings.aiService.thinking.off" = "끔";
+"settings.aiService.thinking.on" = "켬";
+"settings.aiService.showKey" = "키 표시";
+"settings.aiService.hideKey" = "키 숨기기";
+"settings.aiService.test" = "연결 테스트";
+"settings.aiService.testing" = "연결 중…";
+"settings.aiService.test.ok" = "연결됨. 모델 응답: %@";
+"settings.aiService.test.failed" = "실패: %@";
+"settings.aiService.privacyHint" = "“AI 다시 쓰기”가 포함된 규칙을 직접 실행할 때만 해당 항목의 내용을 제공자에게 보냅니다. 민감으로 표시된 항목과 차단 목록 앱에서 온 항목은 보내지 않습니다.";
+"settings.aiService.usageHint" = "자동화로 사용합니다. 규칙을 만들고 “AI 다시 쓰기” 동작을 추가한 뒤 모델이 할 일을 적으세요. 빠른 패널에서 ⌘K 또는 항목의 상황 메뉴로 실행합니다. 텍스트 항목만 처리하며 이미지와 파일은 모델로 보내지 않습니다.";
+"settings.aiService.mode.remote" = "서비스 연결";
+"settings.aiService.mode.local" = "로컬 Agent";
+"settings.aiService.cli.preset" = "Agent";
+"settings.aiService.cli.preset.custom" = "사용자 지정";
+"settings.aiService.cli.executable" = "명령어";
+"settings.aiService.cli.arguments" = "인자";
+"settings.aiService.cli.outputKey" = "JSON 키";
+"settings.aiService.cli.outputKey.placeholder" = "비워 두면 출력을 그대로 사용";
+"settings.aiService.cli.notFound" = "이 Mac에서 찾을 수 없음";
+"settings.aiService.cli.argumentsHint" = "인자의 %@ 가 지시문과 본문으로 바뀝니다. 쓰지 않으면 표준 입력으로 전달합니다.";
+"settings.aiService.cli.privacyHint" = "본문은 이 Mac의 명령어로 전달됩니다. 네트워크로 나가는지, 어디로 가는지는 명령어에 달려 있습니다. 민감 항목과 차단 목록 앱의 항목은 보내지 않습니다.";
+"settings.aiService.cli.timeoutHint" = "로컬 Agent는 서비스 연결보다 느려서 한 번 고치는 데 몇 초 걸립니다.";
+"settings.aiService.cli.missingHint" = "%@ 가 설치되지 않았거나 다른 위치에 있습니다. 전체 경로를 아래에 입력하세요.";
+"settings.aiService.mode" = "호출 방식";
+"settings.aiService.cli.model.placeholder" = "비워 두면 Agent 자체 기본 모델";
+"settings.aiService.cli.extraArgs" = "추가 인자";
 "automation.rule.notifyBeforeApply" = "적용 전 확인";
 "automation.rule.newName" = "새 규칙";
 
@@ -789,8 +885,6 @@
 "automation.action.runShortcut.failed" = "단축어 실행 실패";
 "automation.action.runShortcut.loading" = "불러오는 중…";
 "automation.rule.notifyOnTrigger" = "실행 시 알림 보내기";
-"automation.rule.writeBackToPasteboard" = "처리 결과를 클립보드에 다시 쓰기";
-"automation.rule.writeBackToPasteboard.help" = "켜면 규칙 처리 결과가 시스템 클립보드에 다시 기록되어, 복사 직후 ⌘V로 변환된 텍스트가 붙여넣어집니다(서식 있는 텍스트는 일반 텍스트로 변환됩니다).";
 "automation.notification.title" = "자동화";
 "automation.applied" = "자동화가 실행됨";
 "automation.validation.incomplete" = "규칙을 활성화할 수 없음";
@@ -880,6 +974,7 @@
 "detail.ocr.failed" = "이 이미지의 OCR에 실패했습니다.";
 "quick.ocrMatch" = "인식된 텍스트에서 일치";
 "cmd.openInPreview" = "미리보기로 열기";
+"cmd.quickLook" = "훑어보기";
 "cmd.retryOCR" = "OCR 다시 시도";
 "cmd.pasteOCR" = "OCR 텍스트 붙여넣기";
 
@@ -928,5 +1023,25 @@
 "settings.imageGridDensity.sparse" = "넓게";
 "settings.imageGridDensity.medium" = "보통";
 "settings.imageGridDensity.dense" = "좁게";
+"settings.previewFontSize" = "미리보기 글자 크기";
+"settings.previewFontSize.points" = "%d pt";
 
 "settings.ocr.memoryHint" = "켜면 Vision으로 이미지 속 문자를 백그라운드에서 인식합니다. 메모리 사용량이 늘어날 수 있습니다.";
+
+// SMS verification codes
+"settings.smsCode" = "SMS 인증번호";
+"settings.smsCode.enabled" = "메시지 앱의 인증번호 자동 복사";
+"settings.smsCode.needsFDA" = "메시지를 읽으려면 전체 디스크 접근 권한이 필요합니다";
+"settings.smsCode.openSettings" = "시스템 설정 열기";
+"settings.smsCode.granted" = "전체 디스크 접근 권한이 허용됨";
+"settings.smsCode.hint" = "iPhone에서 이 Mac으로 문자 메시지 전달을 켜야 합니다(설정 → 메시지 → 문자 메시지 전달). 권한 부여 후에도 작동하지 않으면 PasteMemo를 재시동하세요.";
+"sms.notification.codeCopied" = "인증번호 %@ 복사됨";
+"sms.notification.fallbackTitle" = "인증번호가 포함된 것으로 보이는 메시지";
+"sms.preview.messageLabel" = "원본 메시지";
+"settings.smsCode.description" = "켜면 수신 메시지에서 인증번호를 자동으로 추출해 클립보드에 복사하고 알림을 보냅니다.";
+"settings.smsCode.feedback" = "인증번호가 인식되지 않는 메시지가 있나요? (개인정보를 제거한) 문자 내용을 알려주시면 인식 규칙 개선에 도움이 됩니다.";
+"settings.smsCode.feedbackLink" = "피드백 보내기";
+
+// MARK: - List row metrics
+"meta.chars" = "%@자";
+"meta.lines" = "%@줄";

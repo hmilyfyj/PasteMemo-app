@@ -111,24 +111,26 @@ final class StatusBarController: NSObject {
         }
 
         // 打开管理器（带快捷键）
-        let mgrShortcut: String = {
-            if HotkeyManager.shared.isManagerCleared || !HotkeyManager.shared.isManagerHotkeyGlobalEnabled { return "" }
-            return shortcutDisplayString(
+        let mgrItem = makeItem(L10n.tr("menu.manager"), action: #selector(openManager))
+        if !HotkeyManager.shared.isManagerCleared && HotkeyManager.shared.isManagerHotkeyGlobalEnabled {
+            applyShortcut(
+                to: mgrItem,
                 keyCode: HotkeyManager.shared.managerKeyCode,
                 modifiers: HotkeyManager.shared.managerModifiers
             )
-        }()
-        let mgrTitle = mgrShortcut.isEmpty
-            ? L10n.tr("menu.manager")
-            : "\(L10n.tr("menu.manager"))    \(mgrShortcut)"
-        menu.addItem(makeItem(mgrTitle, action: #selector(openManager)))
+        }
+        menu.addItem(mgrItem)
 
         // 快捷粘贴（带快捷键）
-        let qpShortcut = HotkeyManager.shared.displayString
-        let qpTitle = qpShortcut.isEmpty
-            ? L10n.tr("menu.quickPanel")
-            : "\(L10n.tr("menu.quickPanel"))    \(qpShortcut)"
-        menu.addItem(makeItem(qpTitle, action: #selector(openQuickPanel)))
+        let qpItem = makeItem(L10n.tr("menu.quickPanel"), action: #selector(openQuickPanel))
+        if !HotkeyManager.shared.isCleared {
+            applyShortcut(
+                to: qpItem,
+                keyCode: HotkeyManager.shared.currentKeyCode,
+                modifiers: HotkeyManager.shared.currentModifiers
+            )
+        }
+        menu.addItem(qpItem)
 
         // 暂停 / 继续剪贴板监听
         let pauseTitle = ClipboardManager.shared.isMonitoringEnabled
@@ -143,16 +145,15 @@ final class StatusBarController: NSObject {
             let title = "\(L10n.tr("relay.title")) (\(RelayManager.shared.progressText)) — \(L10n.tr("relay.exitRelay"))"
             menu.addItem(makeItem(title, action: #selector(toggleRelay)))
         } else {
-            let shortcut = HotkeyManager.shared.isRelayCleared
-                ? ""
-                : shortcutDisplayString(
+            let relayItem = makeItem(L10n.tr("relay.startRelay"), action: #selector(toggleRelay))
+            if !HotkeyManager.shared.isRelayCleared {
+                applyShortcut(
+                    to: relayItem,
                     keyCode: HotkeyManager.shared.relayKeyCode,
                     modifiers: HotkeyManager.shared.relayModifiers
                 )
-            let title = shortcut.isEmpty
-                ? L10n.tr("relay.startRelay")
-                : "\(L10n.tr("relay.startRelay"))    \(shortcut)"
-            menu.addItem(makeItem(title, action: #selector(toggleRelay)))
+            }
+            menu.addItem(relayItem)
         }
 
         menu.addItem(.separator())
@@ -166,8 +167,7 @@ final class StatusBarController: NSObject {
         menu.addItem(.separator())
 
         // 退出
-        let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "PasteMemo"
-        menu.addItem(makeItem(L10n.tr("menu.quit", appName), action: #selector(quitApp)))
+        menu.addItem(makeItem(L10n.tr("menu.quit"), action: #selector(quitApp)))
 
         return menu
     }
@@ -176,6 +176,14 @@ final class StatusBarController: NSObject {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
         item.target = self
         return item
+    }
+
+    /// 用系统原生 keyEquivalent 显示快捷键（右对齐、灰色），而不是拼进标题。
+    /// 状态栏菜单不在主菜单里，keyEquivalent 只在菜单展开期间生效，不会全局抢键。
+    private func applyShortcut(to item: NSMenuItem, keyCode: Int, modifiers: Int) {
+        guard let eq = menuKeyEquivalent(keyCode: keyCode, modifiers: modifiers) else { return }
+        item.keyEquivalent = eq.key
+        item.keyEquivalentModifierMask = eq.mask
     }
 
     // MARK: - Menu actions

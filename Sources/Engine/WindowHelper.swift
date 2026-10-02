@@ -27,24 +27,53 @@ func showMainManagerWindow() {
 /// `sendAction(showSettingsWindow:)` 返回 true 但窗口根本不创建(本机诊断日志实证,
 /// Apple 自 Sonoma 起收紧为只认 SettingsLink)。设置窗口同样改走 AppKit WindowManager;
 /// 系统菜单的「设置…」(Cmd+,)由 CommandGroup(replacing: .appSettings) 指到同一入口。issue #66。
+/// 设置窗口侧边栏改成固定宽度之前，AppKit 会把用户拖出来的宽度存进
+/// 「NSSplitView Subview Frames …」。恢复那份 frame 时它不校验 SwiftUI 给的
+/// min/ideal，于是老用户无论版本怎么更新，侧边栏都停在当年那个宽度上（本机实测存
+/// 的是 196pt，比当时的 min 200 还窄）。清一次，之后固定宽度不会再写回去。
+private func clearLegacySettingsSidebarWidth() {
+    let flag = "settingsSidebarWidthResetDone"
+    let defaults = UserDefaults.standard
+    guard !defaults.bool(forKey: flag) else { return }
+    for key in defaults.dictionaryRepresentation().keys
+    where key.hasPrefix("NSSplitView Subview Frames") && key.contains("Settings") {
+        defaults.removeObject(forKey: key)
+    }
+    defaults.set(true, forKey: flag)
+}
+
+/// The live settings navigation model, so other windows can jump to a page.
+@MainActor private weak var currentSettingsNavigation: SettingsNavigationModel?
+
+/// Open Settings on `category` (rule editor's "去设置" link, etc).
+@MainActor
+func openSettings(category: SettingsCategory) {
+    AppAction.shared.openSettings?()
+    currentSettingsNavigation?.selection = category
+}
+
 @MainActor
 func showSettingsWindowAppKit() {
-    WindowManager.shared.show(
+    clearLegacySettingsSidebarWidth()
+    let model = SettingsNavigationModel()
+    currentSettingsNavigation = model
+    model.onSelectionChange = { category in
+        WindowManager.shared.setTitle(L10n.tr(category.titleKey), for: "settings")
+    }
+    let controller = SettingsSplitViewController(model: model, sidebarWidth: SETTINGS_SIDEBAR_WIDTH)
+    WindowManager.shared.showController(
         id: "settings",
-        title: L10n.tr("menu.settings"),
+        title: L10n.tr(model.selection.titleKey),
         size: NSSize(width: 760, height: 520),
-        floating: false,
         styleMask: [.titled, .closable, .miniaturizable, .resizable],
         frameAutosaveName: "SettingsWindow",
-        // NavigationSplitView 侧边栏通顶需要 fullSizeContentView(同主管理器/
-        // 自动化窗口),窗口不再随内容自适应高度,面板内容自行滚动。
-        bridgeToolbar: true
-    ) {
-        SettingsView()
-            .environmentObject(ClipboardManager.shared)
-            .modelContainer(PasteMemoApp.sharedModelContainer)
-    }
+        controller: controller,
+        beforeShow: { controller.installToolbar(on: $0) }
+    )
 }
+
+/// 设置窗口侧边栏宽度。照系统设置量的——中文分类名加上图标块和缩进，短于这个数就开始挤。
+let SETTINGS_SIDEBAR_WIDTH: CGFloat = 220
 
 /// 自动化管理器窗口。同上,走 AppKit 路径(issue #66)。
 @MainActor
@@ -62,6 +91,13 @@ func showAutomationManagerWindow() {
     ) {
         AutomationManagerView()
             .modelContainer(PasteMemoApp.sharedModelContainer)
+    }
+    // The sidebar toggle needs the toolbar, the title text doesn't earn its space:
+    // the rule name sits right below as the page heading.
+    if let window = WindowManager.shared.window(for: "automationManager") {
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.toolbar?.showsBaselineSeparator = false
     }
 }
 

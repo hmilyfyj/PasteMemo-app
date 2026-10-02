@@ -601,14 +601,29 @@ struct PasteMemoTests {
         #expect(languages.contains("en-US"))
     }
 
-    @Test("Open in Preview excludes archive and application items")
+    @Test("Open in Preview excludes archives, apps and plain text even when the file exists")
     @MainActor func openInPreviewSupportedTypes() {
-        let archive = ClipItem(content: "/tmp/test.zip", contentType: .archive)
-        let application = ClipItem(content: "/Applications/Test.app", contentType: .application)
-        // Path must exist — `canOpenInPreview` checks `prepareURL`, not type alone.
-        let documentURL = FileManager.default.temporaryDirectory.appendingPathComponent("pastememo-preview-test.pdf")
+        // Paths must EXIST, otherwise a false result only proves "file missing" and
+        // says nothing about type filtering — which is the whole point here: the
+        // action used to be offered for anything at all, because the check was
+        // `prepareURL() != nil` and that writes a temp file for any content.
+        let tmp = FileManager.default.temporaryDirectory
+        let archiveURL = tmp.appendingPathComponent("pastememo-preview-test.zip")
+        try? Data().write(to: archiveURL)
+        let archive = ClipItem(content: archiveURL.path, contentType: .archive)
+        let application = ClipItem(content: "/System/Applications/Preview.app", contentType: .application)
+        let documentURL = tmp.appendingPathComponent("pastememo-preview-test.pdf")
         try? Data().write(to: documentURL)
         let document = ClipItem(content: documentURL.path, contentType: .document)
+        // The bug this guards: Preview.app cannot open .txt, yet `NSWorkspace.open`
+        // reports success and just never opens a window — so a text clip offering
+        // the action looked like "clicked, nothing happened".
+        let text = ClipItem(content: "胡塞武装", contentType: .text)
+        let code = ClipItem(content: "let x = 1", contentType: .code)
+        defer {
+            try? FileManager.default.removeItem(at: archiveURL)
+            try? FileManager.default.removeItem(at: documentURL)
+        }
         // Minimal valid 1×1 PNG — invalid bytes used to fail silently in Preview.app.
         let pngHeader: [UInt8] = [
             0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
@@ -623,10 +638,59 @@ struct PasteMemoTests {
         ]
         let image = ClipItem(content: "[Image]", contentType: .image, imageData: Data(pngHeader))
 
-        #expect(!QuickLookHelper.shared.canOpenInPreview(item: archive))
-        #expect(!QuickLookHelper.shared.canOpenInPreview(item: application))
-        #expect(QuickLookHelper.shared.canOpenInPreview(item: document))
-        #expect(QuickLookHelper.shared.canOpenInPreview(item: image))
+        #expect(!QuickLookHelper.shared.canOpenInPreviewApp(item: archive))
+        #expect(!QuickLookHelper.shared.canOpenInPreviewApp(item: application))
+        #expect(!QuickLookHelper.shared.canOpenInPreviewApp(item: text))
+        #expect(!QuickLookHelper.shared.canOpenInPreviewApp(item: code))
+        #expect(QuickLookHelper.shared.canOpenInPreviewApp(item: document))
+        #expect(QuickLookHelper.shared.canOpenInPreviewApp(item: image))
+
+        // ...but they must still be *viewable* — Quick Look handles all of these.
+        // Routing them to Preview.app was the bug; dropping the action entirely
+        // would just be a different bug.
+        #expect(QuickLookHelper.shared.canPreview(item: archive))
+        #expect(QuickLookHelper.shared.canPreview(item: application))
+        #expect(QuickLookHelper.shared.canPreview(item: text))
+        #expect(QuickLookHelper.shared.canPreview(item: code))
+        #expect(QuickLookHelper.shared.canPreview(item: document))
+        #expect(QuickLookHelper.shared.canPreview(item: image))
+    }
+
+    @Test("Nothing to preview: empty text, and file clips whose path is gone")
+    @MainActor func canPreviewRejectsEmptyAndMissing() {
+        let empty = ClipItem(content: "", contentType: .text)
+        let blank = ClipItem(content: "  \n\t ", contentType: .text)
+        let goneFile = ClipItem(content: "/tmp/pastememo-does-not-exist.zip", contentType: .archive)
+        let goneImage = ClipItem(content: "[Image]", contentType: .image)
+        #expect(!QuickLookHelper.shared.canPreview(item: empty))
+        #expect(!QuickLookHelper.shared.canPreview(item: blank))
+        #expect(!QuickLookHelper.shared.canPreview(item: goneFile))
+        #expect(!QuickLookHelper.shared.canPreview(item: goneImage))
+    }
+
+    /// A plain URL has nothing to render: `prepareURL` returns nil for `.link`
+    /// clips that carry no image, so offering the action would reproduce the
+    /// exact bug it was meant to fix — menu row present, click does nothing.
+    @Test("Plain links offer no preview; image links do")
+    @MainActor func canPreviewRejectsPlainLinks() {
+        let plain = ClipItem(content: "https://example.com/x", contentType: .link)
+        #expect(!QuickLookHelper.shared.canPreview(item: plain))
+        #expect(!QuickLookHelper.shared.canOpenInPreviewApp(item: plain))
+
+        let png1x1 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lQn4NwAAAABJRU5ErkJggg=="
+        let dataURI = ClipItem(content: "data:image/png;base64,\(png1x1)", contentType: .link)
+        #expect(QuickLookHelper.shared.canPreview(item: dataURI))
+    }
+
+    @Test("Checking Open-in-Preview availability must not write to disk")
+    @MainActor func canOpenInPreviewAppHasNoDiskSideEffect() {
+        // The old check ran `prepareURL()`, so merely building the ⌘K menu wrote a
+        // temp file per clip (and materialized full image bytes for image clips).
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("PasteMemo-QL")
+        try? FileManager.default.removeItem(at: dir)
+        let text = ClipItem(content: "胡塞武装", contentType: .text)
+        _ = QuickLookHelper.shared.canOpenInPreviewApp(item: text)
+        #expect(!FileManager.default.fileExists(atPath: dir.path))
     }
 
     /// Regression: when the store is inactive (panel/window hidden), observers used to silently drop

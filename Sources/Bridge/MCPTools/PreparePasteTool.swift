@@ -36,8 +36,11 @@ struct PreparePasteTool: MCPTool {
         }
 
         let context = container.mainContext
-        let allItems = try context.fetch(FetchDescriptor<ClipItem>())
-        guard let item = allItems.first(where: { $0.itemID == id }) else {
+        // 按 itemID 走 idx_clip_itemid 索引取单条。原先全表 fetch 再线性查找，万条级库
+        // 每次调用都在主线程物化整张表（含缩略图 blob），卡数百毫秒。
+        var descriptor = FetchDescriptor<ClipItem>(predicate: #Predicate { $0.itemID == id })
+        descriptor.fetchLimit = 1
+        guard let item = try context.fetch(descriptor).first else {
             throw MCPToolError.toolError("Item not found: \(id)")
         }
         guard guardLayer.filter([item]).first != nil else {

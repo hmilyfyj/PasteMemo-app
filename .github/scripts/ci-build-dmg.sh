@@ -69,6 +69,28 @@ notarize_dmg() {
     xcrun stapler staple "$DMG"
 }
 
+# Fail fast if a binary was linked with the wrong SDK version recorded in
+# LC_BUILD_VERSION. macOS uses that field for "linked-on-or-after" checks: a
+# stale value (e.g. 14.0 = the deployment target) makes the whole app render
+# with the legacy window chrome — old traffic lights, old sidebar material, no
+# Liquid Glass — even on macOS 26+. Seen locally with Xcode 27 / Swift 6.4,
+# whose default `swiftbuild` backend writes the deployment target there;
+# `--build-system native` records it correctly. The macos-26 runner (Xcode 26.x)
+# is unaffected today; this guard is for the day the runner moves to Xcode 27.
+assert_linked_sdk() {
+    local BIN=$1
+    local EXPECTED ACTUAL
+    EXPECTED=$(xcrun --show-sdk-version)
+    ACTUAL=$(otool -l "$BIN" | awk '/LC_BUILD_VERSION/{f=1} f && /sdk/{print $2; exit}')
+    if [ "$ACTUAL" != "$EXPECTED" ]; then
+        echo "❌ $BIN: LC_BUILD_VERSION sdk=$ACTUAL, expected $EXPECTED (toolchain SDK)." >&2
+        echo "   The app would render with legacy macOS 14-era window chrome. If the" >&2
+        echo "   toolchain is Xcode 27+, add --build-system native to swift build." >&2
+        exit 1
+    fi
+    echo "  ✓ $(basename "$BIN") linked against SDK $ACTUAL"
+}
+
 build_arch() {
     local ARCH=$1
     local APP_BUNDLE="$RELEASE_DIR/$APP_NAME-$ARCH.app"
@@ -86,6 +108,9 @@ build_arch() {
     swift build -c release --arch "$ARCH" -Xswiftc -Osize --product pastememo-mcp 2>&1
     cp "$BIN_PATH/pastememo-mcp" "$APP_BUNDLE/Contents/MacOS/pastememo-mcp"
     chmod +x "$APP_BUNDLE/Contents/MacOS/pastememo-mcp"
+
+    assert_linked_sdk "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+    assert_linked_sdk "$APP_BUNDLE/Contents/MacOS/pastememo-mcp"
 
     cat > "$APP_BUNDLE/Contents/Info.plist" << PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -116,6 +141,11 @@ build_arch() {
     <string>Copyright © 2026 lifedever. All rights reserved.</string>
     <key>NSAppleEventsUsageDescription</key>
     <string>PasteMemo needs to communicate with Finder to save images to folders.</string>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsArbitraryLoads</key>
+        <true/>
+    </dict>
 </dict>
 </plist>
 PLIST
