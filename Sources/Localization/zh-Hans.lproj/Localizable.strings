@@ -70,6 +70,7 @@
 "filter.favorites" = "收藏";
 "filter.pinned" = "置顶";
 "filter.aiAgent" = "AI Agent";
+"filter.sms" = "短信";
 
 /* Time */
 "time.now" = "刚刚";
@@ -88,6 +89,8 @@
 
 /* Settings */
 "settings.general" = "通用";
+"settings.nav.back" = "后退";
+"settings.nav.forward" = "前进";
 "settings.update" = "更新";
 "settings.about" = "关于";
 "settings.appearance" = "外观";
@@ -121,6 +124,9 @@
 "settings.currentVersion" = "当前版本";
 "settings.features" = "功能";
 "settings.shortcuts" = "快捷键";
+"settings.shortcuts.section.quickPanel" = "快捷面板";
+"settings.shortcuts.section.manager" = "管理器窗口";
+"settings.shortcuts.section.relay" = "接力";
 "settings.quickPanelShortcut" = "打开快捷面板";
 "settings.managerShortcut" = "打开管理器";
 "settings.managerShortcut.global" = "全局";
@@ -139,6 +145,9 @@
 "settings.quickPanelSecondaryRow" = "快捷面板搜索框下方显示";
 "settings.quickPanelSecondaryRow.types" = "类型";
 "settings.quickPanelSecondaryRow.groups" = "分组";
+"settings.quickPanelTabTypes" = "标签栏显示的分类";
+"settings.quickPanelTabTypes.hint" = "拖拽调整顺序，置顶和全部也能排。取消勾选可在快捷面板隐藏该分类，主窗口侧边栏不受影响。";
+"settings.quickPanelTabTypes.reset" = "恢复默认";
 "settings.history" = "历史记录";
 "settings.retentionDays" = "保留时长";
 "settings.retentionDays.forever" = "永久";
@@ -222,6 +231,10 @@
 "detail.size" = "大小";
 "detail.format" = "格式";
 "detail.fileCount" = "文件数";
+"detail.fileStatus" = "状态";
+"file.unavailable.missing" = "文件已不存在";
+"finder.notResponding" = "访达没有响应";
+"file.unavailable.denied" = "无访问权限";
 "detail.host" = "域名";
 "detail.url" = "链接";
 "detail.aiPreview" = "AI 友好预览";
@@ -286,7 +299,7 @@
 "menu.pause" = "暂停剪贴板监听";
 "menu.resume" = "恢复剪贴板监听";
 "menu.settings" = "设置";
-"menu.quit" = "退出 %@";
+"menu.quit" = "退出";
 "menu.accessibility.grant" = "⚠ 授权辅助功能权限";
 
 /* Quick Panel */
@@ -504,7 +517,91 @@
 "automation.rule.triggerMode" = "触发模式";
 "automation.rule.triggerMode.automatic" = "自动触发";
 "automation.rule.triggerMode.manual" = "仅手动触发";
-"automation.rule.triggerMode.shortcutManualOnly" = "「运行快捷指令」仅支持手动触发";
+"automation.rule.triggerMode.shortcutManualOnly" = "含快捷指令、AI 改写或关闭面板的规则只能手动触发";
+"automation.rule.outputMode" = "结果去向";
+"automation.rule.outputMode.replaceItem" = "替换当前条目";
+"automation.rule.outputMode.newItem" = "生成新条目";
+"automation.rule.outputMode.clipboard" = "仅写入剪贴板";
+"automation.rule.outputMode.pasteToFrontmost" = "直接粘贴到前台";
+"automation.rule.outputMode.help" = "自动触发时没有粘贴目标，「仅写入剪贴板」和「直接粘贴到前台」都是把结果写回剪贴板，复制后 ⌘V 直接得到处理后的内容（富文本转为纯文本）。";
+"automation.action.section.flow" = "流程";
+"automation.action.stopProcessing" = "不再执行后续规则";
+"automation.action.closeQuickPanel" = "关闭快捷面板";
+"automation.rule.triggerMode.automatic.help" = "复制时自动执行";
+"automation.rule.triggerMode.manual.help" = "在快捷面板按 ⌘K，或在条目的右键菜单里运行";
+"automation.action.regexReplace.pattern" = "查找";
+"automation.preview.asyncSkipped" = "AI 改写和快捷指令不在这里预览";
+"automation.builtIn.restore" = "恢复内置规则";
+"automation.editor.unsaved" = "有未保存的更改";
+"automation.editor.unsavedMessage" = "切换到其它规则前要保存吗？";
+"automation.editor.dontSave" = "不保存";
+"automation.editor.on" = "开";
+"automation.editor.off" = "关";
+"automation.flow.when" = "触发";
+"automation.flow.if" = "条件";
+"automation.flow.then" = "动作";
+"automation.flow.finally" = "结果";
+"automation.flow.allConditions" = "满足全部条件";
+"automation.flow.anyCondition" = "满足任一条件";
+"automation.flow.inOrder" = "按顺序执行";
+"automation.action.aiTransform" = "AI 改写";
+"automation.action.aiTransform.placeholder" = "告诉模型怎么改，例如「翻译成英文，只输出译文」";
+"automation.action.aiTransform.overrides" = "模型参数";
+"automation.action.aiTransform.followGlobal" = "跟随全局";
+"automation.ai.notConfigured" = "还没配置 AI 服务";
+"automation.ai.openSettings" = "去设置";
+"automation.ai.processing" = "正在执行「%@」…";
+"automation.ai.busy" = "这条还在处理中";
+"automation.ai.noChange" = "模型没有改动这段内容";
+"automation.ai.error.tooLong" = "内容超过 %d 字，不发送";
+"automation.ai.error.sensitive" = "敏感条目不发送";
+"automation.ai.error.blockedApp" = "来源 App 在黑名单里，不发送";
+"automation.ai.error.empty" = "模型没有返回内容";
+"automation.ai.error.reasoningOnly" = "模型只返回了思考过程，没有正文。把「思考」设为关闭再试";
+"automation.ai.error.http" = "服务返回 %d";
+"automation.ai.error.timeout" = "请求超时";
+"automation.ai.error.badBaseURL" = "Base URL 不是有效的 http(s) 地址";
+"automation.ai.error.cliNotFound" = "本机找不到 %@";
+"automation.ai.error.cliFailed" = "命令执行失败";
+"automation.ai.error.cliBadOutput" = "输出里没有 %@ 字段";
+"automation.builtIn.aiTranslate" = "AI 中英互译";
+"automation.builtIn.aiTidy" = "AI 文字整理";
+"settings.aiService" = "AI 服务";
+"settings.aiService.provider" = "服务商";
+"settings.aiService.preset.custom" = "自定义";
+"settings.aiService.model" = "模型";
+"settings.aiService.timeout" = "超时";
+"settings.aiService.timeout.seconds" = "%d 秒";
+"settings.aiService.timeout.unit" = "秒";
+"settings.aiService.temperature" = "温度";
+"settings.aiService.thinking" = "思考";
+"settings.aiService.thinking.auto" = "跟随模型默认";
+"settings.aiService.thinking.off" = "关闭";
+"settings.aiService.thinking.on" = "开启";
+"settings.aiService.showKey" = "显示 key";
+"settings.aiService.hideKey" = "隐藏 key";
+"settings.aiService.test" = "测试连接";
+"settings.aiService.testing" = "连接中…";
+"settings.aiService.test.ok" = "连接正常，模型回复：%@";
+"settings.aiService.test.failed" = "失败：%@";
+"settings.aiService.privacyHint" = "只有手动运行含「AI 改写」的规则时，才会把那一条内容发给服务商。标记为敏感的条目和黑名单来源的条目不会发送。";
+"settings.aiService.usageHint" = "通过自动化来用：新建一条规则，加「AI 改写」动作，写清让模型做什么；在快捷面板按 ⌘K 或在条目右键菜单里运行。只处理文本条目，图片和文件不会发给模型。";
+"settings.aiService.mode.remote" = "服务接口";
+"settings.aiService.mode.local" = "本地 Agent";
+"settings.aiService.cli.preset" = "Agent";
+"settings.aiService.cli.preset.custom" = "自定义";
+"settings.aiService.cli.executable" = "命令";
+"settings.aiService.cli.arguments" = "参数";
+"settings.aiService.cli.outputKey" = "取 JSON 字段";
+"settings.aiService.cli.outputKey.placeholder" = "留空表示直接取输出";
+"settings.aiService.cli.notFound" = "本机没找到这个命令";
+"settings.aiService.cli.argumentsHint" = "参数里的 %@ 会换成指令和内容；不写它就从标准输入送进去。";
+"settings.aiService.cli.privacyHint" = "内容交给本机的这条命令。它会不会联网、发给谁，看命令本身。标记为敏感的条目和黑名单来源的条目不会发送。";
+"settings.aiService.cli.timeoutHint" = "本地 Agent 比服务接口慢，一次改写通常要几秒。";
+"settings.aiService.cli.missingHint" = "本机没装 %@，或者装在了别处——把完整路径填在下面。";
+"settings.aiService.mode" = "调用方式";
+"settings.aiService.cli.model.placeholder" = "留空用 Agent 自己的默认模型";
+"settings.aiService.cli.extraArgs" = "附加参数";
 "automation.rule.notifyBeforeApply" = "触发时弹窗确认";
 "automation.rule.newName" = "新规则";
 "cmd.transform" = "转换";
@@ -563,8 +660,6 @@
 "automation.action.runShortcut.failed" = "快捷指令执行失败";
 "automation.action.runShortcut.loading" = "加载中…";
 "automation.rule.notifyOnTrigger" = "触发时发送通知";
-"automation.rule.writeBackToPasteboard" = "处理后写回剪贴板";
-"automation.rule.writeBackToPasteboard.help" = "开启后，规则处理结果会写回系统剪贴板，复制后直接 ⌘V 粘贴即为处理后的内容（富文本会转为纯文本）。";
 "automation.notification.title" = "自动化";
 "automation.applied" = "自动化已执行";
 "automation.validation.incomplete" = "无法启用规则";
@@ -690,6 +785,11 @@
 "backup.changePath" = "更改…";
 "backup.webdav.testSuccess" = "连接成功。";
 "backup.webdav.testFailed" = "连接失败。";
+"backup.webdav.testSuccessHTTP" = "连接成功（未加密 HTTP）。";
+"backup.webdav.authFailed" = "服务器已连通，但用户名或密码不正确。";
+"backup.webdav.certError" = "服务器证书无效，无法建立安全连接。";
+"backup.webdav.invalidURL" = "服务器地址无效，仅支持 http:// 或 https://。";
+"backup.webdav.insecureWarning" = "当前为未加密的 HTTP 连接，账号密码和备份数据将以明文传输。";
 
 // 接力模式
 // 命令面板
@@ -703,15 +803,17 @@
 "cmd.toggleSensitive" = "标记 / 取消敏感";
 "cmd.delete" = "删除";
 "cmd.openLink" = "打开链接";
+"cmd.openEntity" = "打开 %@";
+"cmd.pasteEntity" = "粘贴 %@";
 "cmd.pasteAsFile" = "粘贴为文件";
 "cmd.pastePath" = "粘贴路径";
 "cmd.openInPreview" = "用“预览”打开";
+"cmd.quickLook" = "快速查看";
 "cmd.retryOCR" = "重新识别 OCR";
 "cmd.pasteOCR" = "粘贴 OCR 文字";
 "cmd.andNewLine" = "并换行";
 
 "relay.title" = "接力模式";
-"relay.tab" = "接力";
 "relay.exit" = "退出";
 "relay.clearAndExit" = "清空并退出";
 "relay.close" = "关闭";
@@ -736,7 +838,6 @@
 "relay.settings.pasteKey" = "接力粘贴快捷键";
 "relay.settings.pasteKeyNote" = "部分应用（终端、Emacs）可能使用相同快捷键，如有冲突请自定义。";
 "relay.settings.pauseToChange" = "请先暂停或退出接力模式再修改快捷键。";
-"relay.settings.resetAlert" = "重新显示开启提示";
 "relay.settings.plainText" = "纯文本粘贴";
 "relay.settings.plainText.desc" = "去除富文本格式";
 "relay.settings.allowRepeatCopy" = "允许重复复制";
@@ -762,12 +863,6 @@
 "relay.settings.postPasteKey.left" = "左";
 "relay.settings.postPasteKey.right" = "右";
 "relay.settings.postPasteKey.space" = "空格";
-"relay.settings.description" = "接力模式可以连续复制多条内容，然后按顺序逐条粘贴。适合从网页复制一批用户名，再切到 Excel 逐行粘贴的场景。";
-"relay.settings.shortcuts" = "快捷键";
-"relay.settings.operations" = "操作说明";
-"relay.settings.op.paste" = "粘贴下一条";
-"relay.settings.op.skip" = "跳过当前条";
-"relay.settings.op.previous" = "回退上一条";
 "relay.autoExit.short" = "结束后自动退出";
 "relay.loop" = "循环";
 "relay.loop.tooltip.on" = "循环接力：开（队列结束后自动从头开始）";
@@ -874,5 +969,25 @@
 "settings.imageGridDensity.sparse" = "疏";
 "settings.imageGridDensity.medium" = "中";
 "settings.imageGridDensity.dense" = "密";
+"settings.previewFontSize" = "预览字体大小";
+"settings.previewFontSize.points" = "%d pt";
 
 "settings.ocr.memoryHint" = "开启后会在后台用 Vision 识别图片中的文字，可能增加内存占用。";
+
+// SMS verification codes
+"settings.smsCode" = "短信验证码";
+"settings.smsCode.enabled" = "自动提取「信息」中的短信验证码并复制";
+"settings.smsCode.needsFDA" = "读取短信需要「完全磁盘访问权限」";
+"settings.smsCode.openSettings" = "打开系统设置";
+"settings.smsCode.granted" = "已获得完全磁盘访问权限";
+"settings.smsCode.hint" = "需要 iPhone 开启「短信转发」到这台 Mac（设置 → 信息 → 短信转发）。若授权后仍未生效，请重启 PasteMemo。";
+"sms.notification.codeCopied" = "验证码 %@ 已复制";
+"sms.notification.fallbackTitle" = "收到疑似验证码短信";
+"sms.preview.messageLabel" = "短信原文";
+"settings.smsCode.description" = "开启后，收到验证码短信时会自动提取验证码、复制到剪贴板并发送通知。";
+"settings.smsCode.feedback" = "遇到未能识别的验证码短信？欢迎反馈（脱敏后的）短信内容，帮助完善识别规则。";
+"settings.smsCode.feedbackLink" = "提交反馈";
+
+// MARK: - List row metrics
+"meta.chars" = "%@ 字";
+"meta.lines" = "%@ 行";

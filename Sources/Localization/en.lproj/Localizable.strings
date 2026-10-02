@@ -70,6 +70,7 @@
 "filter.favorites" = "Favorites";
 "filter.pinned" = "Pinned";
 "filter.aiAgent" = "AI Agent";
+"filter.sms" = "SMS";
 
 /* Time */
 "time.now" = "now";
@@ -88,6 +89,8 @@
 
 /* Settings */
 "settings.general" = "General";
+"settings.nav.back" = "Back";
+"settings.nav.forward" = "Forward";
 "settings.update" = "Update";
 "settings.about" = "About";
 "settings.appearance" = "Appearance";
@@ -121,6 +124,9 @@
 "settings.currentVersion" = "Current Version";
 "settings.features" = "Features";
 "settings.shortcuts" = "Shortcuts";
+"settings.shortcuts.section.quickPanel" = "Quick Paste";
+"settings.shortcuts.section.manager" = "Manager Window";
+"settings.shortcuts.section.relay" = "Relay";
 "settings.quickPanelShortcut" = "Quick Paste";
 "settings.managerShortcut" = "Open Manager";
 "settings.managerShortcut.global" = "Global";
@@ -139,6 +145,9 @@
 "settings.quickPanelSecondaryRow" = "Show below Quick Panel search";
 "settings.quickPanelSecondaryRow.types" = "Types";
 "settings.quickPanelSecondaryRow.groups" = "Groups";
+"settings.quickPanelTabTypes" = "Tab bar categories";
+"settings.quickPanelTabTypes.hint" = "Drag to reorder. Unchecking hides the tab in the Quick Panel; the main window sidebar is unaffected.";
+"settings.quickPanelTabTypes.reset" = "Reset";
 "settings.history" = "History";
 "settings.retentionDays" = "Keep History";
 "settings.retentionDays.forever" = "Forever";
@@ -222,6 +231,10 @@
 "detail.size" = "Size";
 "detail.format" = "Format";
 "detail.fileCount" = "Files";
+"detail.fileStatus" = "Status";
+"file.unavailable.missing" = "File no longer exists";
+"finder.notResponding" = "Finder isn't responding";
+"file.unavailable.denied" = "No permission to access";
 "detail.host" = "Host";
 "detail.url" = "URL";
 "detail.aiPreview" = "AI-Ready Preview";
@@ -286,7 +299,7 @@
 "menu.pause" = "Pause Clipboard Monitoring";
 "menu.resume" = "Resume Clipboard Monitoring";
 "menu.settings" = "Settings";
-"menu.quit" = "Quit %@";
+"menu.quit" = "Quit";
 "menu.accessibility.grant" = "⚠ Grant Accessibility Permission";
 
 /* Quick Panel */
@@ -503,7 +516,91 @@
 "automation.rule.triggerMode" = "Trigger";
 "automation.rule.triggerMode.automatic" = "Automatic";
 "automation.rule.triggerMode.manual" = "Manual only";
-"automation.rule.triggerMode.shortcutManualOnly" = "Run Shortcut actions can only be triggered manually";
+"automation.rule.triggerMode.shortcutManualOnly" = "Rules with Run Shortcut, AI rewrite or Close Quick Panel only work with manual trigger";
+"automation.rule.outputMode" = "Result goes to";
+"automation.rule.outputMode.replaceItem" = "Replace this item";
+"automation.rule.outputMode.newItem" = "New item";
+"automation.rule.outputMode.clipboard" = "Clipboard only";
+"automation.rule.outputMode.pasteToFrontmost" = "Paste into front app";
+"automation.rule.outputMode.help" = "Automatic rules have no paste target: “Clipboard only” and “Paste into front app” both write the result back to the clipboard, so ⌘V right after copying pastes the processed text (rich text becomes plain text).";
+"automation.action.section.flow" = "Flow";
+"automation.action.stopProcessing" = "Stop running further rules";
+"automation.action.closeQuickPanel" = "Close Quick Panel";
+"automation.rule.triggerMode.automatic.help" = "Runs automatically when you copy";
+"automation.rule.triggerMode.manual.help" = "Run it from ⌘K in the Quick Panel or the clip's context menu";
+"automation.action.regexReplace.pattern" = "Find";
+"automation.preview.asyncSkipped" = "AI rewrite and Run Shortcut are not previewed here";
+"automation.builtIn.restore" = "Restore built-in rules";
+"automation.editor.unsaved" = "Unsaved changes";
+"automation.editor.unsavedMessage" = "Save before switching to another rule?";
+"automation.editor.dontSave" = "Don’t Save";
+"automation.editor.on" = "On";
+"automation.editor.off" = "Off";
+"automation.flow.when" = "Trigger";
+"automation.flow.if" = "Conditions";
+"automation.flow.then" = "Actions";
+"automation.flow.finally" = "Result";
+"automation.flow.allConditions" = "all conditions are met";
+"automation.flow.anyCondition" = "any condition is met";
+"automation.flow.inOrder" = "run in order";
+"automation.action.aiTransform" = "AI rewrite";
+"automation.action.aiTransform.placeholder" = "Tell the model what to do, e.g. “Translate to English, output only the translation”";
+"automation.action.aiTransform.overrides" = "Model settings";
+"automation.action.aiTransform.followGlobal" = "Follow global";
+"automation.ai.notConfigured" = "AI service not set up";
+"automation.ai.openSettings" = "Open settings";
+"automation.ai.processing" = "Running “%@”…";
+"automation.ai.busy" = "This clip is still being processed";
+"automation.ai.noChange" = "The model left the text unchanged";
+"automation.ai.error.tooLong" = "Over %d characters, not sent";
+"automation.ai.error.sensitive" = "Sensitive clip, not sent";
+"automation.ai.error.blockedApp" = "Source app is blocklisted, not sent";
+"automation.ai.error.empty" = "The model returned nothing";
+"automation.ai.error.reasoningOnly" = "The model only returned its reasoning, no answer. Set Thinking to Off and try again";
+"automation.ai.error.http" = "Service returned %d";
+"automation.ai.error.timeout" = "Request timed out";
+"automation.ai.error.badBaseURL" = "Base URL is not a valid http(s) address";
+"automation.ai.error.cliNotFound" = "Can't find %@ on this Mac";
+"automation.ai.error.cliFailed" = "Command failed";
+"automation.ai.error.cliBadOutput" = "No %@ field in the output";
+"automation.builtIn.aiTranslate" = "AI: translate Chinese ⇄ English";
+"automation.builtIn.aiTidy" = "AI: tidy up text";
+"settings.aiService" = "AI Service";
+"settings.aiService.provider" = "Provider";
+"settings.aiService.preset.custom" = "Custom";
+"settings.aiService.model" = "Model";
+"settings.aiService.timeout" = "Timeout";
+"settings.aiService.timeout.seconds" = "%d s";
+"settings.aiService.timeout.unit" = "s";
+"settings.aiService.temperature" = "Temperature";
+"settings.aiService.thinking" = "Thinking";
+"settings.aiService.thinking.auto" = "Model default";
+"settings.aiService.thinking.off" = "Off";
+"settings.aiService.thinking.on" = "On";
+"settings.aiService.showKey" = "Show key";
+"settings.aiService.hideKey" = "Hide key";
+"settings.aiService.test" = "Test connection";
+"settings.aiService.testing" = "Connecting…";
+"settings.aiService.test.ok" = "Connected. Model replied: %@";
+"settings.aiService.test.failed" = "Failed: %@";
+"settings.aiService.privacyHint" = "Text is sent to the provider only when you run a rule containing “AI rewrite” by hand. Clips marked sensitive and clips from blocklisted apps are never sent.";
+"settings.aiService.usageHint" = "Use it through automation: create a rule with an “AI rewrite” action and write what the model should do. Run it from ⌘K in the Quick Panel or a clip’s context menu. Text clips only — images and files never go to the model.";
+"settings.aiService.mode.remote" = "Service endpoint";
+"settings.aiService.mode.local" = "Local agent";
+"settings.aiService.cli.preset" = "Agent";
+"settings.aiService.cli.preset.custom" = "Custom";
+"settings.aiService.cli.executable" = "Command";
+"settings.aiService.cli.arguments" = "Arguments";
+"settings.aiService.cli.outputKey" = "JSON key";
+"settings.aiService.cli.outputKey.placeholder" = "Empty means use output as-is";
+"settings.aiService.cli.notFound" = "Not found on this Mac";
+"settings.aiService.cli.argumentsHint" = "%@ in the arguments is replaced with the instruction and the text. Leave it out and the prompt goes in on stdin.";
+"settings.aiService.cli.privacyHint" = "The text goes to this command on your Mac. Whether it reaches the network, and who gets it, is up to the command. Sensitive clips and clips from blocklisted apps are never sent.";
+"settings.aiService.cli.timeoutHint" = "A local agent is slower than a service endpoint — a rewrite usually takes a few seconds.";
+"settings.aiService.cli.missingHint" = "%@ isn't installed here, or it's somewhere unusual — put the full path below.";
+"settings.aiService.mode" = "Call via";
+"settings.aiService.cli.model.placeholder" = "Empty: the agent's own default";
+"settings.aiService.cli.extraArgs" = "Extra arguments";
 "automation.rule.notifyBeforeApply" = "Confirm before applying";
 "automation.rule.newName" = "New Rule";
 "cmd.transform" = "Transform";
@@ -562,8 +659,6 @@
 "automation.action.runShortcut.failed" = "Shortcut failed";
 "automation.action.runShortcut.loading" = "Loading…";
 "automation.rule.notifyOnTrigger" = "Send notification on trigger";
-"automation.rule.writeBackToPasteboard" = "Write result back to clipboard";
-"automation.rule.writeBackToPasteboard.help" = "When on, the rule's result is written back to the system clipboard, so ⌘V right after copying pastes the transformed text (rich text becomes plain text).";
 "automation.notification.title" = "Automation";
 "automation.applied" = "Automation applied";
 "automation.validation.incomplete" = "Cannot enable rule";
@@ -689,6 +784,11 @@
 "backup.changePath" = "Change…";
 "backup.webdav.testSuccess" = "Connection successful.";
 "backup.webdav.testFailed" = "Connection failed.";
+"backup.webdav.testSuccessHTTP" = "Connection successful (unencrypted HTTP).";
+"backup.webdav.authFailed" = "Server reached, but the username or password is incorrect.";
+"backup.webdav.certError" = "The server certificate is invalid; a secure connection could not be established.";
+"backup.webdav.invalidURL" = "Invalid server URL. Only http:// and https:// are supported.";
+"backup.webdav.insecureWarning" = "Unencrypted HTTP connection: credentials and backup data are sent in plain text.";
 
 // Relay Mode
 // Command Palette
@@ -702,15 +802,17 @@
 "cmd.toggleSensitive" = "Toggle Sensitive";
 "cmd.delete" = "Delete";
 "cmd.openLink" = "Open Link";
+"cmd.openEntity" = "Open %@";
+"cmd.pasteEntity" = "Paste %@";
 "cmd.pasteAsFile" = "Paste as File";
 "cmd.pastePath" = "Paste Path";
 "cmd.openInPreview" = "Open in Preview";
+"cmd.quickLook" = "Quick Look";
 "cmd.retryOCR" = "Retry OCR";
 "cmd.pasteOCR" = "Paste OCR Text";
 "cmd.andNewLine" = " + New Line";
 
 "relay.title" = "Relay Mode";
-"relay.tab" = "Relay";
 "relay.exit" = "Exit";
 "relay.clearAndExit" = "Clear & Exit";
 "relay.close" = "Close";
@@ -735,7 +837,6 @@
 "relay.settings.pasteKey" = "Relay Paste Shortcut";
 "relay.settings.pasteKeyNote" = "Some apps (Terminal, Emacs) may use the same shortcut. Customize if there's a conflict.";
 "relay.settings.pauseToChange" = "Pause or exit Relay Mode to change the shortcut.";
-"relay.settings.resetAlert" = "Show activation tip again";
 "relay.settings.plainText" = "Paste as Plain Text";
 "relay.settings.plainText.desc" = "Strip rich formatting";
 "relay.settings.allowRepeatCopy" = "Allow duplicate copies";
@@ -761,12 +862,6 @@
 "relay.settings.postPasteKey.left" = "Left";
 "relay.settings.postPasteKey.right" = "Right";
 "relay.settings.postPasteKey.space" = "Space";
-"relay.settings.description" = "Relay Mode lets you copy multiple items and paste them one by one in order. Ideal for copying a list of names from a webpage and pasting them row by row into Excel.";
-"relay.settings.shortcuts" = "Shortcuts";
-"relay.settings.operations" = "Operations";
-"relay.settings.op.paste" = "Paste next item";
-"relay.settings.op.skip" = "Skip current item";
-"relay.settings.op.previous" = "Go back one item";
 "relay.autoExit.short" = "Auto exit when done";
 "relay.loop" = "Loop";
 "relay.loop.tooltip.on" = "Loop: On (Restart from top when queue ends)";
@@ -874,5 +969,25 @@
 "settings.imageGridDensity.sparse" = "Sparse";
 "settings.imageGridDensity.medium" = "Medium";
 "settings.imageGridDensity.dense" = "Dense";
+"settings.previewFontSize" = "Preview font size";
+"settings.previewFontSize.points" = "%d pt";
 
 "settings.ocr.memoryHint" = "When on, PasteMemo recognizes text in images in the background using Vision, which may increase memory usage.";
+
+// SMS verification codes
+"settings.smsCode" = "SMS Verification Codes";
+"settings.smsCode.enabled" = "Auto-copy verification codes from Messages";
+"settings.smsCode.needsFDA" = "Full Disk Access is required to read Messages";
+"settings.smsCode.openSettings" = "Open System Settings";
+"settings.smsCode.granted" = "Full Disk Access granted";
+"settings.smsCode.hint" = "Requires iPhone Text Message Forwarding to this Mac (Settings → Messages → Text Message Forwarding). If it doesn't work after granting access, relaunch PasteMemo.";
+"sms.notification.codeCopied" = "Code %@ copied";
+"sms.notification.fallbackTitle" = "Message may contain a verification code";
+"sms.preview.messageLabel" = "Original message";
+"settings.smsCode.description" = "When on, PasteMemo extracts verification codes from incoming Messages, copies them to the clipboard and notifies you.";
+"settings.smsCode.feedback" = "Got a code message that wasn't recognized? Share the (redacted) SMS text to help improve the rules.";
+"settings.smsCode.feedbackLink" = "Send feedback";
+
+// MARK: - List row metrics
+"meta.chars" = "%@ chars";
+"meta.lines" = "%@ lines";

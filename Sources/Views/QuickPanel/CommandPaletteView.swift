@@ -8,17 +8,29 @@ enum CommandAction: Hashable {
     /// leave no trace after use. Suppressed for pinned / favourited items and
     /// for clips in a group flagged `preservesItems`.
     case pasteAndDestroy
-    case cmdEnter(label: String)
+    /// ⌘↩ 的镜像：纯文本粘贴 / 粘贴路径，永远不开链接。`hasKey` 为 false 时让出
+    /// 字母键 `P`——那一行有链接可开时 `P` 归 `openLink`，⌘↩ 和底栏提示不受影响。
+    case cmdEnter(label: String, hasKey: Bool)
     case copyColorFormat(format: String, label: String)
+    /// 打开链接。条目本身就是链接时 `display` 为 nil（标签用通用的「打开链接」），
+    /// 混合文本里解析出来的片段则带上 host。⌘↩ 一律是纯文本粘贴，开链接只走这里
+    /// 和 ⌘O——两种条目在这件事上没有区别。
+    /// `primary` 标记拿 `P` 的那行：多个链接时后面几行挂同一个键，徽章会显示一个
+    /// 永远按不到的字母。
+    case openLink(url: String, display: String?, primary: Bool)
+    /// Paste an access / verification code found inside a mixed-text clip.
+    case pasteEntityCode(code: String)
     case retryOCR
     /// Paste the item's recognized OCR text into the frontmost app (runs OCR on
     /// demand first when the text isn't cached). Falls back to clipboard when
     /// there's no target app, e.g. in the main window.
     case pasteOCR
-    case openInPreview
+    /// 查看条目内容。`usesPreviewApp` 为真时交给 Preview.app（图片 / PDF），否则走
+    /// Quick Look。分两条路是因为 Preview.app 打不开纯文本，而 Quick Look 什么都能显示
+    /// ——统一走 Preview.app 的话，文本条目点下去 Preview 只会被拉到前台、不开窗。
+    case openInPreview(usesPreviewApp: Bool)
     case showInFinder
     case copy
-    case transform(RuleAction)
     case addToRelay
     case splitAndRelay
     case pin(isPinned: Bool)
@@ -35,12 +47,13 @@ enum CommandAction: Hashable {
         case .pasteAndDestroy: "flame"
         case .cmdEnter: "textformat"
         case .copyColorFormat: "paintpalette"
+        case .openLink: "link"
+        case .pasteEntityCode: "key"
         case .retryOCR: "text.viewfinder"
         case .pasteOCR: "doc.text"
-        case .openInPreview: "photo.on.rectangle.angled"
+        case .openInPreview(let usesPreviewApp): usesPreviewApp ? "photo.on.rectangle.angled" : "eye"
         case .showInFinder: "folder"
         case .copy: "doc.on.doc"
-        case .transform: "wand.and.stars"
         case .addToRelay: "arrow.right.arrow.left"
         case .splitAndRelay: "scissors"
         case .pin(let pinned): pinned ? "pin.slash" : "pin"
@@ -54,14 +67,17 @@ enum CommandAction: Hashable {
         switch self {
         case .paste: L10n.tr("cmd.paste")
         case .pasteAndDestroy: L10n.tr("cmd.pasteAndDestroy")
-        case .cmdEnter(let label): label
+        case .cmdEnter(let label, _): label
         case .copyColorFormat(_, let label): label
+        case .openLink(_, let display, _):
+            display.map { L10n.tr("cmd.openEntity", $0) } ?? L10n.tr("cmd.openLink")
+        case .pasteEntityCode(let code): L10n.tr("cmd.pasteEntity", code)
         case .retryOCR: L10n.tr("cmd.retryOCR")
         case .pasteOCR: L10n.tr("cmd.pasteOCR")
-        case .openInPreview: L10n.tr("cmd.openInPreview")
+        case .openInPreview(let usesPreviewApp):
+            usesPreviewApp ? L10n.tr("cmd.openInPreview") : L10n.tr("cmd.quickLook")
         case .showInFinder: L10n.tr("cmd.showInFinder")
         case .copy: L10n.tr("cmd.copy")
-        case .transform(let action): action.displayLabel
         case .addToRelay: L10n.tr("relay.addToQueue")
         case .splitAndRelay: L10n.tr("relay.splitAndRelay")
         case .pin(let pinned): pinned ? L10n.tr("action.unpin") : L10n.tr("action.pin")
@@ -75,14 +91,15 @@ enum CommandAction: Hashable {
         switch self {
         case .paste: "V"
         case .pasteAndDestroy: "B"
-        case .cmdEnter: "P"
+        case .cmdEnter(_, let hasKey): hasKey ? "P" : nil
         case .copyColorFormat: "P"
+        case .openLink(_, _, let primary): primary ? "P" : nil
+        case .pasteEntityCode: "K"
         case .retryOCR: "Y"
         case .pasteOCR: "G"
         case .openInPreview: "L"
         case .showInFinder: "O"
         case .copy: "C"
-        case .transform: nil
         case .addToRelay: "R"
         case .splitAndRelay: "S"
         case .pin: "T"
@@ -96,14 +113,15 @@ enum CommandAction: Hashable {
         switch self {
         case .paste: 9       // V
         case .pasteAndDestroy: 11 // B
-        case .cmdEnter: 35   // P
+        case .cmdEnter(_, let hasKey): hasKey ? 35 : nil // P
         case .copyColorFormat: 35 // P
+        case .openLink(_, _, let primary): primary ? 35 : nil // P
+        case .pasteEntityCode: 40 // K
         case .retryOCR: 16   // Y
         case .pasteOCR: 5     // G
         case .openInPreview: 37 // L
         case .showInFinder: 31 // O
         case .copy: 8        // C
-        case .transform: nil
         case .addToRelay: 15 // R
         case .splitAndRelay: 1 // S
         case .pin: 17        // T
@@ -126,10 +144,11 @@ enum CommandAction: Hashable {
     var group: Int {
         switch self {
         case .paste, .pasteAndDestroy, .cmdEnter, .copyColorFormat: 0
-        case .retryOCR, .pasteOCR, .openInPreview, .showInFinder: 1
+        case .openLink, .pasteEntityCode,
+             .retryOCR, .pasteOCR, .openInPreview, .showInFinder: 1
         case .copy, .addToRelay, .splitAndRelay: 2
         case .pin, .toggleSensitive, .delete: 3
-        case .transform, .runRule: 4
+        case .runRule: 4
         }
     }
 
@@ -139,7 +158,8 @@ enum CommandAction: Hashable {
     /// and the close stalls for a beat (the lag vs. a direct Enter paste).
     var dismissesQuickPanel: Bool {
         switch self {
-        case .paste, .pasteAndDestroy, .cmdEnter, .copy, .pasteOCR: true
+        case .paste, .pasteAndDestroy, .cmdEnter, .copy, .pasteOCR, .showInFinder,
+             .openLink, .pasteEntityCode: true
         default: false
         }
     }
@@ -150,6 +170,24 @@ enum CommandAction: Hashable {
 /// （含指向箭头）裁剪，不会破坏气泡形状。旧系统保持系统默认材质。
 /// 注：完整 glassEffect 需要自定义形状、盖不住系统画的指向箭头，popover 形态下
 /// ultraThinMaterial 是能做到的最大通透度。
+/// popover 形态才需要固定宽度和 presentationBackground。嵌入玻璃浮层时两样都要
+/// 去掉：presentationBackground 脱离 popover 上下文根本不生效（面板会没有底），
+/// 而内层再钉一个 200pt 宽度会让外层容器和内容宽度对不上、两边空一圈。
+private struct PaletteChrome: ViewModifier {
+    let embedded: Bool
+
+    func body(content: Content) -> some View {
+        if embedded {
+            content
+        } else {
+            content
+                // 行内尺寸整体放大后 200 装不下「图标 + 文字 + 快捷键徽章」
+                .frame(width: 260)
+                .modifier(PaletteGlassBackground())
+        }
+    }
+}
+
 private struct PaletteGlassBackground: ViewModifier {
     func body(content: Content) -> some View {
         if #available(macOS 26.0, *) {
@@ -173,11 +211,18 @@ struct CommandPaletteContent: View {
     var preservedGroupNames: Set<String> = []
     let onAction: (CommandAction) -> Void
     let onDismiss: () -> Void
+    /// true：不自带宽度和背景，交给外部容器（快捷面板右下角的玻璃浮层）。
+    /// false：保持 popover 形态需要的固定宽度 + presentationBackground——主窗口
+    /// 仍走 popover，那条路径不能动。
+    var embedded: Bool = false
 
     @State private var selectedIndex = 0
     @State private var keyMonitor: Any?
     @State private var flagsMonitor: Any?
     @State private var isOptionPressed = false
+    /// 内容里认出来的链接 / 提取码。算一次存下来，不放进 `actions` 现算——键盘上下
+    /// 移动焦点会反复求值 body，每次重跑一遍关键词扫描是白扔的开销。
+    @State private var entities: [TextEntityExtractor.Entity] = []
 
     // keyCodes for digits 1..5 on an ANSI keyboard
     private static let digitKeyCodes: [Int] = [18, 19, 20, 21, 23]
@@ -196,6 +241,13 @@ struct CommandPaletteContent: View {
         return true
     }
 
+    /// ⌘K 里 `P` 该开的链接。判定和执行都由 `TextEntityExtractor.openableLink`
+    /// 给，快捷面板的键监听走同一个函数，不会和这里说的不一样。
+    private var openableLink: (url: String, display: String?)? {
+        guard !isMultiSelected, let item else { return nil }
+        return TextEntityExtractor.openableLink(for: item)
+    }
+
     private var actions: [CommandAction] {
         var list: [CommandAction] = [.paste]
         if canPasteAndDestroy {
@@ -209,7 +261,25 @@ struct CommandPaletteContent: View {
                 label: L10n.tr("cmd.copyAs", alt.rawValue)
             ))
         } else if let item, item.contentType != .color {
-            list.append(.cmdEnter(label: cmdEnterLabel(for: item)))
+            // 有链接可开时让出 `P`（见下面的 openLink），⌘↩ 和底栏提示照常
+            list.append(.cmdEnter(
+                label: cmdEnterLabel(for: item),
+                hasKey: openableLink == nil
+            ))
+        }
+        // 打开链接：条目整条是链接、或者内容里解析出了链接，都走这一行，`P` 键。
+        // ⌘↩ 不参与——它是纯文本粘贴，见上面的 cmdEnter。
+        if let openableLink {
+            list.append(.openLink(
+                url: openableLink.url, display: openableLink.display, primary: true
+            ))
+        }
+        // 多出来的片段链接不给字母键，方向键可达
+        for link in entities.filter({ $0.kind == .link }).dropFirst() {
+            list.append(.openLink(url: link.value, display: link.display, primary: false))
+        }
+        if let code = entities.first(where: { $0.kind == .code }) {
+            list.append(.pasteEntityCode(code: code.value))
         }
         if !isMultiSelected,
            let item,
@@ -225,8 +295,8 @@ struct CommandPaletteContent: View {
         }
         if !isMultiSelected,
            let item,
-           canOpenInPreview(item) {
-            list.append(.openInPreview)
+           let route = QuickLookHelper.shared.previewRoute(for: item) {
+            list.append(.openInPreview(usesPreviewApp: route == .previewApp))
         }
         // File-based clips always offer "Show in Finder"; plain-text clips do too
         // when their content is itself an existing filesystem path.
@@ -266,21 +336,52 @@ struct CommandPaletteContent: View {
     }
 
     private func cmdEnterLabel(for item: ClipItem) -> String {
+        // ⌘↩ 在所有条目上是同一件事：纯文本粘贴（文件类是粘贴路径）。链接条目也不
+        // 例外——它整条就是 URL，粘纯文本和富文本去格式是同一个语义。
         switch item.contentType {
-        case .text, .code, .color, .email, .phone, .mixed:
+        case .text, .code, .color, .email, .phone, .mixed, .link:
             L10n.tr("cmd.pasteAsPlainText")
-        case .link: L10n.tr("cmd.openLink")
         case .image, .file, .document, .archive, .application, .video, .audio:
             L10n.tr("cmd.pastePath")
         }
     }
 
-    private func canOpenInPreview(_ item: ClipItem) -> Bool {
-        QuickLookHelper.shared.canOpenInPreview(item: item)
+    /// 浮层形态才套 ScrollView，且 ScrollViewReader 必须和 selectedIndex 在同一个
+    /// view 里——键盘上下移动焦点时要把焦点项滚进可见区，否则一旦超出一屏，按方向键
+    /// 就等于在盲选。popover 形态高度由系统撑开，不需要滚动。
+    @ViewBuilder
+    private var paletteBody: some View {
+        if embedded {
+            ScrollViewReader { proxy in
+                ScrollView(.vertical, showsIndicators: false) {
+                    rowsStack.padding(8)
+                }
+                .onChange(of: selectedIndex) { _, newValue in
+                    withAnimation(.easeOut(duration: 0.12)) {
+                        proxy.scrollTo(newValue, anchor: .center)
+                    }
+                }
+            }
+        } else {
+            rowsStack.padding(8)
+        }
     }
 
-    var body: some View {
+    private var rowsStack: some View {
         VStack(spacing: 1) {
+            // 标题行：告诉用户这一菜单在对哪个对象操作（Raycast 同款）。只在浮层
+            // 形态显示——popover 有指向箭头指明来源，不需要再重复一次。
+            if embedded {
+                Text(paletteTitle)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 10)
+                    .padding(.top, 2)
+                    .padding(.bottom, 6)
+            }
             ForEach(Array(actions.enumerated()), id: \.element) { index, action in
                 if index > 0, actions[index - 1].group != action.group {
                     Divider()
@@ -290,19 +391,34 @@ struct CommandPaletteContent: View {
                 commandRow(action: action, isSelected: selectedIndex == index, index: index)
                     .onTapGesture { execute(action) }
                     .onHover { if $0 { selectedIndex = index } }
+                    // scrollTo 的锚点
+                    .id(index)
             }
         }
-        .padding(5)
-        .frame(width: 200)
-        .modifier(PaletteGlassBackground())
-        .onAppear {
+    }
+
+    var body: some View {
+        paletteBody
+            .modifier(PaletteChrome(embedded: embedded))
+            .onAppear {
             installKeyMonitor()
             installFlagsMonitor()
+            loadEntities()
         }
+        // 面板不关而换了条目（父视图带着新 item 重建）时 @State 不会重置，
+        // 不重算就会拿上一条的链接 / 码去执行。
+        .onChange(of: item?.itemID) { _, _ in loadEntities() }
         .onDisappear {
             removeKeyMonitor()
             removeFlagsMonitor()
         }
+    }
+
+    /// 浮层顶部的标题：多选时报条数，单选时用条目标题，都拿不到就退回通用标题。
+    private var paletteTitle: String {
+        if isMultiSelected { return L10n.tr("cmd.title") }
+        if let title = item?.displayTitle, !title.isEmpty { return title }
+        return L10n.tr("cmd.title")
     }
 
     private func displayLabel(for action: CommandAction) -> String {
@@ -319,32 +435,43 @@ struct CommandPaletteContent: View {
             return false
         }()
         let ruleDigit = digitForAction(at: index)
-        return HStack(spacing: 8) {
+        // 尺寸整体对齐 Raycast 的 actions 菜单：原来的 11/12/18 三档太局促，
+        // 图标和快捷键徽章挤成一团，视觉上「小气」。
+        return HStack(spacing: 9) {
             Image(systemName: action.icon)
-                .font(.system(size: 11))
-                .frame(width: 16)
+                .font(.system(size: 13))
+                .frame(width: 18)
                 .foregroundStyle(
                     action.isDestructive ? .red : (isRuleRow ? .purple : .secondary)
                 )
             Text(displayLabel(for: action))
-                .font(.system(size: 12))
+                .font(.system(size: 13))
                 .foregroundStyle(action.isDestructive ? .red : .primary)
                 .lineLimit(1)
                 .truncationMode(.tail)
-            Spacer()
+            Spacer(minLength: 12)
             if let key = action.shortcutKey ?? ruleDigit {
+                // 独立圆角小方块 + 细描边，而不是一块糊上去的浅灰底
                 Text(key)
-                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
-                    .frame(width: 18, height: 18)
-                    .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
+                    .frame(width: 22, height: 22)
+                    .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Color.primary.opacity(0.10), lineWidth: 0.5)
+                    )
             }
         }
-        .padding(.horizontal, 8)
+        .padding(.horizontal, 10)
+        // 5 而不是 8：动作项十几条，行高每多 3pt 就多占 40pt，直接决定「一屏能不能
+        // 望全」——望不全就得滚动，用户就没法扫一眼直接按快捷键。
         .padding(.vertical, 5)
         .background(
-            RoundedRectangle(cornerRadius: 5)
-                .fill(isSelected ? Color.accentColor.opacity(0.12) : .clear)
+            RoundedRectangle(cornerRadius: 8)
+                // 中性灰而非 accentColor：面板整体是柔和玻璃，一颗饱和蓝是全场
+                // 唯一的高饱和色，必然跳出来。
+                .fill(isSelected ? Color.primary.opacity(0.09) : .clear)
         )
         .contentShape(Rectangle())
     }
@@ -409,6 +536,16 @@ struct CommandPaletteContent: View {
 
     private func removeKeyMonitor() {
         if let m = keyMonitor { NSEvent.removeMonitor(m); keyMonitor = nil }
+    }
+
+    /// 该扫哪些条目由 `TextEntityExtractor.entities(for:)` 判定（含敏感条目遮蔽），
+    /// 这里只管多选时不扫。
+    private func loadEntities() {
+        guard !isMultiSelected, let item else {
+            entities = []
+            return
+        }
+        entities = TextEntityExtractor.entities(for: item)
     }
 
     private func installFlagsMonitor() {

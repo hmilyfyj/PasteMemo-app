@@ -1,5 +1,7 @@
 import Foundation
 
+private final class PasteMemoResourceBundleAnchor: NSObject {}
+
 /// SwiftPM's generated `Bundle.module` accessor for executable targets only
 /// checks two locations: `<App>.app/<name>.bundle` (the bundle ROOT, next to
 /// Contents/) and the absolute build-machine path baked in at compile time.
@@ -14,6 +16,9 @@ extension Bundle {
         let name = "PasteMemo_PasteMemo.bundle"
         let main = Bundle.main
         let executableDir = main.executableURL?.deletingLastPathComponent()
+        // Swift 6.3 runs Swift Testing through swiftpm-testing-helper, so
+        // Bundle.main points at the toolchain, not our loaded test bundle.
+        let codeBundle = Bundle(for: PasteMemoResourceBundleAnchor.self)
         let candidates: [URL?] = [
             // Signed .app layout: Contents/Resources/
             main.resourceURL,
@@ -24,6 +29,8 @@ extension Bundle {
             executableDir?.appendingPathComponent("../..").standardized,
             // CLI / `swift run` / test runners: next to the executable
             executableDir,
+            codeBundle.resourceURL,
+            codeBundle.bundleURL.deletingLastPathComponent(),
         ]
         for candidate in candidates {
             guard let url = candidate?.appendingPathComponent(name) else { continue }

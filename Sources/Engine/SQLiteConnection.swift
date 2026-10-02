@@ -7,15 +7,49 @@ private let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.sel
 final class SQLiteConnection {
     private var db: OpaquePointer?
 
-    init?(path: String) {
-        guard sqlite3_open_v2(path, &db, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
+    init?(path: String, readOnly: Bool = false) {
+        let flags = readOnly ? SQLITE_OPEN_READONLY : SQLITE_OPEN_READWRITE
+        guard sqlite3_open_v2(path, &db, flags, nil) == SQLITE_OK else {
             sqlite3_close(db)
             return nil
         }
     }
 
-    func execute(_ sql: String) {
-        sqlite3_exec(db, sql, nil, nil, nil)
+    /// 返回是否成功。DDL 维护路径要看它：DROP 成功、CREATE 失败这种半截状态以前被
+    /// 吞掉的返回值全盖住了。
+    @discardableResult
+    func execute(_ sql: String) -> Bool {
+        sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK
+    }
+
+    /// 最近一次失败的 SQLite 错误描述（写诊断日志用）。
+    var lastErrorMessage: String {
+        String(cString: sqlite3_errmsg(db))
+    }
+
+    /// 撞锁时等待而不是立刻返回 SQLITE_BUSY。这条连接和 SwiftData 的连接共用同一个
+    /// WAL 库，DDL 要写锁；默认 0 超时意味着对方正在写的那一瞬间我们的 DDL 直接失败。
+    func setBusyTimeout(milliseconds: Int32) {
+        sqlite3_busy_timeout(db, milliseconds)
+    }
+
+    /// 把一段语句包进 IMMEDIATE 事务：开事务即取写锁（配合 busy timeout 等待），
+    /// body 返回 false 或 COMMIT 失败都整体 ROLLBACK。返回是否提交成功。
+    func performInTransaction(_ body: () -> Bool) -> Bool {
+        guard execute("BEGIN IMMEDIATE") else { return false }
+        guard body(), execute("COMMIT") else {
+            execute("ROLLBACK")
+            return false
+        }
+        return true
+    }
+
+    /// 表里是否已有这一列（pragma_table_info 表值函数，SQLite ≥ 3.16）。
+    func columnExists(table: String, column: String) -> Bool {
+        !queryStrings(
+            "SELECT name FROM pragma_table_info(?) WHERE name = ?",
+            params: [table, column]
+        ).isEmpty
     }
 
     private func bind(_ params: [Any], to stmt: OpaquePointer?) {
@@ -124,6 +158,29 @@ final class SQLiteConnection {
             let count = Int(sqlite3_column_int64(stmt, 2))
             let preservesItems = sqlite3_column_int64(stmt, 3) != 0
             results.append((name, icon, count, preservesItems))
+        }
+        return results
+    }
+
+    /// Rows of (rowid, text, blob). Used by SMSCodeWatcher to read Messages rows
+    /// whose body may live either in `text` or in the `attributedBody` blob.
+    func queryIntTextBlobRows(_ sql: String, params: [Any] = []) -> [(Int, String?, Data?)] {
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
+        defer { sqlite3_finalize(stmt) }
+
+        bind(params, to: stmt)
+
+        var results: [(Int, String?, Data?)] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            let id = Int(sqlite3_column_int64(stmt, 0))
+            let text = sqlite3_column_text(stmt, 1).map { String(cString: $0) }
+            var blob: Data?
+            if sqlite3_column_type(stmt, 2) == SQLITE_BLOB,
+               let bytes = sqlite3_column_blob(stmt, 2) {
+                blob = Data(bytes: bytes, count: Int(sqlite3_column_bytes(stmt, 2)))
+            }
+            results.append((id, text, blob))
         }
         return results
     }

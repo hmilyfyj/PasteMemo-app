@@ -36,6 +36,7 @@
 "filter.favorites" = "お気に入り";
 "filter.pinned" = "ピン留め";
 "filter.aiAgent" = "AI Agent";
+"filter.sms" = "SMS";
 
 /* Time */
 "time.now" = "たった今";
@@ -45,6 +46,8 @@
 
 /* Settings */
 "settings.general" = "一般";
+"settings.nav.back" = "戻る";
+"settings.nav.forward" = "進む";
 "settings.update" = "アップデート";
 "settings.about" = "このアプリについて";
 "settings.appearance" = "外観";
@@ -151,6 +154,9 @@
 /* Settings */
 "settings.features" = "機能";
 "settings.shortcuts" = "ショートカット";
+"settings.shortcuts.section.quickPanel" = "クイック貼り付け";
+"settings.shortcuts.section.manager" = "マネージャウインドウ";
+"settings.shortcuts.section.relay" = "リレー";
 "settings.quickPanelShortcut" = "クイックペースト";
 "settings.managerShortcut" = "管理ツールを開く";
 "settings.managerShortcut.global" = "グローバル";
@@ -165,6 +171,9 @@
 "settings.quickPanelSecondaryRow" = "クイックパネル検索下に表示";
 "settings.quickPanelSecondaryRow.types" = "タイプ";
 "settings.quickPanelSecondaryRow.groups" = "グループ";
+"settings.quickPanelTabTypes" = "タブバーに表示するカテゴリ";
+"settings.quickPanelTabTypes.hint" = "ドラッグで並び替え。チェックを外すとクイックパネルで非表示になります（サイドバーはそのまま）。";
+"settings.quickPanelTabTypes.reset" = "デフォルトに戻す";
 "settings.history" = "履歴";
 "settings.retentionDays" = "履歴の保持";
 "settings.retentionDays.forever" = "永久";
@@ -454,6 +463,11 @@
 "backup.changePath" = "変更…";
 "backup.webdav.testSuccess" = "接続に成功しました。";
 "backup.webdav.testFailed" = "接続に失敗しました。";
+"backup.webdav.testSuccessHTTP" = "接続に成功しました（暗号化されていないHTTP）。";
+"backup.webdav.authFailed" = "サーバーには接続できましたが、ユーザー名またはパスワードが正しくありません。";
+"backup.webdav.certError" = "サーバー証明書が無効なため、安全な接続を確立できませんでした。";
+"backup.webdav.invalidURL" = "サーバーURLが無効です。http:// と https:// のみに対応しています。";
+"backup.webdav.insecureWarning" = "暗号化されていないHTTP接続のため、認証情報とバックアップデータは平文で送信されます。";
 
 // リレーモード
 // コマンドパレット
@@ -467,17 +481,19 @@
 "cmd.toggleSensitive" = "機密の切り替え";
 "cmd.delete" = "削除";
 "cmd.openLink" = "リンクを開く";
+"cmd.openEntity" = "%@ を開く";
+"cmd.pasteEntity" = "%@ をペースト";
 "cmd.pasteAsFile" = "ファイルとしてペースト";
 "cmd.pastePath" = "パスをペースト";
 "cmd.retryOCR" = "OCRを再試行";
 "cmd.pasteOCR" = "OCRテキストを貼り付け";
 "cmd.openInPreview" = "「プレビュー」で開く";
+"cmd.quickLook" = "クイックルック";
 "cmd.andNewLine" = "＋改行";
 "cmd.transform" = "変換";
 "cmd.automation" = "オートメーション";
 
 "relay.title" = "リレーモード";
-"relay.tab" = "リレー";
 "relay.exit" = "終了";
 "relay.clearAndExit" = "クリアして終了";
 "relay.close" = "閉じる";
@@ -504,7 +520,6 @@
 "relay.settings.pasteKey" = "リレーペーストショートカット";
 "relay.settings.pasteKeyNote" = "一部のアプリ（ターミナル、Emacs）が同じショートカットを使用する場合があります。競合する場合はカスタマイズしてください。";
 "relay.settings.pauseToChange" = "ショートカットを変更するにはリレーモードを一時停止または終了してください。";
-"relay.settings.resetAlert" = "起動時のヒントを再表示";
 "relay.settings.plainText" = "プレーンテキストで貼り付け";
 "relay.settings.plainText.desc" = "リッチテキスト書式を削除";
 "relay.settings.allowRepeatCopy" = "重複コピーを許可";
@@ -530,12 +545,6 @@
 "relay.settings.postPasteKey.left" = "左";
 "relay.settings.postPasteKey.right" = "右";
 "relay.settings.postPasteKey.space" = "スペース";
-"relay.settings.description" = "リレーモードでは複数のアイテムをコピーして順番に1つずつペーストできます。Webページから名前のリストをコピーして Excel に行ごとにペーストするのに最適です。";
-"relay.settings.shortcuts" = "ショートカット";
-"relay.settings.operations" = "操作説明";
-"relay.settings.op.paste" = "次のアイテムをペースト";
-"relay.settings.op.skip" = "現在のアイテムをスキップ";
-"relay.settings.op.previous" = "1つ前に戻る";
 "relay.autoExit.short" = "完了後に自動終了";
 "relay.loop" = "ループ";
 "relay.loop.tooltip.on" = "ループ：オン（キュー完了後に先頭から再開）";
@@ -617,6 +626,10 @@
 /* Detail - Additional */
 "detail.dimensions" = "サイズ";
 "detail.fileCount" = "ファイル数";
+"detail.fileStatus" = "状態";
+"file.unavailable.missing" = "ファイルは存在しません";
+"finder.notResponding" = "Finderが応答していません";
+"file.unavailable.denied" = "アクセス権限がありません";
 "detail.format" = "フォーマット";
 "detail.host" = "ホスト";
 "detail.linkTitle" = "タイトル";
@@ -649,7 +662,7 @@
 "menu.openMain" = "メインウィンドウを開く";
 "menu.pause" = "クリップボード監視を一時停止";
 "menu.quickPanel" = "クイックペースト";
-"menu.quit" = "%@ を終了";
+"menu.quit" = "終了";
 "menu.accessibility.grant" = "⚠ アクセシビリティ権限を許可";
 "menu.resume" = "クリップボード監視を再開";
 "menu.settings" = "設定";
@@ -749,7 +762,91 @@
 "automation.rule.triggerMode" = "トリガー";
 "automation.rule.triggerMode.automatic" = "自動";
 "automation.rule.triggerMode.manual" = "手動のみ";
-"automation.rule.triggerMode.shortcutManualOnly" = "「ショートカットを実行」は手動トリガーのみ対応しています";
+"automation.rule.triggerMode.shortcutManualOnly" = "ショートカット実行・AIで書き換え・クイックパネルを閉じる を含むルールは手動トリガーのみ";
+"automation.rule.outputMode" = "結果の出力先";
+"automation.rule.outputMode.replaceItem" = "この項目を置き換え";
+"automation.rule.outputMode.newItem" = "新しい項目を作成";
+"automation.rule.outputMode.clipboard" = "クリップボードのみ";
+"automation.rule.outputMode.pasteToFrontmost" = "前面のAppにペースト";
+"automation.rule.outputMode.help" = "自動ルールにはペースト先がないため、「クリップボードのみ」と「前面のAppにペースト」はどちらも結果をクリップボードに書き戻します。コピー直後の ⌘V で処理後のテキストがペーストされます（リッチテキストはプレーンテキストになります）。";
+"automation.action.section.flow" = "フロー";
+"automation.action.stopProcessing" = "以降のルールを実行しない";
+"automation.action.closeQuickPanel" = "クイックパネルを閉じる";
+"automation.rule.triggerMode.automatic.help" = "コピー時に自動で実行";
+"automation.rule.triggerMode.manual.help" = "クイックパネルの ⌘K か、項目のコンテキストメニューから実行";
+"automation.action.regexReplace.pattern" = "検索";
+"automation.preview.asyncSkipped" = "AIで書き換えとショートカット実行はここではプレビューされません";
+"automation.builtIn.restore" = "内蔵ルールを復元";
+"automation.editor.unsaved" = "未保存の変更があります";
+"automation.editor.unsavedMessage" = "別のルールに切り替える前に保存しますか？";
+"automation.editor.dontSave" = "保存しない";
+"automation.editor.on" = "オン";
+"automation.editor.off" = "オフ";
+"automation.flow.when" = "トリガー";
+"automation.flow.if" = "条件";
+"automation.flow.then" = "アクション";
+"automation.flow.finally" = "結果";
+"automation.flow.allConditions" = "すべての条件を満たす";
+"automation.flow.anyCondition" = "いずれかの条件を満たす";
+"automation.flow.inOrder" = "順番に実行";
+"automation.action.aiTransform" = "AIで書き換え";
+"automation.action.aiTransform.placeholder" = "モデルへの指示。例：「英語に翻訳し、訳文だけを出力」";
+"automation.action.aiTransform.overrides" = "モデル設定";
+"automation.action.aiTransform.followGlobal" = "全体設定に従う";
+"automation.ai.notConfigured" = "AIサービスが未設定です";
+"automation.ai.openSettings" = "設定を開く";
+"automation.ai.processing" = "「%@」を実行中…";
+"automation.ai.busy" = "この項目はまだ処理中です";
+"automation.ai.noChange" = "モデルはテキストを変更しませんでした";
+"automation.ai.error.tooLong" = "%d 文字を超えているため送信しません";
+"automation.ai.error.sensitive" = "機密項目は送信しません";
+"automation.ai.error.blockedApp" = "送信元Appがブロックリストにあるため送信しません";
+"automation.ai.error.empty" = "モデルから応答がありません";
+"automation.ai.error.reasoningOnly" = "モデルは思考過程だけを返し、回答がありません。「思考」をオフにして再試行してください";
+"automation.ai.error.http" = "サービスが %d を返しました";
+"automation.ai.error.timeout" = "リクエストがタイムアウトしました";
+"automation.ai.error.badBaseURL" = "Base URL が有効な http(s) アドレスではありません";
+"automation.ai.error.cliNotFound" = "%@ がこの Mac に見つかりません";
+"automation.ai.error.cliFailed" = "コマンドが失敗しました";
+"automation.ai.error.cliBadOutput" = "出力に %@ フィールドがありません";
+"automation.builtIn.aiTranslate" = "AI：中国語⇄英語 翻訳";
+"automation.builtIn.aiTidy" = "AI：テキスト整理";
+"settings.aiService" = "AIサービス";
+"settings.aiService.provider" = "プロバイダ";
+"settings.aiService.preset.custom" = "カスタム";
+"settings.aiService.model" = "モデル";
+"settings.aiService.timeout" = "タイムアウト";
+"settings.aiService.timeout.seconds" = "%d 秒";
+"settings.aiService.timeout.unit" = "秒";
+"settings.aiService.temperature" = "Temperature";
+"settings.aiService.thinking" = "思考";
+"settings.aiService.thinking.auto" = "モデルの既定に従う";
+"settings.aiService.thinking.off" = "オフ";
+"settings.aiService.thinking.on" = "オン";
+"settings.aiService.showKey" = "キーを表示";
+"settings.aiService.hideKey" = "キーを隠す";
+"settings.aiService.test" = "接続をテスト";
+"settings.aiService.testing" = "接続中…";
+"settings.aiService.test.ok" = "接続OK。モデルの応答：%@";
+"settings.aiService.test.failed" = "失敗：%@";
+"settings.aiService.privacyHint" = "「AIで書き換え」を含むルールを手動で実行したときだけ、その1件の内容をプロバイダに送ります。機密としてマークした項目とブロックリストのAppからの項目は送りません。";
+"settings.aiService.usageHint" = "自動化から使います。ルールを作って「AIで書き換え」アクションを追加し、モデルへの指示を書いてください。クイックパネルの ⌘K か項目のコンテキストメニューから実行します。テキスト項目のみ対象で、画像やファイルはモデルに送られません。";
+"settings.aiService.mode.remote" = "API 接続";
+"settings.aiService.mode.local" = "ローカル Agent";
+"settings.aiService.cli.preset" = "Agent";
+"settings.aiService.cli.preset.custom" = "カスタム";
+"settings.aiService.cli.executable" = "コマンド";
+"settings.aiService.cli.arguments" = "引数";
+"settings.aiService.cli.outputKey" = "JSON キー";
+"settings.aiService.cli.outputKey.placeholder" = "空欄なら出力をそのまま使う";
+"settings.aiService.cli.notFound" = "この Mac では見つかりません";
+"settings.aiService.cli.argumentsHint" = "引数の %@ が指示と本文に置き換わります。書かない場合は標準入力から渡します。";
+"settings.aiService.cli.privacyHint" = "本文はこの Mac のコマンドに渡されます。通信するかどうか、どこへ送るかはコマンド次第です。機密扱いの項目とブロックリストのアプリからの項目は送信しません。";
+"settings.aiService.cli.timeoutHint" = "ローカル Agent は API 接続より遅く、1 回の書き換えに数秒かかります。";
+"settings.aiService.cli.missingHint" = "%@ が未インストールか、別の場所にあります。フルパスを下に入力してください。";
+"settings.aiService.mode" = "呼び出し方";
+"settings.aiService.cli.model.placeholder" = "空欄なら Agent 自身の既定モデル";
+"settings.aiService.cli.extraArgs" = "追加引数";
 "automation.rule.notifyBeforeApply" = "適用前に確認する";
 "automation.rule.newName" = "新しいルール";
 
@@ -810,8 +907,6 @@
 "automation.action.runShortcut.failed" = "ショートカット実行失敗";
 "automation.action.runShortcut.loading" = "読み込み中…";
 "automation.rule.notifyOnTrigger" = "トリガー時に通知を送信";
-"automation.rule.writeBackToPasteboard" = "処理結果をクリップボードに書き戻す";
-"automation.rule.writeBackToPasteboard.help" = "オンにすると、ルールの処理結果がシステムのクリップボードに書き戻され、コピー直後の ⌘V で変換後のテキストが貼り付けられます（リッチテキストはプレーンテキストになります）。";
 "automation.notification.title" = "自動化";
 "automation.applied" = "自動化を実行しました";
 "automation.validation.incomplete" = "ルールを有効にできません";
@@ -926,5 +1021,25 @@
 "settings.imageGridDensity.sparse" = "粗";
 "settings.imageGridDensity.medium" = "中";
 "settings.imageGridDensity.dense" = "密";
+"settings.previewFontSize" = "プレビューのフォントサイズ";
+"settings.previewFontSize.points" = "%d pt";
 
 "settings.ocr.memoryHint" = "オンにすると、Vision を使って画像内の文字をバックグラウンドで認識します。メモリ使用量が増えることがあります。";
+
+// SMS verification codes
+"settings.smsCode" = "SMS認証コード";
+"settings.smsCode.enabled" = "「メッセージ」から認証コードを自動コピー";
+"settings.smsCode.needsFDA" = "メッセージの読み取りには「フルディスクアクセス」が必要です";
+"settings.smsCode.openSettings" = "システム設定を開く";
+"settings.smsCode.granted" = "フルディスクアクセスが許可されています";
+"settings.smsCode.hint" = "iPhoneの「SMS転送」でこのMacへの転送を有効にしてください（設定 → メッセージ → SMS転送）。許可後も動作しない場合はPasteMemoを再起動してください。";
+"sms.notification.codeCopied" = "認証コード %@ をコピーしました";
+"sms.notification.fallbackTitle" = "認証コードを含む可能性のあるメッセージ";
+"sms.preview.messageLabel" = "元のメッセージ";
+"settings.smsCode.description" = "オンにすると、受信メッセージから認証コードを自動抽出してクリップボードにコピーし、通知します。";
+"settings.smsCode.feedback" = "認証コードが認識されないメッセージがありましたか？（個人情報を除いた）本文をお送りいただければ、認識ルールの改善に役立てます。";
+"settings.smsCode.feedbackLink" = "フィードバックを送る";
+
+// MARK: - List row metrics
+"meta.chars" = "%@ 文字";
+"meta.lines" = "%@ 行";

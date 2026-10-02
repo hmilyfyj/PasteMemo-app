@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import ImageIO
 import SwiftUI
 import SwiftData
@@ -162,7 +163,12 @@ final class ClipboardManager: ObservableObject {
         }
         // If an app switch happened very recently, the copy likely came from the previous app
         let appInfo: (name: String?, bundleID: String?)
-        if Date().timeIntervalSince(lastSwitchTime) < Self.APP_SWITCH_THRESHOLD,
+        let isSMSCodeWrite = NSPasteboard.general.string(forType: .smsCodeSource) != nil
+        if isSMSCodeWrite {
+            // SMS 验证码由 SMSCodeWatcher 写入,归因到「信息」App 而不是当前前台 App,
+            // 侧栏来源过滤 / 自动化规则的 sourceApp 条件都按 com.apple.MobileSMS 命中。
+            appInfo = (name: SMSCodeWatcher.messagesAppDisplayName(), bundleID: "com.apple.MobileSMS")
+        } else if Date().timeIntervalSince(lastSwitchTime) < Self.APP_SWITCH_THRESHOLD,
            appBeforeSwitch.bundleID != nil {
             appInfo = appBeforeSwitch
         } else {
@@ -176,7 +182,9 @@ final class ClipboardManager: ObservableObject {
         defer { if !didInsert { Self.deleteOriginalCacheFile(at: newItem.originalImageFilePath) } }
         newItem.sourceAppBundleID = appInfo.bundleID
 
-        newItem.isSensitive = SensitiveDetector.isSensitive(
+        // 提取出的短信验证码不做敏感标记:内容只有码本身,整个功能就是为了让它
+        // 可见可粘;8 位混合码会被高熵检测误伤成打码显示。
+        newItem.isSensitive = isSMSCodeWrite ? false : SensitiveDetector.isSensitive(
             content: newItem.content, sourceAppBundleID: appInfo.bundleID, contentType: newItem.contentType
         )
 
@@ -185,6 +193,13 @@ final class ClipboardManager: ObservableObject {
         // 来源名持久化到 ClipItem.agentSource,后续侧栏 / 详情面板就能识别。
         if let agent = NSPasteboard.general.string(forType: .agentSource), !agent.isEmpty {
             newItem.agentSource = agent
+        }
+
+        // 短信验证码:marker 的值就是短信全文,存到 smsMessageText 供列表角标 +
+        // 预览区「短信原文」使用(content 只有码本身)。
+        if isSMSCodeWrite,
+           let smsBody = NSPasteboard.general.string(forType: .smsCodeSource), !smsBody.isEmpty {
+            newItem.smsMessageText = smsBody
         }
 
         let context = container.mainContext
@@ -230,6 +245,7 @@ final class ClipboardManager: ObservableObject {
             SoundManager.playCopy()
             refreshLinkMetadataIfNeeded(for: existingItem, in: context)
             enqueueOCRIfNeeded(for: existingItem)
+            enqueueVideoThumbnailIfNeeded(for: existingItem, in: context)
             return
         }
 
@@ -242,6 +258,7 @@ final class ClipboardManager: ObservableObject {
 
         refreshLinkMetadataIfNeeded(for: newItem, in: context)
         enqueueOCRIfNeeded(for: newItem)
+        enqueueVideoThumbnailIfNeeded(for: newItem, in: context)
     }
 
     func captureCurrentClipboard(sourceApp: String? = nil) -> ClipItem? {
@@ -457,6 +474,27 @@ final class ClipboardManager: ObservableObject {
         return rasterizeVectorThumbnail(at: fileURL)
     }
 
+    /// Grabs a frame from a video file as a small JPEG — the `.video` counterpart to
+    /// `generateImageFileThumbnail`.
+    ///
+    /// Async on purpose: `AVAssetImageGenerator` decodes a frame, which is far too slow
+    /// for the synchronous capture path images use. Infinite tolerance lets it settle on
+    /// the nearest keyframe, so clips shorter than the requested 1s still yield an image
+    /// instead of failing outright.
+    nonisolated static func generateVideoFileThumbnail(at fileURL: URL) async -> Data? {
+        let asset = AVURLAsset(url: fileURL)
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        generator.maximumSize = CGSize(width: FILE_THUMBNAIL_MAX_PIXELS, height: FILE_THUMBNAIL_MAX_PIXELS)
+        generator.requestedTimeToleranceBefore = .positiveInfinity
+        generator.requestedTimeToleranceAfter = .positiveInfinity
+        guard let result = try? await generator.image(at: CMTime(seconds: 1, preferredTimescale: 600)) else {
+            return nil
+        }
+        let bitmap = NSBitmapImageRep(cgImage: result.image)
+        return bitmap.representation(using: .jpeg, properties: [.compressionFactor: 0.85])
+    }
+
     /// Downsamples in-memory image bytes (a raw pasteboard TIFF/PNG) into a small JPEG
     /// thumbnail stored in `ClipItem.imageData` for UI display. ImageIO streams the source
     /// rather than fully decoding it, so even a 100 MB uncompressed TIFF is cheap. The full
@@ -544,7 +582,12 @@ final class ClipboardManager: ObservableObject {
         guard let dir = originalsCacheDirectory() else { return }
         let files = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []
         guard !files.isEmpty else { return }
-        let descriptor = FetchDescriptor<ClipItem>()
+        // 谓词必须有：只取真正引用了缓存文件的行。不加谓词会把整张 ClipItem 表（含内联
+        // 缩略图 blob，万条级库 200MB+）物化进 mainContext，只为读一个 String? 列——
+        // 启动路径卡 1s+ 的主因（11k 条实测全表 ~100ms 热 / ~600ms 冷 vs 谓词 ~5ms）。
+        let descriptor = FetchDescriptor<ClipItem>(
+            predicate: #Predicate { $0.originalImageFilePath != nil }
+        )
         let referenced = Set((try? context.fetch(descriptor))?.compactMap(\.originalImageFilePath) ?? [])
         Task.detached(priority: .utility) {
             for file in files where !referenced.contains(file.path) {
@@ -825,6 +868,9 @@ final class ClipboardManager: ObservableObject {
         existingItem.sourceApp = newItem.sourceApp
         existingItem.sourceAppBundleID = newItem.sourceAppBundleID
         existingItem.displayTitle = newItem.displayTitle
+        if newItem.smsMessageText != nil {
+            existingItem.smsMessageText = newItem.smsMessageText
+        }
 
         if existingItem.imageData == nil {
             existingItem.imageData = newItem.imageData
@@ -930,6 +976,62 @@ final class ClipboardManager: ObservableObject {
         OCRTaskCoordinator.shared.enqueue(itemID: item.itemID)
     }
 
+    /// Videos get their thumbnail after the fact, since decoding a frame is far too slow
+    /// for the synchronous capture path.
+    ///
+    /// Persisting it matters more here than for image files: video clips overwhelmingly
+    /// come from self-cleaning temp dirs (CleanShot's media folder, WeChat's container,
+    /// browser downloads), so with nothing stored the preview turns permanently gray the
+    /// moment the source app tidies up — which it always eventually does.
+    private func enqueueVideoThumbnailIfNeeded(for item: ClipItem, in context: ModelContext) {
+        guard item.contentType == .video, item.imageData == nil else { return }
+        guard let path = item.content.components(separatedBy: "\n").first(where: { !$0.isEmpty }) else { return }
+
+        let targetItem = item
+        Task(priority: .utility) {
+            guard let data = await Self.generateVideoFileThumbnail(at: URL(fileURLWithPath: path)) else { return }
+            await MainActor.run {
+                // Frame decoding takes a while; the clip can be deleted or filled in by the
+                // backfill pass before we get back.
+                guard !targetItem.isDeleted, targetItem.imageData == nil else { return }
+                targetItem.imageData = data
+                ClipItemStore.saveAndNotifyContent(context)
+            }
+        }
+    }
+
+    /// One-shot pass over video clips stored before thumbnails were persisted. Clips whose
+    /// source file is already gone are skipped — nothing can be recovered for those, and
+    /// retrying them on every launch would just burn I/O.
+    ///
+    /// Runs sequentially: frame decoding is expensive, and this is strictly background
+    /// catch-up work with no deadline.
+    func backfillVideoThumbnails(in context: ModelContext) {
+        let descriptor = FetchDescriptor<ClipItem>(
+            predicate: #Predicate<ClipItem> { $0.contentTypeRaw == "video" && $0.imageData == nil }
+        )
+        guard let pending = try? context.fetch(descriptor), !pending.isEmpty else { return }
+
+        Task(priority: .utility) {
+            var wrote = false
+            for item in pending {
+                guard !item.isDeleted,
+                      let path = item.content.components(separatedBy: "\n").first(where: { !$0.isEmpty }),
+                      FileAvailability.check(path).isAvailable,
+                      let data = await Self.generateVideoFileThumbnail(at: URL(fileURLWithPath: path)) else { continue }
+                await MainActor.run {
+                    guard !item.isDeleted, item.imageData == nil else { return }
+                    item.imageData = data
+                    wrote = true
+                }
+            }
+            // One save for the whole pass — nothing to persist if every clip was skipped.
+            if wrote {
+                await MainActor.run { ClipItemStore.saveAndNotifyContent(context) }
+            }
+        }
+    }
+
     private func cleanExpiredItems(in context: ModelContext) {
         guard let cutoff = ProManager.shared.retentionCutoffDate else { return }
 
@@ -1028,41 +1130,12 @@ final class ClipboardManager: ObservableObject {
             // Reject if the trailing label is a common file extension and
             // the text has no URL path (e.g. "mn-little-yellow-duck.conf"
             // or "foo.bar.json"). This avoids misclassifying config file
-            // names as links.
-            if !text.contains("/") {
-                let lastDot = text.lastIndex(of: ".")!
-                let suffix = text[text.index(after: lastDot)...].lowercased()
-                if Self.nonDomainSuffixes.contains(String(suffix)) { return false }
-            }
-            return true
+            // names as links. Shared with `TextEntityExtractor` — see
+            // `URL.looksLikeFilename`.
+            return !URL.looksLikeFilename(text)
         }
         return false
     }
-
-    private static let nonDomainSuffixes: Set<String> = [
-        // configs / text
-        "conf", "config", "ini", "env", "lock", "plist", "toml",
-        "log", "txt", "md", "markdown", "rtf", "csv", "tsv",
-        // data / markup
-        "json", "xml", "yml", "yaml", "html", "htm", "xhtml", "sql",
-        // code
-        "swift", "js", "ts", "jsx", "tsx", "py", "rb", "go", "rs",
-        "c", "cc", "cpp", "cxx", "h", "hpp", "hxx", "m", "mm",
-        "java", "kt", "kts", "scala", "groovy", "dart", "lua",
-        "sh", "bash", "zsh", "fish", "ps1", "bat", "cmd",
-        "php", "pl", "r", "jl", "clj", "erl", "ex", "exs",
-        // binaries / archives
-        "exe", "dll", "so", "dylib", "a", "o",
-        "zip", "tar", "gz", "bz2", "xz", "rar", "7z",
-        "iso", "dmg", "pkg", "deb", "rpm", "app",
-        // documents
-        "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp",
-        "pages", "numbers", "keynote",
-        // media
-        "png", "jpg", "jpeg", "gif", "webp", "bmp", "tiff", "tif", "svg", "ico", "heic", "heif",
-        "mp3", "wav", "flac", "ogg", "m4a", "aac",
-        "mp4", "mov", "avi", "mkv", "webm", "m4v"
-    ]
 
     private func isFilePath(_ text: String) -> Bool {
         guard text.hasPrefix("/") || text.hasPrefix("~") else { return false }
@@ -1627,8 +1700,27 @@ final class ClipboardManager: ObservableObject {
         app?.bundleIdentifier == "com.apple.finder"
     }
 
-    func getFinderSelectedFolder() -> URL? {
-        let script = """
+    enum FinderFolderLookup {
+        case folder(URL)
+        /// 刚弹过授权框，用户没允许（拒绝，或 60 秒内没点）。面板已经收起，调用方别再退回去
+        /// 粘贴。
+        case consentNotGranted
+        /// 访达在限时内没回话。单独拎出来是为了让调用方提示用户，而不是退回去往访达里
+        /// 粘图片数据——访达不收，等于按了回车什么都没发生。
+        case notResponding
+        case unavailable
+    }
+
+    /// 同步 Apple Event，调用方都在主线程，所以两头都不能无限等（#92）：
+    /// - 还没授权时，访达收到事件要先等用户点系统的「允许控制访达」。授权框会被 .statusBar
+    ///   层级的快捷面板盖住，用户看不到，主线程就干等到 AppleScript 默认的 120 秒超时。所以
+    ///   发事件前先调 `beforeConsentPrompt` 收起面板，再同步等用户点：点了允许，这次粘贴
+    ///   接着完成。上限 60 秒。
+    /// - 已授权时限 3 秒，访达卡住（Spotlight 重建索引、LaunchServices 重启）也拖不死主线程。
+    func getFinderSelectedFolder(beforeConsentPrompt: () -> Void) -> FinderFolderLookup {
+        let consentPending = Self.finderAutomationConsentPending()
+        if consentPending { beforeConsentPrompt() }
+        let body = """
         tell application "Finder"
             if (count of windows) > 0 then
                 set theSelection to selection
@@ -1647,11 +1739,24 @@ final class ClipboardManager: ObservableObject {
             end if
         end tell
         """
-        guard let appleScript = NSAppleScript(source: script) else { return nil }
+        let script = "with timeout of \(consentPending ? 60 : 3) seconds\n\(body)\nend timeout"
+        let failure: FinderFolderLookup = consentPending ? .consentNotGranted : .unavailable
+        guard let appleScript = NSAppleScript(source: script) else { return failure }
         var error: NSDictionary?
         let result = appleScript.executeAndReturnError(&error)
-        guard error == nil, let path = result.stringValue else { return nil }
-        return URL(fileURLWithPath: path)
+        if let error {
+            let code = (error[NSAppleScript.errorNumber] as? NSNumber)?.intValue
+            return code == Int(errAETimeout) && !consentPending ? .notResponding : failure
+        }
+        guard let path = result.stringValue else { return failure }
+        return .folder(URL(fileURLWithPath: path))
+    }
+
+    /// 只查不问：还没决定过「允许 PasteMemo 控制访达」时为 true。
+    private static func finderAutomationConsentPending() -> Bool {
+        let target = NSAppleEventDescriptor(bundleIdentifier: "com.apple.finder")
+        let status = AEDeterminePermissionToAutomateTarget(target.aeDesc, typeWildCard, typeWildCard, false)
+        return status == OSStatus(errAEEventWouldRequireUserConsent)
     }
 
     func saveImageToFolder(
@@ -1842,23 +1947,29 @@ extension ClipboardManager: ClipboardControllable {
             if actions.contains(.stripRichText) || (writeBack && textChanged) {
                 item.richTextData = nil
                 item.richTextType = nil
+                // Same for the raw pasteboard snapshot: a panel paste replays it verbatim.
+                item.pasteboardSnapshot = nil
             }
         }
         applyMetadataActions(actions, to: item, context: context)
     }
 
-    /// Apply a rule's metadata-only actions (mark sensitive / pin / move to group) to a
-    /// clip. Shared by the capture path and the manual ⌘K / quick-panel apply paths so
-    /// all three stay in lockstep — text transforms stay per-caller because their
-    /// rich-text rules differ. Content-type agnostic: works on images/files too. (issue #71)
+    /// Metadata actions live in `ActionExecutor`; kept as a forwarder so the capture
+    /// path and existing tests keep one entry point.
     func applyMetadataActions(_ actions: [RuleAction], to item: ClipItem, context: ModelContext) {
-        if actions.contains(.markSensitive) {
-            item.isSensitive = true
-        }
-        if actions.contains(.pin) {
-            item.isPinned = true
-        }
-        applyGroupAction(actions, to: item, context: context)
+        ActionExecutor.applyMetadata(actions, to: item, context: context)
+    }
+
+    /// Write plain text to the pasteboard as a PasteMemo-originated write: the
+    /// capture pollers skip it instead of ingesting it as a fresh copy. Used by the
+    /// `.clipboard` output mode.
+    func writePlainText(_ text: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+        pasteboard.markAsPasteMemoWrite()
+        lastChangeCount = pasteboard.changeCount
+        skipRelayMonitorIfActive()
     }
 
     /// When an automatic rule actually changes the text, mirror the processed text
@@ -1876,16 +1987,6 @@ extension ClipboardManager: ClipboardControllable {
         pasteboard.setString(processed, forType: .string)
         pasteboard.markAsPasteMemoWrite()
         lastChangeCount = pasteboard.changeCount
-    }
-
-    private func applyGroupAction(_ actions: [RuleAction], to item: ClipItem, context: ModelContext) {
-        guard let groupAction = actions.first(where: {
-            if case .assignGroup = $0 { return true }
-            return false
-        }), case .assignGroup(let name) = groupAction, !name.isEmpty else { return }
-
-        item.groupName = name
-        upsertSmartGroup(name: name, context: context)
     }
 
     func upsertSmartGroup(name: String, context: ModelContext) {
