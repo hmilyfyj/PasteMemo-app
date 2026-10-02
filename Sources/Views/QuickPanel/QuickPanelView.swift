@@ -115,6 +115,7 @@ struct QuickPanelView: View {
     /// max-capped frame so a long match list scrolls instead of stretching the panel.
     /// Seeded at the cap so the first frame is already bounded (never grows the window).
     @State private var suggestionsContentHeight: CGFloat = 280
+    @State private var bottomRailHeight: CGFloat = 0
     @State private var pill: PillSelection?
     /// 刚打开面板的前几十毫秒内抑制建议浮层渲染，避免上次残留状态首帧闪现
     @State private var suggestionsArmed = false
@@ -3305,6 +3306,11 @@ extension QuickPanelView {
             } else if isBottomRailArmed {
                 bottomClipRail
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .onGeometryChange(for: CGFloat.self) { geometry in
+                        geometry.size.height
+                    } action: { height in
+                        bottomRailHeight = height
+                    }
                 if isBottomExpanded {
                     previewPane
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -3322,11 +3328,11 @@ extension QuickPanelView {
 
     var bottomClipRail: some View {
         let spacing: CGFloat = 10
-        // Search + tabs + footer + padding. Avoid GeometryReader: it relayouts
-        // the 30k-item rail on every pass and SIGSEGVs AppKit on macOS 26.
-        let chrome: CGFloat = 100
-        let cardHeight = max(layoutState.height - chrome, 120)
-        let cardWidth = min(max(cardHeight * 0.72, 160), 320)
+        let verticalInset: CGFloat = 4
+        // Measure the allocated rail, including changes to the preview/footer.
+        // Observe only height changes: GeometryReader previously caused repeated
+        // relayouts of the 30k-item rail and AppKit crashes on macOS 26.
+        let cardSide = min(max(bottomRailHeight - verticalInset * 2, 0), 320)
         return ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .top, spacing: spacing) {
@@ -3336,8 +3342,7 @@ extension QuickPanelView {
                             item: item,
                             isSelected: selectedItemIDs.contains(itemID),
                             shortcutIndex: shortcutIndex(for: item),
-                            cardWidth: cardWidth,
-                            cardHeight: cardHeight,
+                            cardSide: cardSide,
                             searchText: searchText
                         )
                         .id(itemID)
@@ -3373,7 +3378,7 @@ extension QuickPanelView {
                     }
                 }
                 .padding(.horizontal, 4)
-                .padding(.vertical, 4)
+                .padding(.vertical, verticalInset)
             }
             .onChange(of: lastNavigatedID) {
                 guard let id = lastNavigatedID else { return }
