@@ -6,8 +6,7 @@ struct QuickClipCard: View {
     let isSelected: Bool
     let isLiveResizing: Bool
     let shortcutIndex: Int?
-    let cardWidth: CGFloat
-    let cardHeight: CGFloat
+    let cardSide: CGFloat
     var searchText: String = ""
     
     @State private var isHovered: Bool = false
@@ -17,18 +16,21 @@ struct QuickClipCard: View {
         isSelected: Bool,
         isLiveResizing: Bool = false,
         shortcutIndex: Int?,
-        cardWidth: CGFloat = 188,
-        cardHeight: CGFloat = 220,
+        cardSide: CGFloat = 188,
         searchText: String = ""
     ) {
         self.item = item
         self.isSelected = isSelected
         self.isLiveResizing = isLiveResizing
         self.shortcutIndex = shortcutIndex
-        self.cardWidth = cardWidth
-        self.cardHeight = cardHeight
+        self.cardSide = cardSide
         self.searchText = searchText
     }
+
+    // Below the readable layout size, shrink the whole card uniformly so the
+    // fixed header and footer remain inside the square at minimum panel height.
+    private var cardWidth: CGFloat { max(cardSide, 188) }
+    private var cardHeight: CGFloat { cardWidth }
 
     var body: some View {
         Group {
@@ -39,6 +41,8 @@ struct QuickClipCard: View {
             }
         }
         .frame(width: cardWidth, height: cardHeight)
+        .scaleEffect(cardSide / cardWidth)
+        .frame(width: cardSide, height: cardSide)
         .contentShape(RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous))
         .onHover { hovering in
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
@@ -52,6 +56,7 @@ struct QuickClipCard: View {
             header
             preview
         }
+        .frame(width: cardWidth, height: cardHeight)
         .background(cardBackground)
         .overlay(cardBorder)
         .clipShape(RoundedRectangle(cornerRadius: QuickPanelBottomTheme.cardCornerRadius, style: .continuous))
