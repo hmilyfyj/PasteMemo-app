@@ -27,3 +27,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 2: FEATURE-715 悬浮框正方形卡片
+<!-- trellis-session: v=2 fp=f8362dfa19830c46 -->
+
+**Date**: 2026-10-02
+**Task**: FEATURE-715 悬浮框正方形卡片
+**Branch**: `agent/agent/929e38175114`
+
+### Summary
+
+按实际卡片区高度计算正方形尺寸，小卡片等比缩放保留底栏。437 项测试及 make check 通过；本机 ARM 签名安装通过；验证默认、212pt 最小高度和展开预览。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3f43a52` | fix: keep floating panel cards square and fully visible |
+
+### Status
+
+[OK] **Completed**
