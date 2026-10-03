@@ -49,3 +49,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 4: FEATURE-718 悬浮面板顶部工具栏
+<!-- trellis-session: v=2 fp=648fd7d5f5b1576f -->
+
+**Date**: 2026-10-03
+**Task**: FEATURE-718 悬浮面板顶部工具栏
+**Branch**: `agent/agent/8cef3d5178bd`
+
+### Summary
+
+移除悬浮底部两行提示，预览/展开/快捷操作/快捷键/设置改为右上角入口；调整无底栏高度守恒与规范。最终 make test 442+26、make check 通过；签名 ARM 已安装，AX验证顶部入口、两种布局及偏好不变。真实拖拽与多屏待人工验收。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1fd8b97` | FEATURE-718: move floating panel controls to header |
+
+### Status
+
+[OK] **Completed**
