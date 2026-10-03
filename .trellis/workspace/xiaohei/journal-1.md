@@ -27,3 +27,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 3: FEATURE-718 悬浮面板一期优化
+<!-- trellis-session: v=2 fp=05da82d1a99327a8 -->
+
+**Date**: 2026-10-03
+**Task**: FEATURE-718 悬浮面板一期优化
+**Branch**: `agent/agent/8cef3d5178bd`
+
+### Summary
+
+修正悬浮方向键和预览提示，提供展开与临时预览按钮；按实测 chrome 分配卡片和预览高度，保留两种样式尺寸并支持独立恢复默认；11种语言同步。442 Swift Testing + 26 XCTest、make check通过；签名 ARM release 1.13.1(2301)安装，本机验证预览及提示，拖拽与多屏待现场验收。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b6f2cd6` | FEATURE-718: improve floating panel preview layout and sizing preferences |
+
+### Status
+
+[OK] **Completed**
