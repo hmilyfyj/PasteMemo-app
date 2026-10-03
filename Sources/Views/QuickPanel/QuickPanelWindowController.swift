@@ -144,6 +144,7 @@ final class QuickPanelWindowController {
     }
     var suppressDismiss = false
     private var snapGuide: SnapGuideWindow?
+    private var bottomChromeHeight: CGFloat?
 
     private var panelStyle: QuickPanelStyle { QuickPanelStyle.stored }
 
@@ -673,7 +674,43 @@ final class QuickPanelWindowController {
         isWarmedUp = false
         panel = nil
         layoutState = nil
+        bottomChromeHeight = nil
         _ = style
+    }
+
+    func resetCurrentStyleSizing() {
+        panelStyle.resetStoredSizing()
+        handleStyleChange(to: panelStyle)
+    }
+
+    func updateBottomChromeHeight(_ height: CGFloat) {
+        guard panelStyle == .bottomFloating, bottomChromeHeight != height else { return }
+        bottomChromeHeight = height
+        // Geometry actions can arrive during a SwiftUI layout pass. Resize and
+        // publish stable height only on the next turn, never in didResize.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.panelStyle == .bottomFloating, let panel = self.panel else { return }
+            let screen = panel.screen ?? NSScreen.screenWithMouse ?? NSScreen.main
+            let minimum = self.bottomMinimumHeight(for: self.currentBottomMode, screen: screen)
+            panel.minSize.height = minimum
+            if panel.frame.height < minimum {
+                var frame = panel.frame
+                frame.size.height = minimum
+                if let visible = screen?.visibleFrame {
+                    frame.origin.y = max(visible.minY, min(frame.origin.y, visible.maxY - minimum))
+                }
+                panel.setFrame(frame, display: panel.isVisible)
+            }
+            self.layoutState?.height = panel.frame.height
+        }
+    }
+
+    private func bottomMinimumHeight(for mode: QuickPanelBottomMode, screen: NSScreen?) -> CGFloat {
+        let required = bottomChromeHeight.map {
+            QuickPanelBottomContentGeometry.minimumHeight(chromeHeight: $0, mode: mode)
+        } ?? QuickPanelBottomGeometry.minimumHeight(for: mode)
+        guard let screen else { return required }
+        return min(required, max(0, screen.visibleFrame.height - QuickPanelBottomGeometry.bottomInset))
     }
 
     func applyBottomMode(_ mode: QuickPanelBottomMode) {
@@ -686,16 +723,18 @@ final class QuickPanelWindowController {
         let resolvedMode = mode ?? currentBottomMode
         let screen = NSScreen.screenWithMouse ?? NSScreen.main ?? NSScreen.screens.first
         guard let screen else { return }
-        let target = QuickPanelBottomGeometry.frame(
+        var target = QuickPanelBottomGeometry.frame(
             screenFrame: screen.frame,
             visibleFrame: screen.visibleFrame,
             mode: resolvedMode,
             preferredWidth: QuickPanelBottomDefaults.storedWidth(),
             preferredHeight: QuickPanelBottomDefaults.storedHeight(for: resolvedMode)
         )
+        let minimumHeight = bottomMinimumHeight(for: resolvedMode, screen: screen)
+        target.size.height = max(target.height, minimumHeight)
         panel.minSize = NSSize(
             width: QuickPanelBottomGeometry.minimumWidth,
-            height: QuickPanelBottomGeometry.minimumHeight(for: resolvedMode)
+            height: minimumHeight
         )
         if animated {
             var start = target
@@ -712,6 +751,9 @@ final class QuickPanelWindowController {
             panel.setFrame(target, display: true)
             panel.alphaValue = 1
         }
+        // Programmatic mode changes don't trigger didEndLiveResize. Sync after
+        // setFrame, outside AppKit's layout callback, so cards use the new height.
+        layoutState?.height = panel.frame.height
     }
 
     private func positionPanel(_ panel: NSPanel) {

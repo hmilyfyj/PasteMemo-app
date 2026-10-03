@@ -165,6 +165,8 @@ struct QuickPanelView: View {
     /// Defer the 30k-item card rail until the panel is actually shown.
     /// warmUp() otherwise layouts the whole tree off-screen and SIGSEGVs.
     @State private var isBottomRailArmed = false
+    @State private var bottomHeaderHeight: CGFloat = 0
+    @State private var bottomFooterHeight: CGFloat = 0
     @State private var cachedGroupedItems: [GroupedItem<ClipItem>] = []
     @State private var cachedHistoryRows: [ClipHistoryListBuilder.Row] = []
     @State private var cachedHistoryRowIndexByID: [PersistentIdentifier: Int] = [:]
@@ -1641,9 +1643,12 @@ struct QuickPanelView: View {
             // Expandable shortcuts panel
             if showAllShortcuts {
                 WrappingHStack(spacing: 12, lineSpacing: 6, alignment: .trailing) {
-                    footerKey("←→", L10n.tr("quick.switchType"))
-                    footerKey("↑↓", L10n.tr("quick.navigate"))
+                    footerKey(isBottomFloating ? "↑↓" : "←→", L10n.tr("quick.switchType"))
+                    footerKey(isBottomFloating ? "←→" : "↑↓", L10n.tr("quick.navigate"))
                     footerKey("⌘O", cmdOFooterLabel)
+                    if isBottomFloating, searchText.isEmpty, !isIMEComposing {
+                        footerKey("Space", L10n.tr("quick.preview"))
+                    }
                     footerKey("⌘T", isPanelPinned ? L10n.tr("quickPanel.unpin") : L10n.tr("quickPanel.pin"))
                     if !HotkeyManager.shared.isManagerCleared {
                         footerKey(
@@ -1732,6 +1737,30 @@ struct QuickPanelView: View {
                             .modifier(HoverHighlight())
                             .pointerCursor()
                         }
+                        if isBottomFloating {
+                            if searchText.isEmpty, !isIMEComposing {
+                                Button {
+                                    guard let item = currentItem else { return }
+                                    QuickLookHelper.shared.toggle(item: item)
+                                    isSearchFocused = false
+                                } label: {
+                                    footerKey("Space", L10n.tr("quick.preview"))
+                                }
+                                .buttonStyle(.plain)
+                                .modifier(HoverHighlight())
+                                .pointerCursor()
+                                .disabled(currentItem == nil)
+                                .accessibilityLabel(L10n.tr("quick.preview"))
+                            }
+                            Button { toggleBottomMode() } label: {
+                                footerKey("⌘O", cmdOFooterLabel)
+                            }
+                            .buttonStyle(.plain)
+                            .modifier(HoverHighlight())
+                            .pointerCursor()
+                            .help(cmdOFooterLabel)
+                            .accessibilityLabel(cmdOFooterLabel)
+                        }
                         footerKey("esc", L10n.tr("quick.close"))
 
                         Button {
@@ -1745,6 +1774,7 @@ struct QuickPanelView: View {
                         }
                         .modifier(GlassIconButton())
                         .pointerCursor()
+                        .accessibilityLabel(L10n.tr("settings.shortcuts"))
 
                         Button {
                             handleDismiss()
@@ -2810,6 +2840,9 @@ struct QuickPanelView: View {
 
     /// ⌘O footer caption — links open, file/path clips reveal in Finder, others Quick Look.
     private var cmdOFooterLabel: String {
+        if isBottomFloating {
+            return L10n.tr(isBottomExpanded ? "quick.collapsePreview" : "quick.expandPreview")
+        }
         guard let item = currentItem else { return L10n.tr("quick.preview") }
         if item.contentType == .link { return L10n.tr("quick.openLink") }
         if item.revealableFinderPath != nil { return L10n.tr("cmd.showInFinder") }
@@ -3294,27 +3327,62 @@ struct QuickPanelView: View {
 }
 
 extension QuickPanelView {
+    private var bottomChromeHeight: CGFloat {
+        QuickPanelBottomContentGeometry.chromeHeight(header: bottomHeaderHeight, footer: bottomFooterHeight)
+    }
+
+    private var bottomContentGeometry: QuickPanelBottomContentGeometry {
+        QuickPanelBottomContentGeometry(
+            panelHeight: layoutState.height,
+            chromeHeight: bottomChromeHeight,
+            mode: isBottomExpanded ? .expanded : .compact
+        )
+    }
+
+    private func updateBottomMinimumHeight() {
+        guard bottomHeaderHeight > 0, bottomFooterHeight > 0 else { return }
+        QuickPanelWindowController.shared.updateBottomChromeHeight(bottomChromeHeight)
+    }
+
     var bottomFloatingLayout: some View {
-        VStack(spacing: 4) {
-            searchBar
-            NonDraggableArea { tabBar }
+        VStack(spacing: QuickPanelBottomContentGeometry.spacing) {
+            VStack(spacing: QuickPanelBottomContentGeometry.spacing) {
+                searchBar
+                if shouldShowTabBar {
+                    NonDraggableArea { tabBar }
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                bottomHeaderHeight = height
+                updateBottomMinimumHeight()
+            }
             if filteredItems.isEmpty {
                 emptyStateView
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .quickPanelBottomSection()
-            } else if isBottomRailArmed {
-                bottomClipRail
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                if isBottomExpanded {
-                    previewPane
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .quickPanelBottomSection()
+            } else {
+                VStack(spacing: QuickPanelBottomContentGeometry.spacing) {
+                    if isBottomRailArmed, bottomHeaderHeight > 0, bottomFooterHeight > 0 {
+                        bottomClipRail
+                            .frame(height: bottomContentGeometry.railHeight)
+                        if isBottomExpanded {
+                            previewPane
+                                .frame(height: bottomContentGeometry.previewHeight)
+                                .quickPanelBottomSection()
+                        }
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             footerBar
                 .fixedSize(horizontal: false, vertical: true)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                    bottomFooterHeight = height
+                    updateBottomMinimumHeight()
+                }
         }
-        .padding(8)
+        .padding(QuickPanelBottomContentGeometry.outerPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .quickPanelBottomShell()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -3322,11 +3390,8 @@ extension QuickPanelView {
 
     var bottomClipRail: some View {
         let spacing: CGFloat = 10
-        // Search + tabs + footer + padding. Avoid GeometryReader: it relayouts
-        // the 30k-item rail on every pass and SIGSEGVs AppKit on macOS 26.
-        let chrome: CGFloat = 100
-        let cardHeight = max(layoutState.height - chrome, 120)
-        let cardWidth = min(max(cardHeight * 0.72, 160), 320)
+        let cardHeight = bottomContentGeometry.cardHeight
+        let cardWidth = bottomContentGeometry.cardWidth
         return ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .top, spacing: spacing) {
@@ -3372,8 +3437,8 @@ extension QuickPanelView {
                         }
                     }
                 }
-                .padding(.horizontal, 4)
-                .padding(.vertical, 4)
+                .padding(.horizontal, QuickPanelBottomContentGeometry.railPadding)
+                .padding(.vertical, QuickPanelBottomContentGeometry.railPadding)
             }
             .onChange(of: lastNavigatedID) {
                 guard let id = lastNavigatedID else { return }

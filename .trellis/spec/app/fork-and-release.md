@@ -27,6 +27,15 @@ FEATURE-347 已经按这条路径合过 `upstream v1.8.0`。
 
 验收包含底部空格开/关预览、左右切卡片、右键先选中、双击粘贴，以及经典面板新增功能；保留不重写历史的 merge，使后续有明确共同基线。
 
+### 悬浮面板内容尺寸与提示
+
+- `QuickPanelBottomContentGeometry(panelHeight:chromeHeight:mode:)` 根据实测搜索/分类栏和底栏固有高度分配卡片与预览；紧凑态填满轨道，展开态卡片高度上限220pt，预览吃剩余空间。不要再用整窗高度减固定100pt计算卡片。
+- 只测量轻量 header/footer；保留 `isBottomRailArmed`，不要让30k卡片在 warm-up 阶段参与布局，也不要给整个轨道增加 GeometryReader 的反馈循环。
+- `updateBottomChromeHeight(_:)` 下一轮主线程更新最小窗口高度；`positionBottomFloating` 在程序化模式切换后同步 `layoutState.height`，因为 `didEndLiveResize` 仅响应用户拖拽。`didResize` 中仍只同步宽度，避免 AppKit 布局重入。
+- 底部样式：←→选卡片、↑↓切分类、⌘O展开/收起、空搜索且无IME组字时Space预览；经典保留既有键义。底栏文案必须按样式分支。
+- 样式切换只重建窗口，不清尺寸；显式恢复默认才调用 `QuickPanelStyle.resetStoredSizing(in:)`，仅清当前样式的尺寸，保留另一样式及展开模式。
+- 用 `QuickPanelBottomGeometryTests` 验证高度守恒、最小预览空间、较高快捷提示栏和独立偏好域。新本地化键须在全部11种语言补齐，`LocalizationFilesTests` 强制检查键集合与占位符一致。
+
 ### Swift 6.3 测试资源布局
 
 Swift Testing 由工具链 `swiftpm-testing-helper` 承载，`Bundle.main` 指向工具链目录。资源查找须同时覆盖代码所在 bundle 的相邻目录（`Bundle(for: PasteMemoResourceBundleAnchor.self).bundleURL.deletingLastPathComponent()`），不能只依赖主进程 executableURL。

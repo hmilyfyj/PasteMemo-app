@@ -149,6 +149,8 @@
 "settings.quickPanelStyle.classic" = "Классическая панель";
 "settings.quickPanelStyle.bottomFloating" = "Нижняя панель";
 "settings.quickPanelPosition" = "Положение быстрой панели";
+"settings.quickPanelPosition.bottomHint" = "Внизу экрана, на котором находится указатель";
+"settings.quickPanel.resetSize" = "Сбросить размер текущего стиля";
 "settings.quickPanelPosition.remembered" = "Запоминать прошлую позицию";
 "settings.quickPanelPosition.cursor" = "Курсор";
 "settings.quickPanelPosition.menuBarIcon" = "Значок в строке меню";
@@ -294,6 +296,8 @@
 "quick.delete" = "Удалить";
 "quick.openLink" = "Открыть";
 "quick.preview" = "Просмотр";
+"quick.expandPreview" = "Развернуть просмотр";
+"quick.collapsePreview" = "Свернуть просмотр";
 "quick.pasteImage" = "Вставить изображение";
 "settings.showGuide" = "Показать приветствие";
 

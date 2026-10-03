@@ -149,6 +149,8 @@
 "settings.quickPanelStyle.classic" = "Panel klasik";
 "settings.quickPanelStyle.bottomFloating" = "Mengambang bawah";
 "settings.quickPanelPosition" = "Posisi panel cepat";
+"settings.quickPanelPosition.bottomHint" = "Bagian bawah layar tempat penunjuk berada";
+"settings.quickPanel.resetSize" = "Atur ulang ukuran gaya saat ini";
 "settings.quickPanelPosition.remembered" = "Ingat posisi terakhir";
 "settings.quickPanelPosition.cursor" = "Kursor";
 "settings.quickPanelPosition.menuBarIcon" = "Ikon bar menu";
@@ -294,6 +296,8 @@
 "quick.delete" = "Hapus";
 "quick.openLink" = "Buka";
 "quick.preview" = "Pratinjau";
+"quick.expandPreview" = "Perluas pratinjau";
+"quick.collapsePreview" = "Ciutkan pratinjau";
 "quick.pasteImage" = "Tempel Gambar";
 "settings.showGuide" = "Tampilkan Panduan Awal";
 
