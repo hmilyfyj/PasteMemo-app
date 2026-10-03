@@ -43,7 +43,7 @@ struct QuickPanelBottomContentGeometry {
     let previewHeight: CGFloat
 
     var cardHeight: CGFloat { max(0, railHeight - Self.railPadding * 2) }
-    var cardWidth: CGFloat { min(max(cardHeight * 0.72, 160), 320) }
+    var cardWidth: CGFloat { cardHeight }
 
     static func chromeHeight(header: CGFloat) -> CGFloat {
         header + outerPadding * 2 + spacing

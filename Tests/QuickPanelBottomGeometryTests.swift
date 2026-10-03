@@ -4,6 +4,16 @@ import Testing
 
 @Suite("Bottom panel content sizing and preferences")
 struct QuickPanelBottomGeometryTests {
+    @Test("cards remain square in both modes across viewport heights",
+          arguments: [CGFloat(0), 212, 252, 401, 760, 1000],
+          [QuickPanelBottomMode.compact, .expanded])
+    func cardsRemainSquare(height: CGFloat, mode: QuickPanelBottomMode) {
+        let chrome = QuickPanelBottomContentGeometry.chromeHeight(header: 49)
+        let content = QuickPanelBottomContentGeometry(panelHeight: height, chromeHeight: chrome, mode: mode)
+        #expect(content.cardWidth == content.cardHeight)
+        #expect(content.cardWidth >= 0)
+    }
+
     @Test("compact cards fill the height below the toolbar with no footer", arguments: [CGFloat(22), 49, 82])
     func compactFitsMeasuredChrome(header: CGFloat) {
         let chrome = QuickPanelBottomContentGeometry.chromeHeight(header: header)
