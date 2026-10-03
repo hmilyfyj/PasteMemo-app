@@ -71,3 +71,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 5: FEATURE-718 悬浮卡片正方形
+<!-- trellis-session: v=2 fp=198f2bdce3edd722 -->
+
+**Date**: 2026-10-03
+**Task**: FEATURE-718 悬浮卡片正方形
+**Branch**: `agent/agent/8cef3d5178bd`
+
+### Summary
+
+卡片宽度跟随高度，紧凑与展开均为正方形；12场景新增回归，make test 443+26和make check通过。本机签名ARM已更新并验证，尺寸偏好不变；用户已授权合并PR #26，交付到原分支。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2a424be` | FEATURE-718: make floating panel cards square |
+
+### Status
+
+[OK] **Completed**
