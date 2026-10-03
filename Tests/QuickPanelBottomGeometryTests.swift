@@ -4,19 +4,20 @@ import Testing
 
 @Suite("Bottom panel content sizing and preferences")
 struct QuickPanelBottomGeometryTests {
-    @Test("compact cards fill the height remaining after measured chrome", arguments: [CGFloat(49), 82, 145])
-    func compactFitsMeasuredChrome(footer: CGFloat) {
-        let chrome = QuickPanelBottomContentGeometry.chromeHeight(header: 49, footer: footer)
+    @Test("compact cards fill the height below the toolbar with no footer", arguments: [CGFloat(22), 49, 82])
+    func compactFitsMeasuredChrome(header: CGFloat) {
+        let chrome = QuickPanelBottomContentGeometry.chromeHeight(header: header)
         let height = QuickPanelBottomContentGeometry.minimumHeight(chromeHeight: chrome, mode: .compact) + 180
         let content = QuickPanelBottomContentGeometry(panelHeight: height, chromeHeight: chrome, mode: .compact)
         #expect(content.railHeight + chrome == height)
         #expect(content.previewHeight == 0)
         #expect(content.cardHeight + QuickPanelBottomContentGeometry.railPadding * 2 == content.railHeight)
+        #expect(header + 8 * 2 + 4 + content.railHeight == height)
     }
 
-    @Test("expanded minimum fits cards, preview, and a taller shortcut footer", arguments: [CGFloat(49), 82, 145])
-    func expandedMinimumFitsBothSections(footer: CGFloat) {
-        let chrome = QuickPanelBottomContentGeometry.chromeHeight(header: 49, footer: footer)
+    @Test("expanded minimum fits cards and preview below the toolbar", arguments: [CGFloat(22), 49, 82])
+    func expandedMinimumFitsBothSections(header: CGFloat) {
+        let chrome = QuickPanelBottomContentGeometry.chromeHeight(header: header)
         let height = QuickPanelBottomContentGeometry.minimumHeight(chromeHeight: chrome, mode: .expanded)
         let content = QuickPanelBottomContentGeometry(panelHeight: height, chromeHeight: chrome, mode: .expanded)
         #expect(content.cardHeight >= QuickPanelBottomContentGeometry.minimumCardHeight)
@@ -26,7 +27,7 @@ struct QuickPanelBottomGeometryTests {
 
     @Test("extra expanded height goes to the preview instead of oversized cards")
     func expandedGrowthGoesToPreview() {
-        let chrome = QuickPanelBottomContentGeometry.chromeHeight(header: 49, footer: 49)
+        let chrome = QuickPanelBottomContentGeometry.chromeHeight(header: 49)
         let shorter = QuickPanelBottomContentGeometry(panelHeight: 760, chromeHeight: chrome, mode: .expanded)
         let taller = QuickPanelBottomContentGeometry(panelHeight: 1000, chromeHeight: chrome, mode: .expanded)
         #expect(shorter.cardHeight <= QuickPanelBottomContentGeometry.maximumExpandedCardHeight)

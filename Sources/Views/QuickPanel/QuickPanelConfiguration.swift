@@ -29,7 +29,7 @@ enum QuickPanelBottomMode: String {
     case expanded
 }
 
-/// Header/footer measurements are independent of the card rail. Keep the
+/// Header measurements are independent of the card rail. Keep the
 /// large lazy rail out of geometry feedback during AppKit's resize callbacks.
 struct QuickPanelBottomContentGeometry {
     static let outerPadding: CGFloat = 8
@@ -45,8 +45,8 @@ struct QuickPanelBottomContentGeometry {
     var cardHeight: CGFloat { max(0, railHeight - Self.railPadding * 2) }
     var cardWidth: CGFloat { min(max(cardHeight * 0.72, 160), 320) }
 
-    static func chromeHeight(header: CGFloat, footer: CGFloat) -> CGFloat {
-        header + footer + outerPadding * 2 + spacing * 2
+    static func chromeHeight(header: CGFloat) -> CGFloat {
+        header + outerPadding * 2 + spacing
     }
 
     static func minimumHeight(chromeHeight: CGFloat, mode: QuickPanelBottomMode) -> CGFloat {
