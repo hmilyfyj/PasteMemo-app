@@ -185,6 +185,8 @@
 "settings.quickPanelStyle.classic" = "クラシックパネル";
 "settings.quickPanelStyle.bottomFloating" = "下部フローティング";
 "settings.quickPanelPosition" = "クイックパネルの位置";
+"settings.quickPanelPosition.bottomHint" = "ポインタがある画面の下部";
+"settings.quickPanel.resetSize" = "現在のスタイルのサイズをリセット";
 "settings.quickPanelPosition.remembered" = "前回の位置を記憶";
 "settings.quickPanelPosition.cursor" = "カーソル";
 "settings.quickPanelPosition.menuBarIcon" = "メニューバーアイコン";
@@ -685,6 +687,8 @@
 "quick.copyToClipboard" = "クリップボードにコピー";
 "quick.pasteToApp" = "%@ にペースト";
 "quick.preview" = "プレビュー";
+"quick.expandPreview" = "プレビューを展開";
+"quick.collapsePreview" = "プレビューを折りたたむ";
 "quick.recent" = "最近";
 "quick.saveToFolder" = "ファイルとしてペースト";
 "quick.search" = "クリップを検索…";

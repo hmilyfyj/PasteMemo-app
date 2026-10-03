@@ -148,6 +148,8 @@
 "settings.quickPanelStyle.classic" = "經典面板";
 "settings.quickPanelStyle.bottomFloating" = "底部懸浮";
 "settings.quickPanelPosition" = "快捷面板位置";
+"settings.quickPanelPosition.bottomHint" = "滑鼠所在螢幕底部";
+"settings.quickPanel.resetSize" = "恢復目前樣式預設尺寸";
 "settings.quickPanelPosition.remembered" = "記住上次位置";
 "settings.quickPanelPosition.cursor" = "游標";
 "settings.quickPanelPosition.menuBarIcon" = "選單列圖示";
@@ -293,6 +295,8 @@
 "quick.delete" = "刪除";
 "quick.openLink" = "開啟";
 "quick.preview" = "預覽";
+"quick.expandPreview" = "展開預覽";
+"quick.collapsePreview" = "收起預覽";
 "quick.commandPalette" = "快捷操作";
 "quick.pasteImage" = "貼上圖片";
 "settings.showGuide" = "顯示新手引導";

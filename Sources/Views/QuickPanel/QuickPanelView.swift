@@ -148,6 +148,7 @@ struct QuickPanelView: View {
     @State private var lastNavigatedID: PersistentIdentifier?
     @State private var selectionAnchor: PersistentIdentifier?
     @State private var showAllShortcuts = false
+    @State private var showFloatingShortcuts = false
     @State private var relaySplitText: String?
     @State private var showCommandPalette = false
     @State private var targetApp: NSRunningApplication?
@@ -165,6 +166,7 @@ struct QuickPanelView: View {
     /// Defer the 30k-item card rail until the panel is actually shown.
     /// warmUp() otherwise layouts the whole tree off-screen and SIGSEGVs.
     @State private var isBottomRailArmed = false
+    @State private var bottomHeaderHeight: CGFloat = 0
     @State private var cachedGroupedItems: [GroupedItem<ClipItem>] = []
     @State private var cachedHistoryRows: [ClipHistoryListBuilder.Row] = []
     @State private var cachedHistoryRowIndexByID: [PersistentIdentifier: Int] = [:]
@@ -451,6 +453,7 @@ struct QuickPanelView: View {
             groupSuggestionIndex = -1
             pill = nil
             showCommandPalette = false
+            showFloatingShortcuts = false
             suggestionsArmed = false
             userTypedSlash = false
             isIMEComposing = false
@@ -472,6 +475,7 @@ struct QuickPanelView: View {
         .onReceive(NotificationCenter.default.publisher(for: .quickPanelDidShow)) { _ in
             isBottomRailArmed = true
             showCommandPalette = false
+            showFloatingShortcuts = false
             searchText = ""
             pill = nil
             let restoredFilter = restoredFilterOnShow()
@@ -989,6 +993,10 @@ struct QuickPanelView: View {
                 .frame(minWidth: 28, minHeight: 24)
                 .padding(.horizontal, 6)
                 .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 5))
+
+            if isBottomFloating {
+                floatingToolbar
+            }
         }
         // 固定一个比最高 pill 略大的行高，pill 出现/消失时 HStack 不会撑高，
         // 搜索图标、下方 tabBar 都不会上下跳动
@@ -1636,25 +1644,146 @@ struct QuickPanelView: View {
         }
     }
 
+    private var floatingToolbar: some View {
+        HStack(spacing: 4) {
+            Button {
+                guard let item = currentItem else { return }
+                QuickLookHelper.shared.toggle(item: item)
+                isSearchFocused = false
+            } label: {
+                floatingToolbarIcon("eye")
+            }
+            .disabled(currentItem == nil || !searchText.isEmpty || isIMEComposing)
+            .help(L10n.tr("quick.preview") + " (Space)")
+            .accessibilityLabel(L10n.tr("quick.preview"))
+
+            Button { toggleBottomMode() } label: {
+                floatingToolbarIcon(isBottomExpanded ? "chevron.down" : "chevron.up")
+            }
+            .help(cmdOFooterLabel + " (⌘O)")
+            .accessibilityLabel(cmdOFooterLabel)
+
+            Button {
+                showCommandPalette.toggle()
+                if showCommandPalette { isSearchFocused = false }
+            } label: {
+                floatingToolbarIcon("command")
+            }
+            .disabled(showFloatingShortcuts || currentItem == nil)
+            .help(L10n.tr("cmd.title") + " (⌘K)")
+            .accessibilityLabel(L10n.tr("cmd.title"))
+
+            Button { showFloatingShortcuts.toggle() } label: {
+                floatingToolbarIcon("keyboard")
+            }
+            .disabled(showCommandPalette)
+            .help(L10n.tr("settings.shortcuts"))
+            .accessibilityLabel(L10n.tr("settings.shortcuts"))
+            .popover(isPresented: $showFloatingShortcuts, arrowEdge: .bottom) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(L10n.tr("settings.shortcuts"))
+                        .font(.system(size: 13, weight: .semibold))
+                    WrappingHStack(spacing: 12, lineSpacing: 8) {
+                        primaryShortcutHints(compact: false)
+                    }
+                    Divider()
+                    WrappingHStack(spacing: 12, lineSpacing: 8) {
+                        additionalShortcutHints
+                    }
+                }
+                .padding(16)
+                .frame(width: 420)
+            }
+
+            Button {
+                handleDismiss()
+                AppAction.shared.openSettings?()
+            } label: {
+                floatingToolbarIcon("gearshape")
+            }
+            .help(L10n.tr("menu.settings"))
+            .accessibilityLabel(L10n.tr("menu.settings"))
+        }
+        .buttonStyle(.plain)
+        .pointerCursor()
+    }
+
+    private func floatingToolbarIcon(_ name: String) -> some View {
+        Image(systemName: name)
+            .font(.system(size: 12))
+            .foregroundStyle(.secondary)
+            .frame(width: 24, height: 22)
+            .contentShape(Rectangle())
+            .modifier(HoverHighlight())
+    }
+
+    @ViewBuilder
+    private var additionalShortcutHints: some View {
+        footerKey(isBottomFloating ? "↑↓" : "←→", L10n.tr("quick.switchType"))
+        footerKey(isBottomFloating ? "←→" : "↑↓", L10n.tr("quick.navigate"))
+        footerKey("⌘O", cmdOFooterLabel)
+        if isBottomFloating, searchText.isEmpty, !isIMEComposing {
+            footerKey("Space", L10n.tr("quick.preview"))
+        }
+        footerKey("⌘T", isPanelPinned ? L10n.tr("quickPanel.unpin") : L10n.tr("quickPanel.pin"))
+        if !HotkeyManager.shared.isManagerCleared {
+            footerKey(
+                shortcutDisplayString(
+                    keyCode: HotkeyManager.shared.managerKeyCode,
+                    modifiers: HotkeyManager.shared.managerModifiers
+                ),
+                L10n.tr("menu.openMain")
+            )
+        }
+        footerKey("⌘⌫", L10n.tr("quick.delete"))
+    }
+
+    @ViewBuilder
+    private func primaryShortcutHints(compact: Bool) -> some View {
+        if isMultiSelected {
+            footerKey("↵", quickPanelAutoPaste ? (isTargetFinder ? L10n.tr("quick.saveToFolder") : L10n.tr("quick.batchPaste")) : L10n.tr("action.copy"))
+            if !compact, quickPanelAutoPaste, !isTargetFinder {
+                footerKey("⇧↵", L10n.tr("quick.pasteNewLine"))
+            }
+            if !compact {
+                footerKey("⌘↵", quickPanelAutoPaste ? L10n.tr("action.pasteAsPlainText") : L10n.tr("cmd.copyAsPlainText"))
+            }
+        } else if let cur = currentItem {
+            footerKey("↵", primaryFooterLabel(for: cur))
+            if !compact, quickPanelAutoPaste {
+                if !(cur.pasteableImageData != nil && canPasteToFinderFolder), !canSaveTextToFolder {
+                    footerKey("⇧↵", L10n.tr("quick.pasteNewLine"))
+                }
+            }
+            if !compact, let cmdEnterLabel = cmdEnterFooterLabel(for: cur) {
+                footerKey("⌘↵", cmdEnterLabel)
+            }
+        }
+        if !compact, let cur = currentItem, cur.isSensitive, !isMultiSelected {
+            footerKey("⌥", L10n.tr("sensitive.peek"))
+        }
+        if !compact, isBottomFloating {
+            footerKey("⌘K", L10n.tr("cmd.title"))
+        } else if !compact {
+            Button {
+                showCommandPalette.toggle()
+                if showCommandPalette { isSearchFocused = false }
+            } label: {
+                footerKey("⌘K", L10n.tr("cmd.title"))
+            }
+            .buttonStyle(.plain)
+            .modifier(HoverHighlight())
+            .pointerCursor()
+        }
+        footerKey("esc", L10n.tr("quick.close"))
+    }
+
     private var footerBar: some View {
         VStack(spacing: 8) {
             // Expandable shortcuts panel
             if showAllShortcuts {
                 WrappingHStack(spacing: 12, lineSpacing: 6, alignment: .trailing) {
-                    footerKey("←→", L10n.tr("quick.switchType"))
-                    footerKey("↑↓", L10n.tr("quick.navigate"))
-                    footerKey("⌘O", cmdOFooterLabel)
-                    footerKey("⌘T", isPanelPinned ? L10n.tr("quickPanel.unpin") : L10n.tr("quickPanel.pin"))
-                    if !HotkeyManager.shared.isManagerCleared {
-                        footerKey(
-                            shortcutDisplayString(
-                                keyCode: HotkeyManager.shared.managerKeyCode,
-                                modifiers: HotkeyManager.shared.managerModifiers
-                            ),
-                            L10n.tr("menu.openMain")
-                        )
-                    }
-                    footerKey("⌘⌫", L10n.tr("quick.delete"))
+                    additionalShortcutHints
                 }
                 // frame 放在玻璃之后：WrappingHStack 本来就会收到 VStack 传下来的
                 // 可用宽度提案、该换行时自然换行，这里再套 maxWidth: .infinity 只会
@@ -1694,45 +1823,7 @@ struct QuickPanelView: View {
                     // 底栏动作全部收进一颗玻璃胶囊，直接落在面板玻璃上——底栏本身
                     // 没有背景条和分隔线。
                     HStack(spacing: 10) {
-                        let compact = !layoutState.shouldShowPreview
-                        if isMultiSelected {
-                            footerKey("↵", quickPanelAutoPaste ? (isTargetFinder ? L10n.tr("quick.saveToFolder") : L10n.tr("quick.batchPaste")) : L10n.tr("action.copy"))
-                            if !compact, quickPanelAutoPaste, !isTargetFinder {
-                                footerKey("⇧↵", L10n.tr("quick.pasteNewLine"))
-                            }
-                            if !compact {
-                                footerKey("⌘↵", quickPanelAutoPaste ? L10n.tr("action.pasteAsPlainText") : L10n.tr("cmd.copyAsPlainText"))
-                            }
-                        } else {
-                            if let cur = currentItem {
-                                footerKey("↵", primaryFooterLabel(for: cur))
-                                if !compact, quickPanelAutoPaste {
-                                    if !(cur.pasteableImageData != nil && canPasteToFinderFolder), !canSaveTextToFolder {
-                                        footerKey("⇧↵", L10n.tr("quick.pasteNewLine"))
-                                    }
-                                }
-                                if !compact, let cmdEnterLabel = cmdEnterFooterLabel(for: cur) {
-                                    footerKey("⌘↵", cmdEnterLabel)
-                                }
-                            }
-                        }
-                        if !compact, let cur = currentItem, cur.isSensitive, !isMultiSelected {
-                            footerKey("⌥", L10n.tr("sensitive.peek"))
-                        }
-                        if !compact {
-                            // 唯一可点的 footerKey：点一下等同按 ⌘K。其余 footerKey
-                            // 仍是纯展示，所以 hover 高亮也只给这一个。
-                            Button {
-                                showCommandPalette.toggle()
-                                if showCommandPalette { isSearchFocused = false }
-                            } label: {
-                                footerKey("⌘K", L10n.tr("cmd.title"))
-                            }
-                            .buttonStyle(.plain)
-                            .modifier(HoverHighlight())
-                            .pointerCursor()
-                        }
-                        footerKey("esc", L10n.tr("quick.close"))
+                        primaryShortcutHints(compact: !layoutState.shouldShowPreview)
 
                         Button {
                             withAnimation(.easeInOut(duration: 0.15)) {
@@ -1745,6 +1836,7 @@ struct QuickPanelView: View {
                         }
                         .modifier(GlassIconButton())
                         .pointerCursor()
+                        .accessibilityLabel(L10n.tr("settings.shortcuts"))
 
                         Button {
                             handleDismiss()
@@ -2810,6 +2902,9 @@ struct QuickPanelView: View {
 
     /// ⌘O footer caption — links open, file/path clips reveal in Finder, others Quick Look.
     private var cmdOFooterLabel: String {
+        if isBottomFloating {
+            return L10n.tr(isBottomExpanded ? "quick.collapsePreview" : "quick.expandPreview")
+        }
         guard let item = currentItem else { return L10n.tr("quick.preview") }
         if item.contentType == .link { return L10n.tr("quick.openLink") }
         if item.revealableFinderPath != nil { return L10n.tr("cmd.showInFinder") }
@@ -3294,27 +3389,56 @@ struct QuickPanelView: View {
 }
 
 extension QuickPanelView {
+    private var bottomChromeHeight: CGFloat {
+        QuickPanelBottomContentGeometry.chromeHeight(header: bottomHeaderHeight)
+    }
+
+    private var bottomContentGeometry: QuickPanelBottomContentGeometry {
+        QuickPanelBottomContentGeometry(
+            panelHeight: layoutState.height,
+            chromeHeight: bottomChromeHeight,
+            mode: isBottomExpanded ? .expanded : .compact
+        )
+    }
+
+    private func updateBottomMinimumHeight() {
+        guard bottomHeaderHeight > 0 else { return }
+        QuickPanelWindowController.shared.updateBottomChromeHeight(bottomChromeHeight)
+    }
+
     var bottomFloatingLayout: some View {
-        VStack(spacing: 4) {
-            searchBar
-            NonDraggableArea { tabBar }
+        VStack(spacing: QuickPanelBottomContentGeometry.spacing) {
+            VStack(spacing: QuickPanelBottomContentGeometry.spacing) {
+                searchBar
+                if shouldShowTabBar {
+                    NonDraggableArea { tabBar }
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                bottomHeaderHeight = height
+                updateBottomMinimumHeight()
+            }
             if filteredItems.isEmpty {
                 emptyStateView
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .quickPanelBottomSection()
-            } else if isBottomRailArmed {
-                bottomClipRail
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                if isBottomExpanded {
-                    previewPane
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .quickPanelBottomSection()
+            } else {
+                VStack(spacing: QuickPanelBottomContentGeometry.spacing) {
+                    if isBottomRailArmed, bottomHeaderHeight > 0 {
+                        bottomClipRail
+                            .frame(height: bottomContentGeometry.railHeight)
+                        if isBottomExpanded {
+                            previewPane
+                                .frame(height: bottomContentGeometry.previewHeight)
+                                .quickPanelBottomSection()
+                        }
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            footerBar
-                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(8)
+        .padding(QuickPanelBottomContentGeometry.outerPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .quickPanelBottomShell()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -3322,11 +3446,8 @@ extension QuickPanelView {
 
     var bottomClipRail: some View {
         let spacing: CGFloat = 10
-        // Search + tabs + footer + padding. Avoid GeometryReader: it relayouts
-        // the 30k-item rail on every pass and SIGSEGVs AppKit on macOS 26.
-        let chrome: CGFloat = 100
-        let cardHeight = max(layoutState.height - chrome, 120)
-        let cardWidth = min(max(cardHeight * 0.72, 160), 320)
+        let cardHeight = bottomContentGeometry.cardHeight
+        let cardWidth = bottomContentGeometry.cardWidth
         return ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .top, spacing: spacing) {
@@ -3372,8 +3493,8 @@ extension QuickPanelView {
                         }
                     }
                 }
-                .padding(.horizontal, 4)
-                .padding(.vertical, 4)
+                .padding(.horizontal, QuickPanelBottomContentGeometry.railPadding)
+                .padding(.vertical, QuickPanelBottomContentGeometry.railPadding)
             }
             .onChange(of: lastNavigatedID) {
                 guard let id = lastNavigatedID else { return }
