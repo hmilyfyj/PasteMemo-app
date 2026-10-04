@@ -3495,6 +3495,7 @@ extension QuickPanelView {
                 }
                 .padding(.horizontal, QuickPanelBottomContentGeometry.railPadding)
                 .padding(.vertical, QuickPanelBottomContentGeometry.railPadding)
+                .background(HorizontalMouseWheelScrollBridge())
             }
             .onChange(of: lastNavigatedID) {
                 guard let id = lastNavigatedID else { return }

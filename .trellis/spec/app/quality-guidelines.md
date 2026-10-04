@@ -19,6 +19,14 @@
 - 可测逻辑补 `Tests/` 里已有风格的 XCTest 文件，例如 `Tests/CodeDetectorTests.swift`、`Tests/RuleConditionTests.swift`
 - 只改文档 / Trellis 脚手架时，不必重装应用
 
+## 悬浮卡片鼠标滚轮
+
+- `HorizontalMouseWheelScrollBridge` 只挂在底部卡片 `LazyHStack` 的 background，标记视图不参与点击命中。
+- 只转换命中该原生滚动容器的纯竖向事件；已有横向/斜向手势、预览区和浮层里的其他滚动容器保持原生处理。
+- 普通滚轮距离乘 `NSScrollView.horizontalLineScroll`；精确竖向事件按像素距离处理，兼容 Mos 平滑鼠标滚轮和连续惯性事件。
+- 通过 `NSClipView.constrainBoundsRect` 限制左右边界，再 `scroll(to:)` 和 `reflectScrolledClipView`；隐藏/卸载时不处理事件，卸载必须移除局部监听。
+- `HorizontalMouseWheelScrollTests` 验证两种距离单位、方向和边界、短内容透传，以及真实 SwiftUI 容器挂载和滚动。
+
 ## 禁止
 
 - 提交 `sparkle_private_key.pem`
