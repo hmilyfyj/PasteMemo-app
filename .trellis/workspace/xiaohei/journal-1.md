@@ -126,3 +126,47 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 7: FEATURE-715 floating group tabs
+<!-- trellis-session: v=2 fp=2e359983c4eaa290 -->
+
+**Date**: 2026-10-04
+**Task**: FEATURE-715 floating group tabs
+**Branch**: `agent/agent/929e38175114`
+
+### Summary
+
+Show all custom groups alongside type tabs in floating panels, including empty groups; preserve group filter restoration and classic behavior. make test passed 448 tests; make check passed; signed arm64 stable app installed and launched. Permanent retention toggle is below the name in the group editor.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0c65b69` | feat: show groups alongside floating panel type tabs |
+
+### Status
+
+[OK] **Completed**
+
+
+## Session 8: FEATURE-715 group separator
+<!-- trellis-session: v=2 fp=7243d4daa059e7ac -->
+
+**Date**: 2026-10-04
+**Task**: FEATURE-715 group separator
+**Branch**: `agent/agent/929e38175114`
+
+### Summary
+
+Added a vertical divider with horizontal padding before the first floating group tab when earlier tabs exist. Divider is excluded from hit testing, accessibility and filter navigation. 448 tests and make check pass; signed ARM stable app rebuilt, installed and running. PR #27 updated.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b67d3d6` | fix: separate floating panel groups from type tabs |
+
+### Status
+
+[OK] **Completed**
