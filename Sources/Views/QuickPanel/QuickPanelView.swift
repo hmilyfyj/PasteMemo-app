@@ -1016,9 +1016,18 @@ struct QuickPanelView: View {
     private var tabBar: some View {
         if isBottomFloating {
             ScrollViewReader { proxy in
+                let items = filterItems
+                let firstGroupFilter = availableGroupsForTab.first.map { QuickFilter.group($0.name) }
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
-                        ForEach(filterItems, id: \.filter) { item in
+                        ForEach(items, id: \.filter) { item in
+                            if item.filter == firstGroupFilter, item.filter != items.first?.filter {
+                                Divider()
+                                    .frame(height: 16)
+                                    .padding(.horizontal, 6)
+                                    .allowsHitTesting(false)
+                                    .accessibilityHidden(true)
+                            }
                             badge(item.label, isActive: selectedFilter == item.filter) {
                                 commitTab(item.filter, wasOrigin: true)
                             }

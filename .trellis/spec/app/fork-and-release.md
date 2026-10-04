@@ -38,6 +38,8 @@ FEATURE-347 已经按这条路径合过 `upstream v1.8.0`。
 - 样式切换只重建窗口，不清尺寸；显式恢复默认才调用 `QuickPanelStyle.resetStoredSizing(in:)`，仅清当前样式的尺寸，保留另一样式及展开模式。
 - 用 `QuickPanelBottomGeometryTests` 验证无底栏高度守恒、最小预览空间、不同 header 高度和独立偏好域。新本地化键须在全部11种语言补齐，`LocalizationFilesTests` 强制检查键集合与占位符一致。
 
+- 悬浮标签栏在首个分组前有其他标签时添加16pt高的竖向分隔线，两侧各6pt padding；分隔线不参与命中和无障碍导航，也不加入 `filterItems`，避免干扰键盘切换或筛选恢复。
+
 ### Swift 6.3 测试资源布局
 
 Swift Testing 由工具链 `swiftpm-testing-helper` 承载，`Bundle.main` 指向工具链目录。资源查找须同时覆盖代码所在 bundle 的相邻目录（`Bundle(for: PasteMemoResourceBundleAnchor.self).bundleURL.deletingLastPathComponent()`），不能只依赖主进程 executableURL。
