@@ -104,3 +104,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 6: FEATURE-715 鼠标滚轮横向滚动
+<!-- trellis-session: v=2 fp=d56da876010eb900 -->
+
+**Date**: 2026-10-04
+**Task**: FEATURE-715 鼠标滚轮横向滚动
+**Branch**: `agent/agent/929e38175114`
+
+### Summary
+
+悬浮卡片区支持普通竖向滚轮及 Mos 平滑事件横向滚动，保留横向/斜向手势并限定命中容器。448 项测试、make check 和 ARM 签名安装通过。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ac2000f` | fix: scroll floating cards horizontally with mouse wheel |
+
+### Status
+
+[OK] **Completed**
