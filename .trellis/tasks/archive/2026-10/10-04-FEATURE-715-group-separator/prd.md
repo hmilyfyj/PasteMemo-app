@@ -15,7 +15,7 @@
 - [x] 悬浮框类型和分组之间显示分隔线，两侧增加留白。
 - [x] 无分组或分组是首个标签时不显示多余分隔线；经典样式保持原样。
 - [x] make test（448 tests）、make check 通过，稳定 ARM 应用更新启动。
-- [ ] 现有 PR #27 更新。
+- [x] 现有 PR #27 更新：https://github.com/hmilyfyj/PasteMemo-app/pull/27；源码提交 b67d3d6。
 
 ## Notes
 
