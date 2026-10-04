@@ -29,6 +29,16 @@
 [OK] **Completed**
 
 
+## Session 2: FEATURE-715 悬浮框正方形卡片
+<!-- trellis-session: v=2 fp=f8362dfa19830c46 -->
+
+**Date**: 2026-10-02
+**Task**: FEATURE-715 悬浮框正方形卡片
+**Branch**: `agent/agent/929e38175114`
+
+### Summary
+
+按实际卡片区高度计算正方形尺寸，小卡片等比缩放保留底栏。437 项测试及 make check 通过；本机 ARM 签名安装通过；验证默认、212pt 最小高度和展开预览。
 ## Session 3: FEATURE-718 悬浮面板一期优化
 <!-- trellis-session: v=2 fp=05da82d1a99327a8 -->
 
@@ -44,6 +54,7 @@
 
 | Hash | Message |
 |------|---------|
+| `3f43a52` | fix: keep floating panel cards square and fully visible |
 | `b6f2cd6` | FEATURE-718: improve floating panel preview layout and sizing preferences |
 
 ### Status
@@ -89,6 +100,28 @@
 | Hash | Message |
 |------|---------|
 | `2a424be` | FEATURE-718: make floating panel cards square |
+
+### Status
+
+[OK] **Completed**
+
+
+## Session 6: FEATURE-715 鼠标滚轮横向滚动
+<!-- trellis-session: v=2 fp=d56da876010eb900 -->
+
+**Date**: 2026-10-04
+**Task**: FEATURE-715 鼠标滚轮横向滚动
+**Branch**: `agent/agent/929e38175114`
+
+### Summary
+
+悬浮卡片区支持普通竖向滚轮及 Mos 平滑事件横向滚动，保留横向/斜向手势并限定命中容器。448 项测试、make check 和 ARM 签名安装通过。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ac2000f` | fix: scroll floating cards horizontally with mouse wheel |
 
 ### Status
 
