@@ -126,3 +126,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 7: FEATURE-715 floating group tabs
+<!-- trellis-session: v=2 fp=2e359983c4eaa290 -->
+
+**Date**: 2026-10-04
+**Task**: FEATURE-715 floating group tabs
+**Branch**: `agent/agent/929e38175114`
+
+### Summary
+
+Show all custom groups alongside type tabs in floating panels, including empty groups; preserve group filter restoration and classic behavior. make test passed 448 tests; make check passed; signed arm64 stable app installed and launched. Permanent retention toggle is below the name in the group editor.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0c65b69` | feat: show groups alongside floating panel type tabs |
+
+### Status
+
+[OK] **Completed**
