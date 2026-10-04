@@ -177,6 +177,8 @@
 "settings.quickPanelStyle.classic" = "Klassisches Panel";
 "settings.quickPanelStyle.bottomFloating" = "Unten schwebend";
 "settings.quickPanelPosition" = "Position des Schnellpanels";
+"settings.quickPanelPosition.bottomHint" = "Unten auf dem Bildschirm mit dem Mauszeiger";
+"settings.quickPanel.resetSize" = "Größe des aktuellen Stils zurücksetzen";
 "settings.quickPanelPosition.remembered" = "Letzte Position merken";
 "settings.quickPanelPosition.cursor" = "Cursor";
 "settings.quickPanelPosition.menuBarIcon" = "Menüleistensymbol";
@@ -659,6 +661,8 @@ Verwenden Sie %@ zum Einfügen.";
 "quick.copyToClipboard" = "In Zwischenablage kopieren";
 "quick.pasteToApp" = "Einfügen in %@";
 "quick.preview" = "Vorschau";
+"quick.expandPreview" = "Vorschau erweitern";
+"quick.collapsePreview" = "Vorschau einklappen";
 "quick.recent" = "Zuletzt";
 "quick.saveToFolder" = "Als Datei einfügen";
 "quick.search" = "Clips durchsuchen…";

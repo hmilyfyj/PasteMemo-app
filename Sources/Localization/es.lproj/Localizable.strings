@@ -177,6 +177,8 @@
 "settings.quickPanelStyle.classic" = "Panel clásico";
 "settings.quickPanelStyle.bottomFloating" = "Flotante inferior";
 "settings.quickPanelPosition" = "Posición del panel rápido";
+"settings.quickPanelPosition.bottomHint" = "Parte inferior de la pantalla donde está el puntero";
+"settings.quickPanel.resetSize" = "Restablecer el tamaño del estilo actual";
 "settings.quickPanelPosition.remembered" = "Recordar la última posición";
 "settings.quickPanelPosition.cursor" = "Cursor";
 "settings.quickPanelPosition.menuBarIcon" = "Icono de la barra de menús";
@@ -663,6 +665,8 @@ Usa %@ para pegar uno por uno.";
 "quick.copyToClipboard" = "Copiar al portapapeles";
 "quick.pasteToApp" = "Pegar en %@";
 "quick.preview" = "Vista previa";
+"quick.expandPreview" = "Expandir vista previa";
+"quick.collapsePreview" = "Contraer vista previa";
 "quick.recent" = "Recientes";
 "quick.saveToFolder" = "Pegar archivo";
 "quick.search" = "Escribe para buscar clips…";

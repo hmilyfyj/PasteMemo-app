@@ -177,6 +177,8 @@
 "settings.quickPanelStyle.classic" = "Panneau classique";
 "settings.quickPanelStyle.bottomFloating" = "Flottant en bas";
 "settings.quickPanelPosition" = "Position du panneau rapide";
+"settings.quickPanelPosition.bottomHint" = "En bas de l’écran où se trouve le pointeur";
+"settings.quickPanel.resetSize" = "Rétablir la taille du style actuel";
 "settings.quickPanelPosition.remembered" = "Mémoriser la dernière position";
 "settings.quickPanelPosition.cursor" = "Curseur";
 "settings.quickPanelPosition.menuBarIcon" = "Icône de la barre des menus";
@@ -663,6 +665,8 @@ Utilisez %@ pour coller un par un.";
 "quick.copyToClipboard" = "Copier dans le presse-papiers";
 "quick.pasteToApp" = "Coller dans %@";
 "quick.preview" = "Aperçu";
+"quick.expandPreview" = "Développer l’aperçu";
+"quick.collapsePreview" = "Réduire l’aperçu";
 "quick.recent" = "Récents";
 "quick.saveToFolder" = "Coller le fichier";
 "quick.search" = "Rechercher dans les clips…";

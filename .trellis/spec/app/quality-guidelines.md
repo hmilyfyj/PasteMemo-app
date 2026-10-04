@@ -19,13 +19,6 @@
 - 可测逻辑补 `Tests/` 里已有风格的 XCTest 文件，例如 `Tests/CodeDetectorTests.swift`、`Tests/RuleConditionTests.swift`
 - 只改文档 / Trellis 脚手架时，不必重装应用
 
-## 底部悬浮卡片尺寸
-
-- `QuickClipCard` 接收一个 `cardSide`，宽高保持相等；小于 188pt 时整体缩放，保留标题及底部元信息。
-- 卡片边长按卡片区实际高度减去上下内边距计算，不按窗口总高度估算；预览和快捷键说明会改变剩余空间。
-- 用 `onGeometryChange` 仅观察卡片区高度变化。不要把 `GeometryReader` 放进历史卡片轨道：大量条目时曾触发反复布局及 macOS 26 AppKit 崩溃。
-- UI 验收包含默认高度、最小高度 212pt、展开预览、展开快捷键说明，以及底部元信息/快捷键完整可见。
-
 ## 禁止
 
 - 提交 `sparkle_private_key.pem`

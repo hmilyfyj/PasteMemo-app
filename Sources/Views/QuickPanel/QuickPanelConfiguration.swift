@@ -15,11 +15,60 @@ enum QuickPanelStyle: String, CaseIterable {
         let raw = defaults.string(forKey: storageKey) ?? QuickPanelStyle.classic.rawValue
         return QuickPanelStyle(rawValue: raw) ?? .classic
     }
+
+    func resetStoredSizing(in defaults: UserDefaults = .standard) {
+        switch self {
+        case .classic: QuickPanelBottomDefaults.resetClassicSizing(defaults: defaults)
+        case .bottomFloating: QuickPanelBottomDefaults.resetStoredSizing(defaults: defaults)
+        }
+    }
 }
 
 enum QuickPanelBottomMode: String {
     case compact
     case expanded
+}
+
+/// Header measurements are independent of the card rail. Keep the
+/// large lazy rail out of geometry feedback during AppKit's resize callbacks.
+struct QuickPanelBottomContentGeometry {
+    static let outerPadding: CGFloat = 8
+    static let spacing: CGFloat = 4
+    static let railPadding: CGFloat = 4
+    static let minimumCardHeight: CGFloat = 120
+    static let maximumExpandedCardHeight: CGFloat = 220
+    static let minimumPreviewHeight: CGFloat = 160
+
+    let railHeight: CGFloat
+    let previewHeight: CGFloat
+
+    var cardHeight: CGFloat { max(0, railHeight - Self.railPadding * 2) }
+    var cardWidth: CGFloat { cardHeight }
+
+    static func chromeHeight(header: CGFloat) -> CGFloat {
+        header + outerPadding * 2 + spacing
+    }
+
+    static func minimumHeight(chromeHeight: CGFloat, mode: QuickPanelBottomMode) -> CGFloat {
+        let content = minimumCardHeight + railPadding * 2
+            + (mode == .expanded ? spacing + minimumPreviewHeight : 0)
+        return max(QuickPanelBottomGeometry.minimumHeight(for: mode), chromeHeight + content)
+    }
+
+    init(panelHeight: CGFloat, chromeHeight: CGFloat, mode: QuickPanelBottomMode) {
+        let available = max(0, panelHeight - chromeHeight)
+        if mode == .compact {
+            railHeight = available
+            previewHeight = 0
+        } else {
+            let rail = min(
+                Self.maximumExpandedCardHeight + Self.railPadding * 2,
+                max(Self.minimumCardHeight + Self.railPadding * 2, available * 0.35)
+            )
+            railHeight = min(rail, max(0, available - Self.spacing))
+            previewHeight = max(0, available - railHeight - Self.spacing)
+        }
+    }
 }
 
 enum QuickPanelBottomGeometry {

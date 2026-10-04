@@ -623,6 +623,9 @@ struct QuickPanelPane: View {
     @AppStorage(QuickPanelPositionSettings.specifiedScreenIDKey) private var quickPanelSpecifiedScreenID = ""
 
     private var screenOptions: [ScreenOption] { ScreenLocator.options() }
+    private var isBottomFloating: Bool {
+        QuickPanelStyle(rawValue: quickPanelStyle) == .bottomFloating
+    }
     private var currentPositionMode: QuickPanelPositionMode {
         QuickPanelPositionMode(rawValue: quickPanelPositionMode) ?? .remembered
     }
@@ -646,27 +649,27 @@ struct QuickPanelPane: View {
                 }
                 .onChange(of: quickPanelStyle) {
                     let newStyle = QuickPanelStyle(rawValue: quickPanelStyle) ?? .classic
-                    if newStyle == .bottomFloating {
-                        QuickPanelBottomDefaults.resetStoredSizing()
-                    } else {
-                        QuickPanelBottomDefaults.resetClassicSizing()
-                    }
                     QuickPanelWindowController.shared.handleStyleChange(to: newStyle)
+                }
+                Button(L10n.tr("settings.quickPanel.resetSize")) {
+                    QuickPanelWindowController.shared.resetCurrentStyleSizing()
                 }
                 Picker(L10n.tr("settings.quickPanelSecondaryRow"), selection: $quickPanelSecondaryRow) {
                     ForEach(QuickPanelSecondaryRow.allCases, id: \.rawValue) { option in
                         Text(L10n.tr(option.titleKey)).tag(option.rawValue)
                     }
                 }
-                Picker(L10n.tr("settings.imageLayout"), selection: $quickPanelImageLayout) {
-                    ForEach(QuickPanelImageLayout.allCases, id: \.rawValue) { option in
-                        Text(L10n.tr(option.titleKey)).tag(option.rawValue)
-                    }
-                }
-                if QuickPanelImageLayout(rawValue: quickPanelImageLayout) == .grid {
-                    Picker(L10n.tr("settings.imageGridDensity"), selection: $quickPanelImageGridDensity) {
-                        ForEach(QuickPanelImageGridDensity.allCases, id: \.rawValue) { option in
+                if !isBottomFloating {
+                    Picker(L10n.tr("settings.imageLayout"), selection: $quickPanelImageLayout) {
+                        ForEach(QuickPanelImageLayout.allCases, id: \.rawValue) { option in
                             Text(L10n.tr(option.titleKey)).tag(option.rawValue)
+                        }
+                    }
+                    if QuickPanelImageLayout(rawValue: quickPanelImageLayout) == .grid {
+                        Picker(L10n.tr("settings.imageGridDensity"), selection: $quickPanelImageGridDensity) {
+                            ForEach(QuickPanelImageGridDensity.allCases, id: \.rawValue) { option in
+                                Text(L10n.tr(option.titleKey)).tag(option.rawValue)
+                            }
                         }
                     }
                 }
@@ -675,63 +678,13 @@ struct QuickPanelPane: View {
                         Text(L10n.tr("settings.previewFontSize.points", size)).tag(size)
                     }
                 }
-                HStack {
-                    Text(L10n.tr("settings.quickPanelPosition"))
-                    Spacer()
-                    Menu {
-                        positionMenuItem(
-                            title: L10n.tr(QuickPanelPositionMode.cursor.titleKey),
-                            isSelected: currentPositionMode == .cursor
-                        ) {
-                            selectQuickPanelPosition(.cursor)
-                        }
-
-                        positionMenuItem(
-                            title: L10n.tr(QuickPanelPositionMode.menuBarIcon.titleKey),
-                            isSelected: currentPositionMode == .menuBarIcon
-                        ) {
-                            selectQuickPanelPosition(.menuBarIcon)
-                        }
-
-                        positionMenuItem(
-                            title: L10n.tr(QuickPanelPositionMode.windowCenter.titleKey),
-                            isSelected: currentPositionMode == .windowCenter
-                        ) {
-                            selectQuickPanelPosition(.windowCenter)
-                        }
-
-                        Menu(L10n.tr(QuickPanelPositionMode.screenCenter.titleKey)) {
-                            positionMenuItem(
-                                title: L10n.tr("settings.quickPanelTargetScreen.active"),
-                                isSelected: currentPositionMode == .screenCenter && currentScreenTarget == .active
-                            ) {
-                                selectQuickPanelPosition(.screenCenter, screenTarget: .active)
-                            }
-
-                            ForEach(screenOptions) { screen in
-                                positionMenuItem(
-                                    title: screen.name,
-                                    isSelected: currentPositionMode == .screenCenter
-                                        && currentScreenTarget == .specified
-                                        && quickPanelSpecifiedScreenID == screen.id
-                                ) {
-                                    selectQuickPanelPosition(.screenCenter, screenTarget: .specified, screenID: screen.id)
-                                }
-                            }
-                        }
-
-                        positionMenuItem(
-                            title: L10n.tr(QuickPanelPositionMode.remembered.titleKey),
-                            isSelected: currentPositionMode == .remembered
-                        ) {
-                            selectQuickPanelPosition(.remembered)
-                        }
-                    } label: {
-                        Text(currentPositionTitle)
-                            .foregroundStyle(.primary)
+                if isBottomFloating {
+                    LabeledContent(L10n.tr("settings.quickPanelPosition")) {
+                        Text(L10n.tr("settings.quickPanelPosition.bottomHint"))
+                            .foregroundStyle(.secondary)
                     }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
+                } else {
+                    classicPositionPicker
                 }
 
             }
@@ -785,6 +738,62 @@ struct QuickPanelPane: View {
         }
         .onChange(of: quickPanelScreenTarget) {
             ensureSpecifiedScreenSelection()
+        }
+    }
+
+    private var classicPositionPicker: some View {
+        HStack {
+            Text(L10n.tr("settings.quickPanelPosition"))
+            Spacer()
+            Menu {
+                positionMenuItem(
+                    title: L10n.tr(QuickPanelPositionMode.cursor.titleKey),
+                    isSelected: currentPositionMode == .cursor
+                ) {
+                    selectQuickPanelPosition(.cursor)
+                }
+                positionMenuItem(
+                    title: L10n.tr(QuickPanelPositionMode.menuBarIcon.titleKey),
+                    isSelected: currentPositionMode == .menuBarIcon
+                ) {
+                    selectQuickPanelPosition(.menuBarIcon)
+                }
+                positionMenuItem(
+                    title: L10n.tr(QuickPanelPositionMode.windowCenter.titleKey),
+                    isSelected: currentPositionMode == .windowCenter
+                ) {
+                    selectQuickPanelPosition(.windowCenter)
+                }
+                Menu(L10n.tr(QuickPanelPositionMode.screenCenter.titleKey)) {
+                    positionMenuItem(
+                        title: L10n.tr("settings.quickPanelTargetScreen.active"),
+                        isSelected: currentPositionMode == .screenCenter && currentScreenTarget == .active
+                    ) {
+                        selectQuickPanelPosition(.screenCenter, screenTarget: .active)
+                    }
+                    ForEach(screenOptions) { screen in
+                        positionMenuItem(
+                            title: screen.name,
+                            isSelected: currentPositionMode == .screenCenter
+                                && currentScreenTarget == .specified
+                                && quickPanelSpecifiedScreenID == screen.id
+                        ) {
+                            selectQuickPanelPosition(.screenCenter, screenTarget: .specified, screenID: screen.id)
+                        }
+                    }
+                }
+                positionMenuItem(
+                    title: L10n.tr(QuickPanelPositionMode.remembered.titleKey),
+                    isSelected: currentPositionMode == .remembered
+                ) {
+                    selectQuickPanelPosition(.remembered)
+                }
+            } label: {
+                Text(currentPositionTitle)
+                    .foregroundStyle(.primary)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
         }
     }
 

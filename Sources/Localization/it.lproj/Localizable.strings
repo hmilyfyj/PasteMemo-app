@@ -149,6 +149,8 @@
 "settings.quickPanelStyle.classic" = "Pannello classico";
 "settings.quickPanelStyle.bottomFloating" = "Flottante in basso";
 "settings.quickPanelPosition" = "Posizione del pannello rapido";
+"settings.quickPanelPosition.bottomHint" = "In basso sullo schermo in cui si trova il puntatore";
+"settings.quickPanel.resetSize" = "Ripristina le dimensioni dello stile attuale";
 "settings.quickPanelPosition.remembered" = "Ricorda l'ultima posizione";
 "settings.quickPanelPosition.cursor" = "Cursore";
 "settings.quickPanelPosition.menuBarIcon" = "Icona barra menu";
@@ -294,6 +296,8 @@
 "quick.delete" = "Elimina";
 "quick.openLink" = "Apri";
 "quick.preview" = "Anteprima";
+"quick.expandPreview" = "Espandi anteprima";
+"quick.collapsePreview" = "Comprimi anteprima";
 "quick.pasteImage" = "Incolla immagine";
 "settings.showGuide" = "Mostra guida iniziale";
 

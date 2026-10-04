@@ -177,6 +177,8 @@
 "settings.quickPanelStyle.classic" = "클래식 패널";
 "settings.quickPanelStyle.bottomFloating" = "하단 플로팅";
 "settings.quickPanelPosition" = "빠른 패널 위치";
+"settings.quickPanelPosition.bottomHint" = "포인터가 있는 화면의 하단";
+"settings.quickPanel.resetSize" = "현재 스타일의 크기 초기화";
 "settings.quickPanelPosition.remembered" = "마지막 위치 기억";
 "settings.quickPanelPosition.cursor" = "커서";
 "settings.quickPanelPosition.menuBarIcon" = "메뉴 막대 아이콘";
@@ -663,6 +665,8 @@
 "quick.copyToClipboard" = "클립보드로 복사";
 "quick.pasteToApp" = "%@에 붙여넣기";
 "quick.preview" = "미리보기";
+"quick.expandPreview" = "미리보기 펼치기";
+"quick.collapsePreview" = "미리보기 접기";
 "quick.recent" = "최근";
 "quick.saveToFolder" = "파일로 붙여넣기";
 "quick.search" = "클립 검색…";
