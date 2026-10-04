@@ -17,7 +17,7 @@
 - [x] 分组筛选沿用现有数据查询与键盘导航；记住上次筛选能恢复有内容的分组。
 - [x] 经典样式没有显示策略变更。
 - [x] make test（448 tests）、make check 通过，本机 ARM 应用构建安装并启动，签名和 arm64 架构验证通过。
-- [ ] 交付 fork/main 的 PR。
+- [x] 交付 fork/main 的 PR：https://github.com/hmilyfyj/PasteMemo-app/pull/27。
 
 ## Notes
 
