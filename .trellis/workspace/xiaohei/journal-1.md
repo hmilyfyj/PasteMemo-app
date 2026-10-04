@@ -148,3 +148,25 @@ Show all custom groups alongside type tabs in floating panels, including empty g
 ### Status
 
 [OK] **Completed**
+
+
+## Session 8: FEATURE-715 group separator
+<!-- trellis-session: v=2 fp=7243d4daa059e7ac -->
+
+**Date**: 2026-10-04
+**Task**: FEATURE-715 group separator
+**Branch**: `agent/agent/929e38175114`
+
+### Summary
+
+Added a vertical divider with horizontal padding before the first floating group tab when earlier tabs exist. Divider is excluded from hit testing, accessibility and filter navigation. 448 tests and make check pass; signed ARM stable app rebuilt, installed and running. PR #27 updated.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b67d3d6` | fix: separate floating panel groups from type tabs |
+
+### Status
+
+[OK] **Completed**
