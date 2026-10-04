@@ -34,6 +34,7 @@ FEATURE-347 已经按这条路径合过 `upstream v1.8.0`。
 - 悬浮卡片始终为正方形，`cardWidth == cardHeight`；宽度跟随轨道派生的卡片高度，不独立限制宽度或套用纵向比例。紧凑和展开模式及瞬时小尺寸均由几何回归覆盖。
 - `updateBottomChromeHeight(_:)` 下一轮主线程更新最小窗口高度；`positionBottomFloating` 在程序化模式切换后同步 `layoutState.height`，因为 `didEndLiveResize` 仅响应用户拖拽。`didResize` 中仍只同步宽度，避免 AppKit 布局重入。
 - 底部样式：←→选卡片、↑↓切分类、⌘O展开/收起、空搜索且无IME组字时Space预览。预览、展开/收起、快捷操作、快捷键和设置在右上角；快捷说明使用 popover，不占常驻高度，不显示粘贴目标。快捷操作使用直接按钮，两个弹窗入口在另一个弹窗打开时禁用，不从说明 popover 内关闭并立即打开另一 popover，避免旧弹窗的异步关闭误关新弹窗。经典保留底栏及既有键义，共享提示文案按样式分支。
+- 悬浮标签栏在类型模式下同时追加全部自定义分组（包含空分组），经典样式仍按类型/分组设置二选一；分组模式仍只显示分组。`showsGroupTabs` 同时用于标签生成与记住上次筛选的校验，键盘导航沿用 `filterItems`，避免可见分组在重开时因类型模式被重置。
 - 样式切换只重建窗口，不清尺寸；显式恢复默认才调用 `QuickPanelStyle.resetStoredSizing(in:)`，仅清当前样式的尺寸，保留另一样式及展开模式。
 - 用 `QuickPanelBottomGeometryTests` 验证无底栏高度守恒、最小预览空间、不同 header 高度和独立偏好域。新本地化键须在全部11种语言补齐，`LocalizationFilesTests` 强制检查键集合与占位符一致。
 

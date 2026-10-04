@@ -918,7 +918,7 @@ struct QuickPanelView: View {
         case .type(let t):
             return (secondaryRow == .types && availableContentTypes.contains(t)) ? .type(t) : fallbackTabFilter
         case .group(let name):
-            return (secondaryRow == .groups && availableGroupsForTab.contains { $0.name == name }) ? .group(name) : fallbackTabFilter
+            return (showsGroupTabs && availableGroupsForTab.contains { $0.name == name }) ? .group(name) : fallbackTabFilter
         }
     }
 
@@ -1298,8 +1298,11 @@ struct QuickPanelView: View {
         return ordered.first { x >= $0.frame.minX && x < $0.frame.maxX }?.filter ?? last.filter
     }
 
+    private var showsGroupTabs: Bool { isBottomFloating || secondaryRow == .groups }
+
     private var availableGroupsForTab: [(name: String, icon: String, count: Int, preservesItems: Bool)] {
-        store.sidebarCounts.byGroup.filter { $0.count > 0 }
+        // 悬浮框直接展示所有分组，包括刚创建、还没有条目的收藏夹。
+        store.sidebarCounts.byGroup.filter { isBottomFloating || $0.count > 0 }
     }
 
     /// 选中滑块相对容器的提亮/压暗量。深色外观往白走、浅色外观往黑走——两边都是
@@ -1331,7 +1334,7 @@ struct QuickPanelView: View {
             }
         }
         // 分组和 AI 不参与自定义排序：分组随用户建删动态增减，没法预先排。
-        if secondaryRow == .groups {
+        if showsGroupTabs {
             items += availableGroupsForTab.map { (QuickFilter.group($0.name), $0.name) }
         }
         if store.sidebarCounts.aiAgent > 0 {
