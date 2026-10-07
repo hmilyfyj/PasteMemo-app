@@ -192,3 +192,25 @@ Implemented scheme-aware bottom cards, reduced-motion-aware shared transitions, 
 ### Status
 
 [OK] **Completed**
+
+
+## Session 10: FEATURE-727 hide card rail decoration
+<!-- trellis-session: v=2 fp=8baee1f4e1363d0d -->
+
+**Date**: 2026-10-07
+**Task**: FEATURE-727 hide card rail decoration
+**Branch**: `agent/agent/d7eea96cb399`
+
+### Summary
+
+Removed the bottom card rail section fill/border while preserving the window shell, geometry, scrolling and drops. 463 tests and make check passed; stable ARM app rebuilt, signed, installed and launched. Updates existing fork PR 28.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e67183f` | fix: hide decorative track behind bottom cards |
+
+### Status
+
+[OK] **Completed**
