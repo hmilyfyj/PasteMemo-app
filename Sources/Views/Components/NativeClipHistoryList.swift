@@ -102,6 +102,8 @@ struct NativeClipHistoryList<RowContent: View, HeaderContent: View, PaletteConte
     var onFocusedRowFrame: ((_ rowOnScreen: CGRect, _ listOnScreen: CGRect) -> Void)? = nil
     /// 快捷面板那种薄玻璃浮层去掉滚动条槽轨，只留滑块。主窗口保持系统默认。
     var hidesScrollerTrack: Bool = false
+    /// Present only for a selected custom group. nil target means append.
+    var onItemDrop: ((_ itemIDs: [String], _ beforeID: PersistentIdentifier?) -> Bool)? = nil
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -132,6 +134,9 @@ struct NativeClipHistoryList<RowContent: View, HeaderContent: View, PaletteConte
         tableView.usesAutomaticRowHeights = false
         tableView.delegate = context.coordinator
         tableView.dataSource = context.coordinator
+        tableView.registerForDraggedTypes([ClipItemDrag.pasteboardType])
+        tableView.setDraggingSourceOperationMask(.copy, forLocal: false)
+        tableView.setDraggingSourceOperationMask(.move, forLocal: true)
 
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("NativeClipHistoryColumn"))
         column.resizingMask = .autoresizingMask
@@ -264,6 +269,25 @@ struct NativeClipHistoryList<RowContent: View, HeaderContent: View, PaletteConte
 
         func numberOfRows(in tableView: NSTableView) -> Int {
             parent.rows.count
+        }
+
+        func tableView(_ tableView: NSTableView, validateDrop info: any NSDraggingInfo, proposedRow row: Int, proposedDropOperation operation: NSTableView.DropOperation) -> NSDragOperation {
+            guard parent.onItemDrop != nil,
+                  let data = info.draggingPasteboard.data(forType: ClipItemDrag.pasteboardType),
+                  ClipItemDrag.itemIDs(from: data) != nil else { return [] }
+            tableView.setDropRow(row, dropOperation: .above)
+            return .move
+        }
+
+        func tableView(_ tableView: NSTableView, acceptDrop info: any NSDraggingInfo, row: Int, dropOperation: NSTableView.DropOperation) -> Bool {
+            guard let onDrop = parent.onItemDrop,
+                  let data = info.draggingPasteboard.data(forType: ClipItemDrag.pasteboardType),
+                  let ids = ClipItemDrag.itemIDs(from: data) else { return false }
+            let nextItem = parent.rows.dropFirst(max(0, row)).compactMap { value -> PersistentIdentifier? in
+                if case .item(let id) = value { return id }
+                return nil
+            }.first
+            return onDrop(ids, nextItem)
         }
 
         func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool {
@@ -498,6 +522,19 @@ struct NativeClipHistoryList<RowContent: View, HeaderContent: View, PaletteConte
                         }
                         .onRightClick { [self] in
                             self.parent.onItemRightClick(id)
+                        }
+                        .onDrag { [self] in
+                            let draggedItems: [ClipItem]
+                            if self.parent.selectedItemIDs.contains(id) {
+                                draggedItems = self.parent.rows.compactMap { row in
+                                    guard case .item(let selectedID) = row,
+                                          self.parent.selectedItemIDs.contains(selectedID) else { return nil }
+                                    return self.parent.itemsByID[selectedID]
+                                }
+                            } else {
+                                draggedItems = [item]
+                            }
+                            return ClipItemDrag.provider(for: draggedItems)
                         }
                 )
             }

@@ -170,3 +170,47 @@ Added a vertical divider with horizontal padding before the first floating group
 ### Status
 
 [OK] **Completed**
+
+
+## Session 9: FEATURE-727 themes, motion and reusable groups
+<!-- trellis-session: v=2 fp=4061fa7a9b716355 -->
+
+**Date**: 2026-10-07
+**Task**: FEATURE-727 themes, motion and reusable groups
+**Branch**: `agent/agent/d7eea96cb399`
+
+### Summary
+
+Implemented scheme-aware bottom cards, reduced-motion-aware shared transitions, colored groups and persisted manual membership/order. 463 tests and make check passed; ARM stable app installed and old store migrated retaining 38403 records. Synthetic light/dark visuals reviewed. Native pointer drag and full interactive paste/preview remain unverified because AX tools could not operate the existing accessibility NSAlert.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c5d3ada` | feat: polish quick panel themes, motion and reusable groups |
+
+### Status
+
+[OK] **Completed**
+
+
+## Session 10: FEATURE-727 hide card rail decoration
+<!-- trellis-session: v=2 fp=8baee1f4e1363d0d -->
+
+**Date**: 2026-10-07
+**Task**: FEATURE-727 hide card rail decoration
+**Branch**: `agent/agent/d7eea96cb399`
+
+### Summary
+
+Removed the bottom card rail section fill/border while preserving the window shell, geometry, scrolling and drops. 463 tests and make check passed; stable ARM app rebuilt, signed, installed and launched. Updates existing fork PR 28.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e67183f` | fix: hide decorative track behind bottom cards |
+
+### Status
+
+[OK] **Completed**

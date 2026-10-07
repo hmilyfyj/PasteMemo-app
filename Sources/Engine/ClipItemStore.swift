@@ -266,7 +266,9 @@ final class ClipItemStore {
         var params: [Any] = []
         addRetentionCondition(&conditions, &params)
         let whereClause = conditions.isEmpty ? "" : "WHERE " + conditions.joined(separator: " AND ")
-        return db.queryStrings("SELECT ZITEMID FROM ZCLIPITEM \(whereClause) \(orderByClause(pinnedFirst: false)) LIMIT 1", params: params).first
+        // This is a history-wide probe, even when the previous panel selection
+        // is a group. Manual group positions must not hide the latest capture.
+        return db.queryStrings("SELECT ZITEMID FROM ZCLIPITEM \(whereClause) ORDER BY ZLASTUSEDAT DESC LIMIT 1", params: params).first
     }
 
     // MARK: - SQL Queries
@@ -309,7 +311,8 @@ final class ClipItemStore {
     }
 
     private func orderByClause(pinnedFirst: Bool) -> String {
-        pinnedFirst
+        if groupName != nil { return SmartGroupItems.sqlOrderBy }
+        return pinnedFirst
             ? "ORDER BY ZISPINNED DESC, ZLASTUSEDAT DESC"
             : "ORDER BY ZLASTUSEDAT DESC"
     }
@@ -448,7 +451,7 @@ final class ClipItemStore {
         var sms = 0
         var byType: [ClipContentType: Int] = [:]
         var byApp: [String?: Int] = [:]  // nil key = unknown app
-        var byGroup: [(name: String, icon: String, count: Int, preservesItems: Bool)] = []
+        var byGroup: [(name: String, icon: String, count: Int, preservesItems: Bool, color: String?)] = []
     }
 
     func refreshSidebarCounts() {
@@ -500,8 +503,8 @@ final class ClipItemStore {
         let nullCount = db.queryInt("SELECT COUNT(*) FROM ZCLIPITEM WHERE ZSOURCEAPP IS NULL")
         if nullCount > 0 { counts.byApp[nil] = nullCount }
         counts.byGroup = db.queryGroupRows(
-            "SELECT ZNAME, COALESCE(ZICON, 'folder'), ZCOUNT, COALESCE(ZPRESERVESITEMS, 0) FROM ZSMARTGROUP ORDER BY ZSORTORDER"
-        ).map { (name: $0.0, icon: $0.1, count: $0.2, preservesItems: $0.3) }
+            "SELECT ZNAME, COALESCE(ZICON, 'folder'), ZCOUNT, COALESCE(ZPRESERVESITEMS, 0), ZCOLOR FROM ZSMARTGROUP ORDER BY ZSORTORDER"
+        ).map { (name: $0.0, icon: $0.1, count: $0.2, preservesItems: $0.3, color: $0.4) }
         sidebarCounts = counts
     }
 
@@ -555,6 +558,17 @@ final class ClipItemStore {
     }
 
     private var storeURL: URL? {
+        // Query the same store that SwiftData was configured with. This also
+        // keeps isolated contexts (tests/import tooling) off the user's history.
+        if let context = modelContext {
+            let configurations = context.container.configurations.sorted { $0.name < $1.name }
+            let configuration = configurations.first(where: {
+                $0.schema?.entities.contains(where: { $0.name == "ClipItem" }) == true
+            }) ?? configurations.first
+            guard let configuration, !configuration.isStoredInMemoryOnly,
+                  FileManager.default.fileExists(atPath: configuration.url.path) else { return nil }
+            return configuration.url
+        }
         let bundleID = Bundle.main.bundleIdentifier ?? "com.lifedever.pastememo"
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let url = appSupport.appendingPathComponent(bundleID).appendingPathComponent("PasteMemo.store")

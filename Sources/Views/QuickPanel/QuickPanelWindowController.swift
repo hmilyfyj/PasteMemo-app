@@ -145,6 +145,8 @@ final class QuickPanelWindowController {
     var suppressDismiss = false
     private var snapGuide: SnapGuideWindow?
     private var bottomChromeHeight: CGFloat?
+    private var motionObserver: NSObjectProtocol?
+    private var frameAnimation: QuickPanelFrameAnimation?
 
     private var panelStyle: QuickPanelStyle { QuickPanelStyle.stored }
 
@@ -188,14 +190,24 @@ final class QuickPanelWindowController {
         return value?.isEmpty == true ? nil : value
     }
 
-    private var isLaunchAnimationEnabled: Bool {
-        guard UserDefaults.standard.object(forKey: QuickPanelSettings.launchAnimationEnabledKey) != nil else {
-            return true
+    private init() {
+        motionObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard !QuickPanelMotion.allowsAppKitMovement, let self, let panel = self.panel else { return }
+                CATransaction.begin()
+                CATransaction.setDisableActions(true)
+                panel.contentView?.layer?.removeAnimation(forKey: "showScale")
+                panel.contentView?.layer?.transform = CATransform3DIdentity
+                CATransaction.commit()
+                self.frameAnimation?.cancel(finish: true)
+                self.frameAnimation = nil
+                panel.alphaValue = 1
+            }
         }
-        return UserDefaults.standard.bool(forKey: QuickPanelSettings.launchAnimationEnabledKey)
     }
-
-    private init() {}
 
     /// Call once at app launch to pre-build the panel off-screen
     func warmUp(clipboardManager: ClipboardManager, modelContainer: ModelContainer) {
@@ -239,8 +251,10 @@ final class QuickPanelWindowController {
         }
 
         guard let panel else { return }
+        frameAnimation?.cancel(finish: false)
+        frameAnimation = nil
 
-        let shouldAnimate = isLaunchAnimationEnabled
+        let shouldAnimate = QuickPanelMotion.allowsPresentation
         if panelStyle == .bottomFloating {
             positionBottomFloating(panel, animated: shouldAnimate)
         } else {
@@ -273,9 +287,9 @@ final class QuickPanelWindowController {
         panel.makeKey()
 
         if useClassicMotion {
-            // 动画到 alpha 1 + scale 1.0（仅作轻微空间引导，时长 0.1s）
+            // 共享短过渡，仅作轻微空间引导。
             NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = 0.1
+                ctx.duration = QuickPanelMotion.presentationDuration
                 ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
                 panel.animator().alphaValue = 1
             }
@@ -283,7 +297,7 @@ final class QuickPanelWindowController {
                 let anim = CABasicAnimation(keyPath: "transform")
                 anim.fromValue = CATransform3DMakeScale(0.995, 0.995, 1)
                 anim.toValue = CATransform3DIdentity
-                anim.duration = 0.1
+                anim.duration = QuickPanelMotion.presentationDuration
                 anim.timingFunction = CAMediaTimingFunction(name: .easeOut)
                 layer.add(anim, forKey: "showScale")
                 layer.transform = CATransform3DIdentity
@@ -375,6 +389,8 @@ final class QuickPanelWindowController {
 
     func dismiss(force: Bool = false) {
         if isPinned && !force { return }
+        frameAnimation?.cancel(finish: false)
+        frameAnimation = nil
         isPinned = false
         removeClickOutsideMonitor()
         removeDeactivationObserver()
@@ -736,17 +752,12 @@ final class QuickPanelWindowController {
             width: QuickPanelBottomGeometry.minimumWidth,
             height: minimumHeight
         )
-        if animated {
+        frameAnimation?.cancel(finish: false)
+        frameAnimation = nil
+        if animated && QuickPanelMotion.allowsAppKitMovement {
             var start = target
-            start.origin.y -= min(target.height - 24, target.height)
-            panel.alphaValue = 0.94
-            panel.setFrame(start, display: true)
-            NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = 0.22
-                ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                panel.animator().setFrame(target, display: true)
-                panel.animator().alphaValue = 1
-            }
+            start.origin.y -= 12
+            frameAnimation = QuickPanelFrameAnimation(window: panel, from: start, to: target)
         } else {
             panel.setFrame(target, display: true)
             panel.alphaValue = 1

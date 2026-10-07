@@ -1,6 +1,21 @@
 /* App */
 "app.name" = "PasteMemo";
 
+/* Reusable groups */
+"group.color" = "Couleur";
+"group.color.default" = "Par défaut";
+"group.color.blue" = "Bleu";
+"group.color.purple" = "Violet";
+"group.color.pink" = "Rose";
+"group.color.red" = "Rouge";
+"group.color.orange" = "Orange";
+"group.color.yellow" = "Jaune";
+"group.color.green" = "Vert";
+"group.color.teal" = "Turquoise";
+"group.nameExists" = "Un groupe portant ce nom existe déjà.";
+"group.moveToStart" = "Déplacer au début du groupe";
+"group.moveToEnd" = "Déplacer à la fin du groupe";
+
 /* Menu */
 "menu.checkForUpdates" = "Rechercher des mises à jour…";
 "menu.github" = "GitHub";

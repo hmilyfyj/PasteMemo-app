@@ -174,6 +174,8 @@ final class ClipItem {
     /// prefers. Nil for simple text/image/file clips where full-fidelity isn't needed.
     @Attribute(.externalStorage) var pasteboardSnapshot: Data?
     var groupName: String?
+    /// Group-scoped manual position. Nil in older stores and ungrouped history.
+    var groupSortOrder: Int?
     var ocrText: String?
     var ocrStatus: String = OCRStatus.skipped.rawValue
     var ocrUpdatedAt: Date?

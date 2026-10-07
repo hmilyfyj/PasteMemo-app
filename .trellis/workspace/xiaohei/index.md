@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 8
-- **Last Active**: 2026-10-04
+- **Total Sessions**: 10
+- **Last Active**: 2026-10-07
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~172 | Active |
+| `journal-1.md` | ~216 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,8 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 10 | 2026-10-07 | FEATURE-727 hide card rail decoration | `e67183f` | `agent/agent/d7eea96cb399` |
+| 9 | 2026-10-07 | FEATURE-727 themes, motion and reusable groups | `c5d3ada` | `agent/agent/d7eea96cb399` |
 | 8 | 2026-10-04 | FEATURE-715 group separator | `b67d3d6` | `agent/agent/929e38175114` |
 | 7 | 2026-10-04 | FEATURE-715 floating group tabs | `0c65b69` | `agent/agent/929e38175114` |
 | 6 | 2026-10-04 | FEATURE-715 鼠标滚轮横向滚动 | `ac2000f` | `agent/agent/929e38175114` |

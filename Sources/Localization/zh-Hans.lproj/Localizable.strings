@@ -1,6 +1,21 @@
 /* App */
 "app.name" = "PasteMemo";
 
+/* Reusable groups */
+"group.color" = "颜色";
+"group.color.default" = "默认";
+"group.color.blue" = "蓝色";
+"group.color.purple" = "紫色";
+"group.color.pink" = "粉色";
+"group.color.red" = "红色";
+"group.color.orange" = "橙色";
+"group.color.yellow" = "黄色";
+"group.color.green" = "绿色";
+"group.color.teal" = "青色";
+"group.nameExists" = "已有同名分组。";
+"group.moveToStart" = "移到分组开头";
+"group.moveToEnd" = "移到分组末尾";
+
 /* Menu */
 "menu.checkForUpdates" = "检查更新…";
 "menu.github" = "GitHub";

@@ -357,7 +357,7 @@ struct CommandPaletteContent: View {
                     rowsStack.padding(8)
                 }
                 .onChange(of: selectedIndex) { _, newValue in
-                    withAnimation(.easeOut(duration: 0.12)) {
+                    withAnimation(nil) {
                         proxy.scrollTo(newValue, anchor: .center)
                     }
                 }

@@ -47,12 +47,33 @@ final class CommandPalettePanel {
     private(set) var anchorRow: CGRect = .zero
     private(set) var anchorList: CGRect = .zero
     private var resignKeyObserver: NSObjectProtocol?
+    private var motionObserver: NSObjectProtocol?
 
     func updateAnchor(row: CGRect, list: CGRect) {
         anchorRow = row
         anchorList = list
     }
-    private init() {}
+    private init() {
+        motionObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard !QuickPanelMotion.allowsAppKitMovement, let self else { return }
+                self.finishPresentation()
+            }
+        }
+    }
+
+    private func finishPresentation() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        panel?.contentView?.layer?.removeAnimation(forKey: "present")
+        panel?.contentView?.layer?.transform = CATransform3DIdentity
+        CATransaction.commit()
+        panel?.alphaValue = 1
+        shadowPanel?.alphaValue = 1
+    }
 
     var isVisible: Bool { panel?.isVisible == true }
 
@@ -215,6 +236,11 @@ final class CommandPalettePanel {
     /// easeOut。透明度走窗口服务器、缩放只动图层 transform，都不会把玻璃拖进离屏
     /// 渲染。透明度在同一轮里先归零再挂内容，中间不会画出一帧全亮的卡片。
     private func present(_ hosting: NSView, in panel: NSPanel) {
+        guard QuickPanelMotion.allowsPresentation else {
+            panel.contentView = hosting
+            finishPresentation()
+            return
+        }
         panel.alphaValue = 0
         shadowPanel?.alphaValue = 0
         panel.contentView = hosting
@@ -231,8 +257,12 @@ final class CommandPalettePanel {
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.glassSettleDelay) { [weak self, weak panel, weak hosting] in
             // 停留期间被收起了就不动画（hide 已把 contentView 置空）
             guard let panel, let hosting, panel.contentView === hosting else { return }
+            guard QuickPanelMotion.allowsPresentation else {
+                self?.finishPresentation()
+                return
+            }
             NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = 0.12
+                ctx.duration = QuickPanelMotion.presentationDuration
                 ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
                 panel.animator().alphaValue = 1
                 self?.shadowPanel?.animator().alphaValue = 1
@@ -241,7 +271,7 @@ final class CommandPalettePanel {
                 let anim = CABasicAnimation(keyPath: "transform")
                 anim.fromValue = CATransform3DMakeScale(0.96, 0.96, 1)
                 anim.toValue = CATransform3DIdentity
-                anim.duration = 0.12
+                anim.duration = QuickPanelMotion.presentationDuration
                 anim.timingFunction = CAMediaTimingFunction(name: .easeOut)
                 layer.add(anim, forKey: "present")
                 layer.transform = CATransform3DIdentity

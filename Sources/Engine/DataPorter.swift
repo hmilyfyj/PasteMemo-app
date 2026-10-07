@@ -22,6 +22,8 @@ struct ExportItem: Codable {
     let richTextDataBase64: String?
     let richTextType: String?
     let groupName: String?
+    /// Optional for backwards compatibility with v1/v2 files.
+    let groupSortOrder: Int?
     let ocrText: String?
     let ocrStatus: String?
     let ocrUpdatedAt: Date?
@@ -331,6 +333,7 @@ enum DataPorter {
             richTextDataBase64: clip.richTextData?.base64EncodedString(),
             richTextType: clip.richTextType,
             groupName: clip.groupName,
+            groupSortOrder: clip.groupSortOrder,
             ocrText: clip.ocrText,
             ocrStatus: clip.ocrStatus,
             ocrUpdatedAt: clip.ocrUpdatedAt,
@@ -407,6 +410,7 @@ enum DataPorter {
         clip.displayTitle = exportItem.displayTitle
         clip.faviconData = exportItem.faviconDataBase64.flatMap { Data(base64Encoded: $0) }
         clip.groupName = exportItem.groupName
+        clip.groupSortOrder = exportItem.groupName == nil ? nil : exportItem.groupSortOrder
         clip.ocrText = exportItem.ocrText
         clip.ocrStatus = exportItem.ocrStatus ?? clip.ocrStatus
         clip.ocrUpdatedAt = exportItem.ocrUpdatedAt

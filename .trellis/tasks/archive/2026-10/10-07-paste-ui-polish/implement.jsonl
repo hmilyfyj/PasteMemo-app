@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/app/index.md", "reason": "Swift app entry points"}
+{"file": ".trellis/spec/app/quality-guidelines.md", "reason": "Checks and native scroll constraints"}
+{"file": ".trellis/spec/app/fork-and-release.md", "reason": "Preserve fork UI/paste/geometry contracts"}

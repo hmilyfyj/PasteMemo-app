@@ -314,8 +314,13 @@ enum ActionExecutor {
                 item.richTextData = nil
                 item.richTextType = nil
             case .assignGroup(let name):
-                guard !name.isEmpty else { continue }
+                guard !name.isEmpty, item.groupName != name else { continue }
+                let previousGroup = item.groupName
                 item.groupName = name
+                item.groupSortOrder = nil
+                if let previousGroup, !previousGroup.isEmpty {
+                    ClipboardManager.shared.decrementSmartGroup(name: previousGroup, context: context)
+                }
                 ClipboardManager.shared.upsertSmartGroup(name: name, context: context)
             default:
                 continue
