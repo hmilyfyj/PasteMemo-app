@@ -13,6 +13,8 @@
 | [Directory Structure](./directory-structure.md) | 源码、测试、脚本目录 |
 | [Quality Guidelines](./quality-guidelines.md) | 测试、check、本地安装 |
 | [Fork and Release](./fork-and-release.md) | fork、上游合并、Sparkle 密钥 |
+| [Reusable Groups](./reusable-groups.md) | 分组颜色、私有拖放、条目排序与数据兼容 |
+| [Quick Panel Appearance and Motion](./quick-panel-appearance-motion.md) | 浅深色、对比度、减少动态效果与可取消窗口动画 |
 
 ## 开发前检查
 

@@ -137,6 +137,7 @@ struct QuickPanelView: View {
     /// 选中滑块的 tint 要按外观反向取：深色提亮、浅色压暗，才能从同为 .regular
     /// 的容器里分出来。
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var keyMonitor: Any?
     @State private var flagsMonitor: Any?
     @FocusState private var isSearchFocused: Bool
@@ -260,10 +261,18 @@ struct QuickPanelView: View {
     private func rebuildGroupedItems() {
         // 原生列表会给每个 row 分配固定高度，先把已删除/脱离上下文的对象过滤掉，
         // 避免表格里出现可见空白占位行。
-        cachedGroupedItems = groupItemsByTime(validFilteredItems, separatePinned: false)
-        cachedHistoryRows = ClipHistoryListBuilder.makeRows(from: cachedGroupedItems)
+        if store.groupName != nil {
+            // SQL already paginates in group order. Time buckets would reorder
+            // older members ahead of the position the user chose for them.
+            cachedGroupedItems = []
+            cachedHistoryRows = validFilteredItems.map { .item($0.persistentModelID) }
+            cachedDisplayOrder = validFilteredItems
+        } else {
+            cachedGroupedItems = groupItemsByTime(validFilteredItems, separatePinned: false)
+            cachedHistoryRows = ClipHistoryListBuilder.makeRows(from: cachedGroupedItems)
+            cachedDisplayOrder = cachedGroupedItems.flatMap(\.items)
+        }
         cachedHistoryRowIndexByID = ClipHistoryListBuilder.rowIndexByItemID(rows: cachedHistoryRows)
-        cachedDisplayOrder = cachedGroupedItems.flatMap(\.items)
         cachedItemMap = Dictionary(cachedDisplayOrder.map { ($0.persistentModelID, $0) }, uniquingKeysWith: { _, last in last })
         cachedIDSet = Set(cachedItemMap.keys)
     }
@@ -659,7 +668,7 @@ struct QuickPanelView: View {
     /// user's sidebar drag order. Users narrow further by typing more.
     private static let SUGGESTION_SECTION_LIMIT = 8
 
-    private var currentSuggestionGroups: [(name: String, icon: String, count: Int, preservesItems: Bool)] {
+    private var currentSuggestionGroups: [(name: String, icon: String, count: Int, preservesItems: Bool, color: String?)] {
         guard shouldSuggestGroups else { return [] }
         guard searchText.hasPrefix(Self.GROUP_SEARCH_PREFIX) else { return [] }
         let query = String(searchText.dropFirst()).trimmingCharacters(in: .whitespaces).lowercased()
@@ -767,7 +776,7 @@ struct QuickPanelView: View {
                 .onPreferenceChange(SuggestionsHeightKey.self) { suggestionsContentHeight = $0 }
                 .onChange(of: groupSuggestionIndex) {
                     guard groupSuggestionIndex >= 0 else { return }
-                    withAnimation(.easeOut(duration: 0.12)) {
+                    withAnimation(nil) {
                         proxy.scrollTo(groupSuggestionIndex, anchor: .center)
                     }
                 }
@@ -1028,8 +1037,11 @@ struct QuickPanelView: View {
                                     .allowsHitTesting(false)
                                     .accessibilityHidden(true)
                             }
-                            badge(item.label, isActive: selectedFilter == item.filter) {
+                            badge(item.label, filter: item.filter, isActive: selectedFilter == item.filter) {
                                 commitTab(item.filter, wasOrigin: true)
+                            }
+                            .onDrop(of: [ClipItemDrag.type], isTargeted: nil) { providers in
+                                assignDrop(providers, to: item.filter)
                             }
                             .id(item.filter)
                         }
@@ -1037,7 +1049,7 @@ struct QuickPanelView: View {
                     .padding(.horizontal, 10)
                 }
                 .onChange(of: selectedFilter) {
-                    withAnimation(.easeOut(duration: 0.15)) {
+                    withAnimation(nil) {
                         proxy.scrollTo(selectedFilter, anchor: nil)
                     }
                 }
@@ -1057,6 +1069,9 @@ struct QuickPanelView: View {
                         HStack(spacing: 2) {
                             ForEach(filterItems, id: \.filter) { item in
                                 tabLabel(item.label, filter: item.filter)
+                                    .onDrop(of: [ClipItemDrag.type], isTargeted: nil) { providers in
+                                        assignDrop(providers, to: item.filter)
+                                    }
                                     .id(item.filter)
                             }
                         }
@@ -1090,7 +1105,7 @@ struct QuickPanelView: View {
                     .frame(minWidth: layoutState.width, alignment: .center)
                 }
                 .onChange(of: selectedFilter) {
-                    withAnimation(.easeOut(duration: 0.15)) {
+                    withAnimation(nil) {
                         proxy.scrollTo(selectedFilter, anchor: nil)
                     }
                 }
@@ -1102,7 +1117,10 @@ struct QuickPanelView: View {
         } else {
             Picker(L10n.tr("filter.types"), selection: $selectedFilter) {
                 ForEach(filterItems, id: \.filter) { item in
-                    Text(item.label).tag(item.filter)
+                    filterLabel(item.label, filter: item.filter).tag(item.filter)
+                        .onDrop(of: [ClipItemDrag.type], isTargeted: nil) { providers in
+                            assignDrop(providers, to: item.filter)
+                        }
                 }
             }
             .pickerStyle(.segmented)
@@ -1113,9 +1131,9 @@ struct QuickPanelView: View {
         }
     }
 
-    private func badge(_ label: String, isActive: Bool, action: @escaping () -> Void) -> some View {
+    private func badge(_ label: String, filter: QuickFilter, isActive: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(label)
+            filterLabel(label, filter: filter)
                 .font(.system(size: 11, weight: isActive ? .medium : .regular))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
@@ -1126,6 +1144,29 @@ struct QuickPanelView: View {
                 )
         }
         .buttonStyle(.plain)
+    }
+
+    private func filterLabel(_ label: String, filter: QuickFilter) -> some View {
+        HStack(spacing: 5) {
+            if case .group(let name) = filter {
+                let group = store.sidebarCounts.byGroup.first { $0.name == name }
+                Circle().fill(SmartGroupPalette.color(for: group?.color))
+                    .frame(width: 7, height: 7)
+                    .overlay(Circle().stroke(Color.primary.opacity(0.18), lineWidth: 0.5))
+                    .accessibilityHidden(true)
+            }
+            Text(label)
+        }
+    }
+
+    private func assignDrop(_ providers: [NSItemProvider], to filter: QuickFilter) -> Bool {
+        switch filter {
+        case .group(let name):
+            SmartGroupItems.handleDrop(providers: providers, to: name, context: modelContext)
+        case .all:
+            SmartGroupItems.handleDrop(providers: providers, to: nil, context: modelContext)
+        default: false
+        }
     }
 
     /// 文字该按选中样式画的那个标签。拖拽中跟着手指底下最近的标签走，平时等于真实筛选。
@@ -1152,10 +1193,10 @@ struct QuickPanelView: View {
             // 隐形的 .medium 副本负责撑宽度。字重随选中态变化本身会改变文字宽度，
             // 横扫时每经过一个标签整排就重排一次，滑块跟着抖得很明显——宽度锁死
             // 在最粗那一档，排版就和选中态解耦了。
-            Text(label)
+            filterLabel(label, filter: filter)
                 .font(.system(size: 11, weight: .medium))
                 .hidden()
-            Text(label)
+            filterLabel(label, filter: filter)
                 .font(.system(size: 11, weight: isActive ? .medium : .regular))
                 // 未选中也走 primary，只降一点透明度：secondaryLabelColor 在玻璃上
                 // 太淡、一排标签读起来发灰。选中态靠字重 + 滑块玻璃区分就够了。
@@ -1186,7 +1227,7 @@ struct QuickPanelView: View {
     @ViewBuilder
     private var tabSlider: some View {
         if let base = tabSliderBaseFrame {
-            let dragging = tabDragX != nil
+            let dragging = tabDragX != nil && !reduceMotion
             let w = base.width * (dragging ? Self.tabSliderGrowX : 1)
             let h = base.height * (dragging ? Self.tabSliderGrowY : 1)
             Color.clear
@@ -1198,8 +1239,8 @@ struct QuickPanelView: View {
                 .offset(x: base.midX - w / 2, y: base.midY - h / 2)
                 // 关键：动画只认 snapToken。拖拽中 token 恒定，位置逐帧变化直接落地
                 // ——加任何动画都会让滑块滞后于手指，就不跟手了。按下和松手时 token
-                // 变一次，鼓起/缩回和吸附到目标标签由同一条 spring 一起完成。
-                .animation(.spring(response: 0.3, dampingFraction: 0.78), value: tabSliderSnapToken)
+                // 变一次，鼓起/缩回和吸附到目标标签用共享反馈时长完成。
+                .animation(QuickPanelMotion.feedback(reduceMotion: reduceMotion), value: tabSliderSnapToken)
         }
     }
 
@@ -1210,7 +1251,7 @@ struct QuickPanelView: View {
     private static let tabSliderGrowY: CGFloat = 1.20
 
     /// 滑块动画的触发依据。拖拽中恒为 `(true, nil)`，手指怎么移都不触发动画；
-    /// 按下、松手、键盘切换会让它变一次，那一下才走 spring。
+    /// 按下、松手、键盘切换会让它变一次，那一下才走短反馈。
     private struct TabSliderSnapToken: Equatable {
         let dragging: Bool
         let filter: QuickFilter?
@@ -1281,7 +1322,7 @@ struct QuickPanelView: View {
     /// 从别处拖过来落在选中项上是普通选中，不能反手把人清回全部。
     private func commitTab(_ filter: QuickFilter, wasOrigin: Bool) {
         let target: QuickFilter = (wasOrigin && selectedFilter == filter) ? .all : filter
-        withAnimation(.snappy(duration: 0.28)) {
+        withAnimation(nil) {
             selectedFilter = target
             // 必须和 selectedFilter 同一个事务里清掉：分两次写会让滑块先弹回旧位置
             // 再滑到新位置，横扫到底松手时非常明显。
@@ -1309,7 +1350,7 @@ struct QuickPanelView: View {
 
     private var showsGroupTabs: Bool { isBottomFloating || secondaryRow == .groups }
 
-    private var availableGroupsForTab: [(name: String, icon: String, count: Int, preservesItems: Bool)] {
+    private var availableGroupsForTab: [(name: String, icon: String, count: Int, preservesItems: Bool, color: String?)] {
         // 悬浮框直接展示所有分组，包括刚创建、还没有条目的收藏夹。
         store.sidebarCounts.byGroup.filter { isBottomFloating || $0.count > 0 }
     }
@@ -1439,7 +1480,14 @@ struct QuickPanelView: View {
                 CommandPalettePanel.shared.updateAnchor(row: row, list: list)
                 if showCommandPalette { syncCommandPalettePanel() }
             },
-            hidesScrollerTrack: true
+            hidesScrollerTrack: true,
+            onItemDrop: store.groupName.map { name in
+                { ids, beforeID in
+                    SmartGroupItems.move(itemIDs: ids, in: name,
+                                         before: beforeID.flatMap { cachedItemMap[$0]?.itemID },
+                                         context: modelContext)
+                }
+            }
         )
         // 过滤条件切换时需要整棵列表重建，避免旧的 NSTableView 选择/滚动状态残留。
         .id(scrollResetToken)
@@ -1613,6 +1661,7 @@ struct QuickPanelView: View {
     /// 刻意只给真正可点的按钮加——footerKey 是纯展示的键位提示，给它加 hover 态
     /// 会让用户以为能点。
     private struct HoverHighlight: ViewModifier {
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
         @State private var isHovering = false
 
         func body(content: Content) -> some View {
@@ -1621,7 +1670,7 @@ struct QuickPanelView: View {
                     RoundedRectangle(cornerRadius: 6)
                         .fill(Color.primary.opacity(isHovering ? 0.09 : 0))
                 )
-                .animation(.easeOut(duration: 0.12), value: isHovering)
+                .animation(QuickPanelMotion.feedback(reduceMotion: reduceMotion), value: isHovering)
                 .onHover { isHovering = $0 }
         }
     }
@@ -1838,7 +1887,7 @@ struct QuickPanelView: View {
                         primaryShortcutHints(compact: !layoutState.shouldShowPreview)
 
                         Button {
-                            withAnimation(.easeInOut(duration: 0.15)) {
+                            withAnimation(QuickPanelMotion.feedback(reduceMotion: reduceMotion)) {
                                 showAllShortcuts.toggle()
                             }
                         } label: {
@@ -1961,6 +2010,7 @@ struct QuickPanelView: View {
             })
             menu.append(.separator)
             menu.append(groupMenuItem(items: items))
+            menu.append(contentsOf: groupOrderMenuItems(items: items))
             if items.contains(where: { $0.groupName != nil }) {
                 menu.append(.item(L10n.tr("action.removeFromGroup")) { removeFromGroup(items: items) })
             }
@@ -1998,6 +2048,7 @@ struct QuickPanelView: View {
         }
         menu.append(.separator)
         menu.append(groupMenuItem(items: [item]))
+        menu.append(contentsOf: groupOrderMenuItems(items: [item]))
         if item.groupName != nil {
             menu.append(.item(L10n.tr("action.removeFromGroup")) {
                 removeFromGroup(items: [item])
@@ -2825,24 +2876,29 @@ struct QuickPanelView: View {
     }
 
     private func assignToGroup(items: [ClipItem], name: String) {
-        for item in items {
-            let oldGroup = item.groupName
-            item.groupName = name
-            ClipboardManager.shared.upsertSmartGroup(name: name, context: modelContext)
-            if let oldGroup, !oldGroup.isEmpty {
-                ClipboardManager.shared.decrementSmartGroup(name: oldGroup, context: modelContext)
-            }
-        }
-        ClipItemStore.saveAndNotify(modelContext)
+        SmartGroupItems.assign(items, to: name, context: modelContext)
+    }
+
+    private func groupOrderMenuItems(items: [ClipItem]) -> [NativeMenuItem] {
+        guard store.groupName != nil else { return [] }
+        return [
+            .item(L10n.tr("group.moveToStart")) { moveGroupItems(items, toStart: true) },
+            .item(L10n.tr("group.moveToEnd")) { moveGroupItems(items, toStart: false) },
+        ]
+    }
+
+    private func moveGroupItems(_ items: [ClipItem], toStart: Bool) {
+        guard let name = store.groupName else { return }
+        let movingIDs = Set(items.map(\.itemID))
+        let descriptor = FetchDescriptor<ClipItem>(predicate: #Predicate { $0.groupName == name })
+        guard let members = try? modelContext.fetch(descriptor) else { return }
+        let firstRemaining = SmartGroupItems.ordered(members).first { !movingIDs.contains($0.itemID) }
+        SmartGroupItems.move(items, in: name, before: toStart ? firstRemaining?.itemID : nil,
+                             context: modelContext)
     }
 
     private func removeFromGroup(items: [ClipItem]) {
-        for item in items {
-            guard let name = item.groupName, !name.isEmpty else { continue }
-            item.groupName = nil
-            ClipboardManager.shared.decrementSmartGroup(name: name, context: modelContext)
-        }
-        ClipItemStore.saveAndNotify(modelContext)
+        SmartGroupItems.assign(items, to: nil, context: modelContext)
     }
 
     private func showNewGroupAlert(for items: [ClipItem]) {
@@ -2852,9 +2908,11 @@ struct QuickPanelView: View {
         if let existing = try? modelContext.fetch(descriptor).first {
             existing.icon = result.icon
             existing.preservesItems = result.preservesItems
+            existing.color = result.color
         } else {
             let maxOrder = (try? modelContext.fetch(FetchDescriptor<SmartGroup>()))?.map(\.sortOrder).max() ?? -1
-            let group = SmartGroup(name: result.name, icon: result.icon, sortOrder: maxOrder + 1, preservesItems: result.preservesItems)
+            let group = SmartGroup(name: result.name, icon: result.icon, sortOrder: maxOrder + 1,
+                                   color: result.color, preservesItems: result.preservesItems)
             modelContext.insert(group)
         }
         try? modelContext.save()
@@ -3474,6 +3532,15 @@ extension QuickPanelView {
                             searchText: searchText
                         )
                         .id(itemID)
+                        .onDrag {
+                            let moving = selectedItemIDs.contains(itemID) ? currentItems : [item]
+                            return ClipItemDrag.provider(for: moving)
+                        }
+                        .onDrop(of: [ClipItemDrag.type], isTargeted: nil) { providers in
+                            guard let name = store.groupName else { return false }
+                            return SmartGroupItems.handleDrop(providers: providers, to: name,
+                                                              before: item.itemID, context: modelContext)
+                        }
                         .popover(
                             isPresented: Binding(
                                 get: {
@@ -3511,13 +3578,19 @@ extension QuickPanelView {
             }
             .onChange(of: lastNavigatedID) {
                 guard let id = lastNavigatedID else { return }
-                withAnimation(.easeOut(duration: 0.16)) {
+                withAnimation(nil) {
                     proxy.scrollTo(id)
                 }
             }
             .id(scrollResetToken)
         }
         .quickPanelBottomSection()
+        .onDrop(of: [ClipItemDrag.type], isTargeted: nil) { providers in
+            guard let name = store.groupName else { return false }
+            return ClipItemDrag.load(providers) { ids in
+                SmartGroupItems.move(itemIDs: ids, in: name, before: nil, context: modelContext)
+            }
+        }
     }
 
     func refreshQuickLookIfVisible() {

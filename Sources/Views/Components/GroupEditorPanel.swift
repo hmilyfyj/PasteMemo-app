@@ -9,10 +9,11 @@ final class GroupEditorPanel {
         let name: String
         let icon: String
         let preservesItems: Bool
+        let color: String?
     }
 
-    static func show(name: String = "", icon: String = "folder", preservesItems: Bool = false) -> Result? {
-        let viewModel = GroupEditorViewModel(name: name, icon: icon, preservesItems: preservesItems)
+    static func show(name: String = "", icon: String = "folder", preservesItems: Bool = false, color: String? = nil) -> Result? {
+        let viewModel = GroupEditorViewModel(name: name, icon: icon, preservesItems: preservesItems, color: color)
         let hostingView = NSHostingView(rootView: GroupEditorView(viewModel: viewModel))
         hostingView.frame = NSRect(x: 0, y: 0, width: 380, height: 420)
 
@@ -37,7 +38,7 @@ final class GroupEditorPanel {
         guard response == .OK else { return nil }
         let resultName = viewModel.name.trimmingCharacters(in: .whitespaces)
         guard !resultName.isEmpty else { return nil }
-        return Result(name: resultName, icon: viewModel.selectedIcon, preservesItems: viewModel.preservesItems)
+        return Result(name: resultName, icon: viewModel.selectedIcon, preservesItems: viewModel.preservesItems, color: viewModel.color)
     }
 }
 
@@ -82,16 +83,18 @@ private class GroupEditorViewModel {
     var name: String
     var selectedIcon: String
     var preservesItems: Bool
+    var color: String?
     var iconSearchText = ""
     var selectedCategory: IconCategory
 
     var onDismiss: (() -> Void)?
     var onConfirm: (() -> Void)?
 
-    init(name: String, icon: String, preservesItems: Bool) {
+    init(name: String, icon: String, preservesItems: Bool, color: String?) {
         self.name = name
         self.selectedIcon = icon
         self.preservesItems = preservesItems
+        self.color = color
         self.selectedCategory = IconCategory.all[0]
     }
 
@@ -228,12 +231,21 @@ private struct GroupEditorView: View {
             HStack(spacing: 12) {
                 Image(systemName: viewModel.selectedIcon)
                     .font(.system(size: 28))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(SmartGroupPalette.color(for: viewModel.color))
                     .frame(width: 48, height: 48)
                     .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
                 TextField(L10n.tr("automation.action.assignGroup.placeholder"), text: $viewModel.name)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 14))
+            }
+
+            HStack(spacing: 8) {
+                Text(L10n.tr("group.color"))
+                    .font(.system(size: 12))
+                colorSwatch(nil)
+                ForEach(SmartGroupPalette.names, id: \.self) { color in
+                    colorSwatch(color)
+                }
             }
 
             Toggle(isOn: $viewModel.preservesItems) {
@@ -247,6 +259,28 @@ private struct GroupEditorView: View {
             .toggleStyle(.switch)
         }
         .padding(16)
+    }
+
+    private func colorSwatch(_ name: String?) -> some View {
+        Button {
+            viewModel.color = name
+        } label: {
+            Circle()
+                .fill(SmartGroupPalette.color(for: name))
+                .frame(width: 20, height: 20)
+                .overlay {
+                    if viewModel.color == name {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white)
+                            .shadow(color: .black.opacity(0.4), radius: 1)
+                    }
+                }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(L10n.tr("group.color.\(name ?? "default")"))
+        .accessibilityAddTraits(viewModel.color == name ? .isSelected : [])
+        .help(L10n.tr("group.color.\(name ?? "default")"))
     }
 
     private var iconPickerSection: some View {

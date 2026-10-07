@@ -74,10 +74,18 @@ struct MainWindowView: View {
     private func rebuildHistoryCache() {
         // 主界面滚动时如果每次 body 重算都重新分组/建索引，会比 quick panel 明显更卡。
         // 这里把历史列表需要的派生数据一次性缓存，后续滚动只读缓存结果。
-        cachedGroupedItems = groupItemsByTime(filteredItems)
-        cachedHistoryRows = ClipHistoryListBuilder.makeRows(from: cachedGroupedItems)
+        if store.groupName != nil {
+            // SQL already ordered the entire group before pagination. Time
+            // sections would reshuffle that manual order by last-used dates.
+            cachedGroupedItems = []
+            cachedHistoryRows = filteredItems.map { .item($0.persistentModelID) }
+            cachedVisualOrderedItems = filteredItems
+        } else {
+            cachedGroupedItems = groupItemsByTime(filteredItems)
+            cachedHistoryRows = ClipHistoryListBuilder.makeRows(from: cachedGroupedItems)
+            cachedVisualOrderedItems = cachedGroupedItems.flatMap(\.items)
+        }
         cachedHistoryRowIndexByID = ClipHistoryListBuilder.rowIndexByItemID(rows: cachedHistoryRows)
-        cachedVisualOrderedItems = cachedGroupedItems.flatMap(\.items)
         cachedHistoryItemMap = Dictionary(cachedVisualOrderedItems.map { ($0.persistentModelID, $0) }, uniquingKeysWith: { _, last in last })
     }
 
@@ -94,6 +102,9 @@ struct MainWindowView: View {
             selectedItems.removeAll()
             selectionAnchor = nil
             syncStoreFilter()
+            // A filter switch can produce the same item IDs while changing
+            // whether time headers are appropriate.
+            rebuildHistoryCache()
         }
         .onChange(of: searchText) {
             selectedItems.removeAll()
@@ -347,6 +358,9 @@ struct MainWindowView: View {
                 sidebarRow(L10n.tr("filter.all"), icon: "tray.full", badge: store.sidebarCounts.all, isActive: selectedFilter == .all) {
                     selectedFilter = .all
                 }
+                .onDrop(of: [ClipItemDrag.type], isTargeted: nil) { providers in
+                    SmartGroupItems.handleDrop(providers: providers, to: nil, context: modelContext)
+                }
 
                 let pinCount = store.sidebarCounts.pinned
                 if pinCount > 0 {
@@ -403,7 +417,7 @@ struct MainWindowView: View {
             if !store.sidebarCounts.byGroup.isEmpty {
                 Section(L10n.tr("filter.groups")) {
                     ForEach(store.sidebarCounts.byGroup, id: \.name) { group in
-                        sidebarRow(group.name, icon: group.icon, badge: group.count, showsPreservedBadge: group.preservesItems, isActive: selectedFilter == .group(group.name)) {
+                        sidebarRow(group.name, icon: group.icon, badge: group.count, showsPreservedBadge: group.preservesItems, iconColor: SmartGroupPalette.color(for: group.color), isActive: selectedFilter == .group(group.name)) {
                             selectedFilter = .group(group.name)
                         }
                         .nativeContextMenuMonitor {
@@ -433,7 +447,7 @@ struct MainWindowView: View {
                             draggingGroup = group.name
                             return NSItemProvider(object: group.name as NSString)
                         }
-                        .onDrop(of: [.text], delegate: GroupDropDelegate(
+                        .onDrop(of: [.text, ClipItemDrag.type], delegate: GroupDropDelegate(
                             target: group.name,
                             dragging: $draggingGroup,
                             store: store,
@@ -502,10 +516,10 @@ struct MainWindowView: View {
         )
     }
 
-    private func sidebarRow(_ title: String, icon: String, badge: Int = 0, showsPreservedBadge: Bool = false, isActive: Bool, action: @escaping () -> Void) -> some View {
+    private func sidebarRow(_ title: String, icon: String, badge: Int = 0, showsPreservedBadge: Bool = false, iconColor: Color? = nil, isActive: Bool, action: @escaping () -> Void) -> some View {
         HStack {
             Image(systemName: icon)
-                .foregroundStyle(isActive ? .white : .secondary)
+                .foregroundStyle(isActive ? .white : (iconColor ?? .secondary))
                 .frame(width: 18)
             Text(title)
                 .foregroundStyle(isActive ? .white : .primary)
@@ -620,6 +634,11 @@ struct MainWindowView: View {
                     onAction: { handleMainCommandAction($0, item: item) },
                     onDismiss: { showCommandPalette = false }
                 )
+            },
+            onItemDrop: store.groupName == nil ? nil : { ids, beforeID in
+                guard let name = store.groupName else { return false }
+                let beforeItemID = beforeID.flatMap { historyItemMap[$0]?.itemID }
+                return SmartGroupItems.move(itemIDs: ids, in: name, before: beforeItemID, context: modelContext)
             }
         )
         .onChange(of: scrollTarget) { _, target in
@@ -699,6 +718,17 @@ struct MainWindowView: View {
         menu.append(.submenu(L10n.tr("action.assignGroup"), groupChildren))
         if targetItems.contains(where: { $0.groupName != nil }) {
             menu.append(.item(L10n.tr("action.removeFromGroup")) { removeFromGroup(items: targetItems) })
+        }
+        if let name = store.groupName {
+            menu.append(.item(L10n.tr("group.moveToStart")) {
+                let selectedIDs = Set(targetItems.map(\.itemID))
+                let descriptor = FetchDescriptor<ClipItem>(predicate: #Predicate { $0.groupName == name })
+                let remaining = SmartGroupItems.ordered((try? modelContext.fetch(descriptor)) ?? []).filter { !selectedIDs.contains($0.itemID) }
+                SmartGroupItems.move(targetItems, in: name, before: remaining.first?.itemID, context: modelContext)
+            })
+            menu.append(.item(L10n.tr("group.moveToEnd")) {
+                SmartGroupItems.move(targetItems, in: name, before: nil, context: modelContext)
+            })
         }
         menu.append(.separator)
         if multi {
@@ -1008,8 +1038,9 @@ struct MainWindowView: View {
     private func changeGroupIcon(name: String) {
         let descriptor = FetchDescriptor<SmartGroup>(predicate: #Predicate { $0.name == name })
         guard let group = try? modelContext.fetch(descriptor).first else { return }
-        guard let result = GroupEditorPanel.show(name: group.name, icon: group.icon, preservesItems: group.preservesItems) else { return }
+        guard let result = GroupEditorPanel.show(name: group.name, icon: group.icon, preservesItems: group.preservesItems, color: group.color) else { return }
         group.icon = result.icon
+        group.color = result.color
         group.preservesItems = result.preservesItems
         ClipItemStore.saveAndNotify(modelContext)
     }
@@ -1033,24 +1064,11 @@ struct MainWindowView: View {
     }
 
     private func assignToGroup(items: [ClipItem], name: String) {
-        for item in items {
-            let oldGroup = item.groupName
-            item.groupName = name
-            ClipboardManager.shared.upsertSmartGroup(name: name, context: modelContext)
-            if let oldGroup, !oldGroup.isEmpty {
-                ClipboardManager.shared.decrementSmartGroup(name: oldGroup, context: modelContext)
-            }
-        }
-        ClipItemStore.saveAndNotify(modelContext)
+        SmartGroupItems.assign(items, to: name, context: modelContext)
     }
 
     private func removeFromGroup(items: [ClipItem]) {
-        for item in items {
-            guard let name = item.groupName, !name.isEmpty else { continue }
-            item.groupName = nil
-            ClipboardManager.shared.decrementSmartGroup(name: name, context: modelContext)
-        }
-        ClipItemStore.saveAndNotify(modelContext)
+        SmartGroupItems.assign(items, to: nil, context: modelContext)
     }
 
     private func showNewGroupAlert(for items: [ClipItem]) {
@@ -1060,10 +1078,11 @@ struct MainWindowView: View {
         let descriptor = FetchDescriptor<SmartGroup>(predicate: #Predicate { $0.name == name })
         if let existing = try? modelContext.fetch(descriptor).first {
             existing.icon = result.icon
+            existing.color = result.color
             existing.preservesItems = result.preservesItems
         } else {
             let maxOrder = (try? modelContext.fetch(FetchDescriptor<SmartGroup>()))?.map(\.sortOrder).max() ?? -1
-            let group = SmartGroup(name: result.name, icon: result.icon, sortOrder: maxOrder + 1, preservesItems: result.preservesItems)
+            let group = SmartGroup(name: result.name, icon: result.icon, sortOrder: maxOrder + 1, color: result.color, preservesItems: result.preservesItems)
             modelContext.insert(group)
         }
         try? modelContext.save()
@@ -1496,6 +1515,9 @@ struct GroupDropDelegate: DropDelegate {
     let modelContext: ModelContext
 
     func performDrop(info: DropInfo) -> Bool {
+        if info.hasItemsConforming(to: [ClipItemDrag.type]) {
+            return SmartGroupItems.handleDrop(providers: info.itemProviders(for: [ClipItemDrag.type]), to: target, context: modelContext)
+        }
         guard dragging != nil else { return false }
         dragging = nil
         // Persist new sort order to SmartGroup table
@@ -1510,6 +1532,7 @@ struct GroupDropDelegate: DropDelegate {
     }
 
     func dropEntered(info: DropInfo) {
+        guard !info.hasItemsConforming(to: [ClipItemDrag.type]) else { return }
         guard let source = dragging, source != target else { return }
         var groups = store.sidebarCounts.byGroup
         guard let fromIdx = groups.firstIndex(where: { $0.name == source }),
@@ -1526,7 +1549,7 @@ struct GroupDropDelegate: DropDelegate {
     }
 
     func validateDrop(info: DropInfo) -> Bool {
-        dragging != nil
+        dragging != nil || info.hasItemsConforming(to: [ClipItemDrag.type])
     }
 }
 

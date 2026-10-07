@@ -136,17 +136,24 @@ enum AppMenuActions {
         let descriptor = FetchDescriptor<SmartGroup>(predicate: #Predicate { $0.name == resultName })
         if (try? context.fetch(descriptor).first) != nil { return }
         let maxOrder = (try? context.fetch(FetchDescriptor<SmartGroup>()))?.map(\.sortOrder).max() ?? -1
-        let group = SmartGroup(name: result.name, icon: result.icon, sortOrder: maxOrder + 1, preservesItems: result.preservesItems)
+        let group = SmartGroup(name: result.name, icon: result.icon, sortOrder: maxOrder + 1, color: result.color, preservesItems: result.preservesItems)
         context.insert(group)
         try? context.save()
         NotificationCenter.default.post(name: ClipItemStore.itemDidUpdateNotification, object: nil)
     }
 
     static func showEditGroupAlert(group: SmartGroup, context: ModelContext) {
-        guard let result = GroupEditorPanel.show(name: group.name, icon: group.icon, preservesItems: group.preservesItems) else { return }
+        guard let result = GroupEditorPanel.show(name: group.name, icon: group.icon, preservesItems: group.preservesItems, color: group.color) else { return }
         let oldName = group.name
+        let newName = result.name
+        let duplicates = FetchDescriptor<SmartGroup>(predicate: #Predicate { $0.name == newName })
+        guard !((try? context.fetch(duplicates)) ?? []).contains(where: { $0.persistentModelID != group.persistentModelID }) else {
+            showAlert(L10n.tr("group.nameExists"))
+            return
+        }
         group.name = result.name
         group.icon = result.icon
+        group.color = result.color
         group.preservesItems = result.preservesItems
         // 条目是按 groupName 字符串挂在分组上的（同 deleteGroup 里的清空逻辑），
         // 改完名不把条目迁过去，它们就挂在一个不存在的分组名下——侧边栏点新名字
@@ -165,7 +172,10 @@ enum AppMenuActions {
         guard let group = try? context.fetch(descriptor).first else { return }
         let itemDescriptor = FetchDescriptor<ClipItem>(predicate: #Predicate { $0.groupName == name })
         if let items = try? context.fetch(itemDescriptor) {
-            for item in items { item.groupName = nil }
+            for item in items {
+                item.groupName = nil
+                item.groupSortOrder = nil
+            }
         }
         context.delete(group)
         try? context.save()

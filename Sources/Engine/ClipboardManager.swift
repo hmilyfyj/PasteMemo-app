@@ -890,6 +890,7 @@ final class ClipboardManager: ObservableObject {
         }
         if existingItem.groupName == nil, let groupName = newItem.groupName, !groupName.isEmpty {
             existingItem.groupName = groupName
+            existingItem.groupSortOrder = newItem.groupSortOrder
             upsertSmartGroup(name: groupName, context: context)
         }
     }

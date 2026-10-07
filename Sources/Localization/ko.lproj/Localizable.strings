@@ -1,6 +1,21 @@
 /* App */
 "app.name" = "PasteMemo";
 
+/* Reusable groups */
+"group.color" = "색상";
+"group.color.default" = "기본";
+"group.color.blue" = "파랑";
+"group.color.purple" = "보라";
+"group.color.pink" = "분홍";
+"group.color.red" = "빨강";
+"group.color.orange" = "주황";
+"group.color.yellow" = "노랑";
+"group.color.green" = "초록";
+"group.color.teal" = "청록";
+"group.nameExists" = "같은 이름의 그룹이 이미 있습니다.";
+"group.moveToStart" = "그룹 맨 앞으로 이동";
+"group.moveToEnd" = "그룹 맨 뒤로 이동";
+
 /* Menu */
 "menu.checkForUpdates" = "업데이트 확인…";
 "menu.github" = "GitHub";

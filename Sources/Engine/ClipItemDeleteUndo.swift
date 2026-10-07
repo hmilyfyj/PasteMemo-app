@@ -28,6 +28,7 @@ struct ClipItemSnapshot {
     let filePaths: String?
     let pasteboardSnapshot: Data?
     let groupName: String?
+    let groupSortOrder: Int?
     let ocrText: String?
     let ocrStatus: String
     let ocrUpdatedAt: Date?
@@ -57,6 +58,7 @@ struct ClipItemSnapshot {
         filePaths = item.filePaths
         pasteboardSnapshot = item.pasteboardSnapshot
         groupName = item.groupName
+        groupSortOrder = item.groupSortOrder
         ocrText = item.ocrText
         ocrStatus = item.ocrStatus
         ocrUpdatedAt = item.ocrUpdatedAt
@@ -90,6 +92,7 @@ struct ClipItemSnapshot {
         item.faviconData = faviconData
         if let displayTitle { item.displayTitle = displayTitle }
         item.groupName = groupName
+        item.groupSortOrder = groupSortOrder
         item.ocrText = ocrText
         item.ocrStatus = ocrStatus
         item.ocrUpdatedAt = ocrUpdatedAt
