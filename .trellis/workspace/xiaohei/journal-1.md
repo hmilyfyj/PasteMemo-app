@@ -170,3 +170,25 @@ Added a vertical divider with horizontal padding before the first floating group
 ### Status
 
 [OK] **Completed**
+
+
+## Session 9: FEATURE-727 themes, motion and reusable groups
+<!-- trellis-session: v=2 fp=4061fa7a9b716355 -->
+
+**Date**: 2026-10-07
+**Task**: FEATURE-727 themes, motion and reusable groups
+**Branch**: `agent/agent/d7eea96cb399`
+
+### Summary
+
+Implemented scheme-aware bottom cards, reduced-motion-aware shared transitions, colored groups and persisted manual membership/order. 463 tests and make check passed; ARM stable app installed and old store migrated retaining 38403 records. Synthetic light/dark visuals reviewed. Native pointer drag and full interactive paste/preview remain unverified because AX tools could not operate the existing accessibility NSAlert.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c5d3ada` | feat: polish quick panel themes, motion and reusable groups |
+
+### Status
+
+[OK] **Completed**
