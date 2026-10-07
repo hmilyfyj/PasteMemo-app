@@ -3584,7 +3584,6 @@ extension QuickPanelView {
             }
             .id(scrollResetToken)
         }
-        .quickPanelBottomSection()
         .onDrop(of: [ClipItemDrag.type], isTargeted: nil) { providers in
             guard let name = store.groupName else { return false }
             return ClipItemDrag.load(providers) { ids in
