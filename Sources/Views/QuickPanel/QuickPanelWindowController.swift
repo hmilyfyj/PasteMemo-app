@@ -752,15 +752,19 @@ final class QuickPanelWindowController {
             width: QuickPanelBottomGeometry.minimumWidth,
             height: minimumHeight
         )
-        frameAnimation?.cancel(finish: false)
-        frameAnimation = nil
-        if animated && QuickPanelMotion.allowsAppKitMovement {
-            var start = target
-            start.origin.y -= 12
-            frameAnimation = QuickPanelFrameAnimation(window: panel, from: start, to: target)
-        } else {
-            panel.setFrame(target, display: true)
-            panel.alphaValue = 1
+        // A repeated positioning request while the entrance is already heading to
+        // this exact frame (layout callbacks issue them) must not restart the slide.
+        if frameAnimation?.target != target {
+            frameAnimation?.cancel(finish: false)
+            frameAnimation = nil
+            if animated && QuickPanelMotion.allowsAppKitMovement {
+                var start = target
+                start.origin.y -= QuickPanelMotion.bottomEntranceOffset
+                frameAnimation = QuickPanelFrameAnimation(window: panel, from: start, to: target)
+            } else {
+                panel.setFrame(target, display: true)
+                panel.alphaValue = 1
+            }
         }
         // Programmatic mode changes don't trigger didEndLiveResize. Sync after
         // setFrame, outside AppKit's layout callback, so cards use the new height.
