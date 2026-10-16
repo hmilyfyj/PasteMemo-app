@@ -7,6 +7,13 @@ enum QuickPanelMotion {
     static let feedbackDuration = 0.12
     static let presentationDuration = 0.18
 
+    /// Bottom entrance: wider travel than the classic styles, with an ease that
+    /// covers most of the distance in its first frames so a late main-thread
+    /// layout pass cannot leave the panel visibly short of its target.
+    static let bottomEntranceDuration = 0.24
+    static let bottomEntranceOffset: CGFloat = 28
+    static let bottomEntranceStartAlpha: CGFloat = 0.92
+
     static func allowsMovement(reduceMotion: Bool, enabled: Bool = true) -> Bool {
         enabled && !reduceMotion
     }
@@ -38,7 +45,7 @@ enum QuickPanelMotion {
 final class QuickPanelFrameAnimation {
     private weak var window: NSWindow?
     private let start: NSRect
-    private let target: NSRect
+    let target: NSRect
     private let began = ProcessInfo.processInfo.systemUptime
     private var timer: Timer?
 
@@ -51,7 +58,7 @@ final class QuickPanelFrameAnimation {
         self.start = start
         self.target = target
         window.setFrame(start, display: true)
-        window.alphaValue = 0.94
+        window.alphaValue = QuickPanelMotion.bottomEntranceStartAlpha
         let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] timer in
             guard self != nil else { timer.invalidate(); return }
             MainActor.assumeIsolated { self?.tick() }
@@ -73,16 +80,16 @@ final class QuickPanelFrameAnimation {
     private func tick() {
         guard let window else { cancel(finish: false); return }
         let elapsed = ProcessInfo.processInfo.systemUptime - began
-        let progress = min(max(elapsed / QuickPanelMotion.presentationDuration, 0), 1)
-        let eased = 1 - pow(1 - progress, 3)
-        let frame = NSRect(
-            x: start.minX + (target.minX - start.minX) * eased,
-            y: start.minY + (target.minY - start.minY) * eased,
-            width: start.width + (target.width - start.width) * eased,
-            height: start.height + (target.height - start.height) * eased
-        )
+        let progress = min(max(elapsed / QuickPanelMotion.bottomEntranceDuration, 0), 1)
+        let eased = 1 - pow(1 - progress, 5)
+        // Move the origin only: a resize that lands mid-entrance stays in effect
+        // instead of being reverted by the next tick.
+        var frame = window.frame
+        frame.origin.x = start.minX + (target.minX - start.minX) * eased
+        frame.origin.y = start.minY + (target.minY - start.minY) * eased
         window.setFrame(frame, display: true)
-        window.alphaValue = 0.94 + 0.06 * eased
+        window.alphaValue = QuickPanelMotion.bottomEntranceStartAlpha
+            + (1 - QuickPanelMotion.bottomEntranceStartAlpha) * eased
         if progress >= 1 { cancel(finish: true) }
     }
 }
